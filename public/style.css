@@ -543,10 +543,52 @@ body.tv .tv-clock { display: inline; }
 body.tv .top { position: static; }
 body.tv .top a.btn[href="/settings"], body.tv .ev-actions, body.tv .ev-acts, body.tv .alert-acts,
 body.tv .mini-btn, body.tv .roll-toggle, body.tv #plays-table-toggle { display: none !important; }
-body.tv #watch-card, body.tv main section.card:has(#libraries) { display: none !important; }
-body.tv main { max-width: none; }
-@media (min-width: 1200px) { body.tv main { zoom: 1.2; } }
-@media (min-width: 2400px) { body.tv main { zoom: 1.6; } }
+/* TV mode is a glance view that never scrolls: only what needs attention right now.
+   Library, calendar, posters, requests, charts, storage and host are hidden, empty cards
+   (rolled up) disappear, and long lists are cut short. app.js then scales the page to fit. */
+body.tv [data-tv-hide], body.tv .card.collapsed { display: none !important; }
+body.tv .grid.two:has(> [data-tv-hide]), body.tv .grid.two:has(> .card.collapsed) { grid-template-columns: minmax(0, 1fr); }
+body.tv #events > :nth-child(n+6), body.tv #queue > :nth-child(n+4) { display: none; }
+body.tv .ev-filters { display: none; }
+/* Server cards: keep the array/pools, show only disks with a problem. */
+body.tv .udisk:not(.bad):not(:has(.temp.warn, .temp.crit, .bar.crit, .m.hot)) { display: none; }
+html:has(body.tv) { overflow: hidden; }
+body.tv { height: 100dvh; display: flex; flex-direction: column; }
+body.tv main { max-width: none; flex: 1; min-height: 0; padding-bottom: 16px; display: flex; flex-direction: column; }
+body.tv .dash { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.tv .alerts > :nth-child(n+3) { display: none; }
+#tv-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.tv-col { display: flex; flex-direction: column; gap: 16px; min-height: 0; overflow: hidden; }
+.tv-col > .card { flex: 0 1 auto; min-height: 0; overflow: hidden; }
+#tv-left > #map-card { flex: 1 1 0; display: flex; flex-direction: column; }
+#tv-left > #now-playing { flex: 0 1 auto; max-height: 62%; }
+#tv-left > #now-playing:only-child, #tv-left > #now-playing:has(+ #map-card.collapsed),
+#tv-left > #now-playing:has(+ #map-card[hidden]) { max-height: none; }
+body.tv #map-card .map-wrap { flex: 1; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+body.tv #map-card .map-side { overflow: hidden; }
+body.tv #map-card .map { height: 100%; }
+body.tv #map-card .map { min-height: 0; overflow: hidden; }
+body.tv #map-card .map svg { width: 100%; height: 100%; }
+body.tv main { width: 100%; }
+/* Nobody watching: the left column only has "Nothing playing", so give the right more room. */
+#tv-cols:has(#map-card.collapsed, #map-card[hidden]) { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+/* Compact pieces: services as name tiles (details only when one is down), streams two across,
+   no transcode explanation. */
+body.tv .services { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+body.tv .svc .uprow, body.tv .svc:not(.down) .meta { display: none; }
+body.tv .svc { padding-top: 8px; padding-bottom: 8px; }
+/* Space goes to what matters most: services and the server card keep their size, the
+   errors list and download queue give way first. Headline numbers stay on one row. */
+#tv-right > #services-card, #tv-right > #unraid-card, #tv-right > #truenas-card { flex-shrink: 0; }
+#tv-right > #events-card { flex-shrink: 2; }
+#tv-right > #downloads-card { flex-shrink: 5; }
+body.tv .kpis { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-columns: none; }
+@media (max-height: 800px) { body.tv .kpi .foot { display: none; } body.tv .alerts > :nth-child(n+2) { display: none; } }
+body.tv .streams { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+body.tv .stream .why { display: none; }
+/* Text a little larger on big screens. */
+@media (min-width: 1800px) { body.tv { font-size: 17px; } }
+@media (min-width: 2400px) { body.tv { font-size: 22px; } }
 body.tv.idle, body.tv.idle * { cursor: none !important; }
 
 /* settings: notifications */

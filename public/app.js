@@ -351,8 +351,11 @@ function renderMap(plex) {
     vy = Math.min(H - vh, Math.max(0, (Math.min(...ys) + Math.max(...ys)) / 2 - vh / 2));
   }
   // k = map units per screen pixel, so dots and labels keep the same on-screen size at any
-  // zoom level and any card width (the map re-renders on resize).
-  const k = vw / Math.max(240, $('map').clientWidth || 800) * 1.3;
+  // zoom level and any card width (the map re-renders on resize). In TV mode the map is fitted
+  // into a fixed-height box, so the height can be what limits it.
+  const mapEl = $('map');
+  const tvFit = document.body.classList.contains('tv') && mapEl.clientHeight > 60 ? vh / mapEl.clientHeight : 0;
+  const k = Math.max(vw / Math.max(240, mapEl.clientWidth || 800), tvFit) * 1.3;
   const f = v => v.toFixed(1);
   let svg = `<svg viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}" role="img" aria-label="World map: ${remote.length} remote and ${atHome.length} local streams">`;
   svg += `<path class="grat" d="${MAP_GRATICULE}"/><path class="land" d="${land}"/>`;
@@ -1057,6 +1060,36 @@ function setTvMode(on) {
   history.replaceState(null, '', url);
   lastHTML.clear();
   if (state) render(state);
+  tvLayout(on);
+  lastHTML.clear();
+  if (state) render(state);
+}
+
+// TV mode gets its own screen-sized layout instead of the long scrolling page: the headline
+// row on top, then what's playing and the stream map on the left, and the things that need
+// attention (services, errors, downloads, the server) on the right. Cards are moved into
+// the two columns and put back exactly where they were on exit. Anything that doesn't fit is
+// cut off rather than scrolled.
+const TV_LEFT = ['now-playing', 'map-card'];
+const TV_RIGHT = ['services-card', 'events-card', 'downloads-card', 'unraid-card', 'truenas-card'];
+const tvHomes = [];
+function tvLayout(on) {
+  if (on && !tvHomes.length) {
+    const cols = document.createElement('div');
+    cols.id = 'tv-cols';
+    cols.innerHTML = '<div class="tv-col" id="tv-left"></div><div class="tv-col" id="tv-right"></div>';
+    $('kpis').after(cols);
+    for (const [ids, col] of [[TV_LEFT, 'tv-left'], [TV_RIGHT, 'tv-right']]) for (const id of ids) {
+      const el = $(id);
+      const home = document.createComment(id);
+      el.before(home);
+      tvHomes.push([home, el]);
+      $(col).append(el);
+    }
+  } else if (!on && tvHomes.length) {
+    for (const [home, el] of tvHomes.splice(0)) home.replaceWith(el);
+    $('tv-cols')?.remove();
+  }
 }
 $('tv-toggle').addEventListener('click', async () => {
   const on = !document.body.classList.contains('tv');

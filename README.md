@@ -5,7 +5,7 @@ A live dashboard for a Plex + *arr server. It shows:
 - **Services**: which apps are up or down, with version and response time, plus every Docker container on the box.
 - **Now playing**: who's streaming what, on which device, direct play vs. transcode (and whether it's hardware), bandwidth, LAN/WAN, and progress.
 - **Stream map**: a world map with a dot for every remote viewer, a line from your server to each one, and local viewers at the home pin. It zooms to fit your viewers, and hovering a dot shows who's watching what. Locations are city-level, from Plex's own GeoIP lookup (no third-party service, and IPs never reach the browser). Your server's location is found automatically from Plex, or you can set it under Settings → General.
-- **Errors & warnings**: one feed for the whole stack. It includes:
+- **Errors & warnings**: rolls up to a slim bar when there's nothing to show (so do Downloads, Requests and the map). One feed for the whole stack. It includes:
   - error/warning log lines from Sonarr, Radarr, Lidarr and Prowlarr
   - *arr health checks
   - queue items stuck on import
@@ -36,14 +36,14 @@ A live dashboard for a Plex + *arr server. It shows:
 - **Backup and restore** (Settings): download everything as one file, or restore from one. The file includes your API keys, so keep it private.
 - **Dashboard login** (Settings → Security): optionally require the settings password to view the dashboard too, for sharing it outside your home.
 - **Admin actions** (behind the settings password, if one is set): **Stop** a stream with a message the viewer sees (needs Plex Pass), and for stuck downloads **Retry** the import or **Replace…** it (remove, blocklist, search for another).
-- **TV mode**: a full-screen, larger, read-only view with a clock. Edit buttons are hidden and the mouse pointer hides when idle. Open `http://<server>:8484/?tv=1` on a wall tablet or TV browser to start straight in it.
+- **TV mode**: a full-screen, read-only glance view that fits on one screen with no scrolling. It shows the headline numbers, what's playing, the stream map, services, and errors, downloads and server health when there's something to show. Library, calendar, posters, requests and charts are left out. The mouse pointer hides when idle. Open `http://<server>:8484/?tv=1` on a wall tablet or TV browser to start straight in it.
 - **Add to home screen**: install it like an app on your phone, with an icon, full-screen view and shortcuts to TV mode and Settings.
 - **Library**: Plex library counts, and *arr totals (series, episodes, movies, missing, size on disk).
 - **Downloads, Coming up, Watch stats** (Tautulli), **Storage** and **Host**.
 
 ## Install on Unraid
 
-The image is published to GitHub Container Registry by `.github/workflows/docker.yml` (see "Publishing the image" below).
+The image is `ghcr.io/kaiserhomelab/media-ops:latest`.
 
 **Option A: Unraid template (Docker tab UI)**
 1. Save `unraid-template.xml` as `/boot/config/plugins/dockerMan/templates-user/my-media-ops.xml` on the Unraid flash drive.
@@ -83,28 +83,6 @@ You need access to the server itself. Use any one of these:
 
 Settings are stored in `/config/config.json` (i.e. `/mnt/user/appdata/media-ops/config.json`). Back up that folder and you've backed up everything.
 
-### Clonarr
-
-The dashboard uses Clonarr's `/api/widget/summary` endpoint. It shows instances, sync profiles, profiles with errors, the last TRaSH pull and the last sync. Sync errors go into the Errors feed. The API key is under Clonarr **Settings → Security**. If your Clonarr build is older than that endpoint, it shows as up/down only and the test result tells you so.
-
-## Publishing the image
-
-1. Create the repo `KaiserHomeLab/media-ops` on GitHub and push this folder to `main`.
-2. The **Docker image** workflow builds `linux/amd64` + `linux/arm64` and pushes `ghcr.io/kaiserhomelab/media-ops:latest`. It also pushes a version tag when you push a tag such as `v1.0.0`.
-3. In GitHub → your profile → **Packages** → `media-ops` → Package settings, set visibility to **Public** so Unraid can pull it without logging in.
-
-Without GitHub, you can build on the Unraid box directly: copy the folder over and run `docker build -t media-ops .`, then use `media-ops` as the repository in the template.
-
-## Run locally
-
-```bash
-npm start          # real mode; settings saved to ./data/config.json
-npm run demo       # fake data, to see what the dashboard looks like
-DEMO=truenas node server.js   # the same, with a TrueNAS server instead of Unraid
-```
-
-Requires Node 20+. There are no dependencies to install.
-
 ## The container
 
 Built like a linuxserver.io image, on their `baseimage-alpine` with the s6-overlay process supervisor:
@@ -134,7 +112,7 @@ The server keeps checking your apps every refresh interval (at least every 10 s)
 
 ## How it works
 
-`server.js` polls every enabled app in parallel, with a 15-second timeout each. Results are cached for a few seconds so several open tabs don't hammer your server. Slow-changing data is cached longer: Plex library counts and Tautulli stats for 5 minutes, logs for 1 minute. Saving a setting clears the cache, so changes show on the next refresh without a restart.
+`server.js` polls every enabled app in parallel, with a 15-second timeout each. Results are cached for a few seconds so several open tabs don't hammer your server. Slow-changing data is cached longer: library totals, calendars and Tautulli stats for 5 minutes, logs for 1 minute. Saving a setting clears the cache, so changes show on the next refresh without a restart.
 
 - Collectors live in `lib/collectors.js`, one function per app.
 - The settings-form definition for each app is in `lib/kinds.js`.
@@ -143,13 +121,13 @@ The server keeps checking your apps every refresh interval (at least every 10 s)
 
 ## Troubleshooting
 
-**Settings → Diagnostics → Run diagnostics** checks every app live and shows each API call it made: address, status, timing and a sample of the reply. **Copy debug report** gives you a report you can paste into a GitHub issue. Keys, tokens, viewer IP addresses and usernames are removed from it.
+**Settings → Diagnostics → Run diagnostics** checks every app live and shows each API call it made: address, status, timing and a sample of the reply. **Copy short report** gives you a report you can paste into a GitHub issue or chat; **Download full report** includes each app's replies. Keys, tokens, viewer IP addresses and usernames are removed from it.
 
 ## Development
 
 ```bash
 npm test        # node --test test/*.test.js  (no dependencies)
-npm run demo    # fake data on http://localhost:8484
+npm run demo    # fake data on http://localhost:8484 (DEMO=truenas node server.js for TrueNAS)
 ```
 
 Tests run the collectors against a fake server answering with recorded-style replies (`test/fixtures/`). GitHub Actions runs them on Node 22 and 24 before every image build.
@@ -167,7 +145,7 @@ linuxserver.io image.
 
 This dashboard only exists because of the projects it talks to: Sonarr, Radarr, Lidarr,
 Readarr, Prowlarr, Bazarr, Tautulli, Seerr/Overseerr/Jellyseerr, SABnzbd, qBittorrent,
-Clonarr and TRaSH Guides, plus Plex. Thanks also to linuxserver.io for the base image and
+Clonarr and TRaSH Guides, Unraid and TrueNAS, plus Plex. Thanks also to linuxserver.io for the base image and
 container conventions. Media Ops uses only their public APIs and includes none of their code.
 Licenses and links are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 

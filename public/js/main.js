@@ -12,7 +12,7 @@ import { renderStreams } from './streams.js';
 import { renderKpis, renderLibrary, renderServices } from './summary.js';
 import { renderDisks, renderHost, renderTrueNAS, renderUnraid } from './system.js';
 import { setTvMode } from './tv.js';
-import { $, ago, esc, lastHTML, setHTML, store, uptime } from './util.js';
+import { $, esc, lastHTML, setHTML, store, uptime } from './util.js';
 
 // --------------------------------------------------------------------- polling
 let lastOk = 0;
@@ -113,7 +113,7 @@ function renderAlerts(d) {
     key: e.key, svcId: e.svcId,
   }));
   if (Array.isArray(d.docker))
-    for (const c of d.docker.filter(c => c.health === 'unhealthy'))
+    for (const c of d.docker.filter(x => x.health === 'unhealthy'))
       items.push({ cls: 'error', html: `<b>${esc(c.name)}</b> container is unhealthy` });
 
   const el = $('alerts');

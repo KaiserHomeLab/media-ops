@@ -10,7 +10,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 let S = null;          // settings payload from the server
-let status = {};       // service id -> { up, error, version }
+let appStatus = {};    // service id -> { up, error, version }
 const modal = $('modal');
 
 async function api(path, { method = 'GET', body } = {}) {
@@ -58,7 +58,7 @@ async function loadStatus() {
   if (S.demo || !S.services.length) return;
   try {
     const o = await (await fetch('/api/overview')).json();
-    status = Object.fromEntries(o.services.map(s => [s.id, s]));
+    appStatus = Object.fromEntries(o.services.map(s => [s.id, s]));
     renderApps();
   } catch { /* the cards just show without a status dot */ }
 }
@@ -122,7 +122,7 @@ const abbrev = name => esc(name.replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).map(w
 function renderApps() {
   $('apps-count').textContent = S.services.length ? `${S.services.length} connected` : '';
   const cards = S.services.map(s => {
-    const st = status[s.id];
+    const st = appStatus[s.id];
     const dot = s.enabled === false ? '' : st ? `<span class="dot ${st.up ? 'up' : 'down'}" title="${esc(st.up ? 'Connected' : st.error)}"></span>` : '';
     return `<button type="button" class="app-card${s.enabled === false ? ' off' : ''}" draggable="true" data-id="${esc(s.id)}">
       <span class="app-icon k-${esc(s.kind)}" aria-hidden="true">${abbrev(kindDef(s.kind).label)}</span>
@@ -309,7 +309,7 @@ function openForm(kind, svc = null) {
         ? await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'PUT', body })
         : await api('/services', { method: 'POST', body });
       S.services = svc ? S.services.map(s => (s.id === saved.id ? saved : s)) : [...S.services, saved];
-      delete status[saved.id];
+      delete appStatus[saved.id];
       modal.close();
       renderApps();
       loadStatus();

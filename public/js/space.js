@@ -19,7 +19,7 @@ export function renderSpace(sp) {
   const c = sp.cleanup;
   $('space-sub').textContent = c?.count ? `${bytes(c.total)} in ${c.count} title${c.count === 1 ? '' : 's'} nobody watched in ${daysText(c.days)}` : '';
 
-  let list = [], note = '', sizeOf = x => x.size, extra = () => '';
+  let list = [], note, sizeOf = x => x.size, extra = () => '';
   if (spaceTab === 'biggest') {
     list = sp.biggest;
     note = 'The largest series, movies and artists, from Sonarr, Radarr and Lidarr.';

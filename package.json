@@ -11,7 +11,8 @@
   "scripts": {
     "start": "node server.js",
     "demo": "DEMO=1 node server.js",
-    "reset-password": "node bin/reset-password.js"
+    "reset-password": "node bin/reset-password.js",
+    "lint": "eslint ."
   },
   "repository": {
     "type": "git",
@@ -33,5 +34,10 @@
     "unraid",
     "dashboard",
     "homelab"
-  ]
+  ],
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "globals": "17.13.0"
+  }
 }

@@ -114,5 +114,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Published with a signed record of how and from what it was built (SLSA provenance)
+          # and a list of every package inside (SBOM): `docker buildx imagetools inspect`.
+          provenance: mode=max
+          sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max

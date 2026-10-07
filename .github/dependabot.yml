@@ -1,0 +1,32 @@
+# Weekly update PRs, grouped so each ecosystem is one PR. Every PR runs the full CI.
+version: 2
+updates:
+  # The pinned GitHub Actions in .github/workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'ci'
+
+  # The base image (pinned to a digest in the Dockerfile)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: 'docker'
+
+  # Development tools only (ESLint, Prettier); the app has no runtime dependencies
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-tools:
+        patterns: ['*']
+    commit-message:
+      prefix: 'dev'

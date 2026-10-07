@@ -32,5 +32,8 @@ there as soon as I can.
   be shared.
 - Without the dashboard login, don't expose port 8484 to the internet unless a reverse proxy in
   front of it adds authentication.
+- **TrueNAS** is always reached over `wss://` (TrueNAS revokes API keys sent over plain http). Its
+  certificate isn't verified, because TrueNAS ships with a self-signed one; use it on your LAN, and
+  give Media Ops a user with the read-only administrator role.
 - Mounting the Docker socket gives the container root-equivalent access to the host. Media
   Ops only reads the container list, but leave the socket out if you don't need that panel.

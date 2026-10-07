@@ -23,6 +23,11 @@ A live dashboard for a Plex + *arr server. It shows:
 - **Disk forecast**: "Full in ~N weeks at +X GB/day", from a straight-line fit over the last 30 days. It starts after 3 days of data.
 - **Why it's transcoding**: each transcoding stream shows a likely reason (client can't play the codec, quality limit, subtitles being burned in, audio conversion), worked out from what Plex reports. 4K transcodes get a red badge.
 - **Unraid**: add it as an app (Settings → Add app → Unraid, with an API key from Unraid's **Settings → Management Access → API Keys**; a read-only *viewer* key is enough; needs Unraid 7.2+ or the Unraid Connect plugin). Shows array state, parity-check progress and history, and every disk's temperature, fill level, spin state and errors. Alerts for disabled or missing disks, hot disks (45/55 °C for hard drives, 60/70 °C for SSDs), disks past Unraid's critical fill level, read/write errors, and parity errors.
+- **TrueNAS**: add it as an app (Settings → Add app → TrueNAS; needs TrueNAS 25.04 or newer). Shows every pool's health, used space and scrub/resilver progress, every disk's temperature, your TrueNAS apps (running, stopped, crashed, updates available), and TrueNAS's own active alerts. Alerts for unhealthy pools, scrub errors, hot disks, crashed apps and TrueNAS warnings. It uses TrueNAS's WebSocket API (the REST API was removed in TrueNAS 26) and always connects over `wss://`, because TrueNAS revokes an API key that's ever sent over plain http. Setup:
+  1. TrueNAS → Credentials → Users → **Add** a user (e.g. `mediaops`) with the **Read-Only Administrator** role.
+  2. Your user menu (top right) → **API Keys** → **Add**, for that user. Copy the key.
+  3. In Media Ops, enter the TrueNAS address, the username and the key.
+- **Knows where it's running**: on Unraid or TrueNAS, Settings offers to add that server in one click (it reads the host's kernel name, which containers share).
 - **GPU and Plex load**: the Host panel shows Plex's own CPU use (from Plex's resource statistics) and your GPU: Intel iGPU and AMD read from the host drivers through `/sys`, Nvidia through `nvidia-smi` when the container uses the Nvidia runtime.
 - **Recently added**: the newest posters in Plex, and what Sonarr and Radarr imported in the last two days, with quality.
 - **Requests**: pending Seerr/Overseerr/Jellyseerr requests with **Approve** and **Decline** buttons.
@@ -48,11 +53,19 @@ The image is published to GitHub Container Registry by `.github/workflows/docker
 
 Then open `http://<unraid-ip>:8484`, click **Settings**, and add your apps.
 
+## Install on TrueNAS
+
+TrueNAS 24.10 and newer run apps with Docker:
+
+1. Create a folder for the settings, e.g. a dataset `tank/apps/media-ops`. Give the `apps` user (568) write access.
+2. Apps → **Discover Apps** → ⋮ → **Install via YAML**, and paste `truenas-compose.yml`. Change `tank` to your pool's name.
+3. Open `http://<truenas-ip>:8484` → **Settings**. Under General, set the disk paths to your pool (e.g. `/mnt/tank`), then add your apps and **TrueNAS** itself.
+
 ## Adding apps
 
 Settings → **Add app** → pick the app → enter its address and API key → **Test** → **Save**.
 
-- Use the Unraid server's IP (e.g. `http://192.168.1.10:8989`), not `localhost`. Inside a container, `localhost` refers to the container itself. The form pre-fills the IP of the last app you added.
+- Use the server's IP (e.g. `http://192.168.1.10:8989`), not `localhost`. Inside a container, `localhost` refers to the container itself. The form pre-fills the IP of the last app you added.
 - Each form says where that app keeps its API key.
 - **Save** tests the connection first, like Prowlarr. If the test fails, the button becomes **Save anyway**.
 - To run two of the same app (e.g. Sonarr and Sonarr Anime), add Sonarr twice with different names.
@@ -87,6 +100,7 @@ Without GitHub, you can build on the Unraid box directly: copy the folder over a
 ```bash
 npm start          # real mode; settings saved to ./data/config.json
 npm run demo       # fake data, to see what the dashboard looks like
+DEMO=truenas node server.js   # the same, with a TrueNAS server instead of Unraid
 ```
 
 Requires Node 20+. There are no dependencies to install.
@@ -103,7 +117,7 @@ Built like a linuxserver.io image, on their `baseimage-alpine` with the s6-overl
 
 | Variable | Default | |
 |---|---|---|
-| `PUID` / `PGID` | `911` | User/group the app runs as (Unraid: `99` / `100`) |
+| `PUID` / `PGID` | `911` | User/group the app runs as (Unraid: `99` / `100`, TrueNAS: `568` / `568`) |
 | `TZ` | `Etc/UTC` | Time zone, e.g. `America/Chicago` |
 | `UMASK` | `022` | File creation mask |
 | `HOST_NAME` | container ID | Name shown in the dashboard header |

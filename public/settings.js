@@ -132,7 +132,18 @@ function renderApps() {
   });
   cards.push(`<button type="button" class="app-card add" id="add-app"><span class="plus" aria-hidden="true">+</span><span>Add app</span></button>`);
   $('apps').innerHTML = cards.join('');
+
+  // Running on Unraid or TrueNAS and it isn't added yet: offer it.
+  const os = S.hostOs && S.kinds.find(k => k.kind === S.hostOs);
+  const offer = os && !S.services.some(s => s.kind === os.kind);
+  $('detected').hidden = !offer;
+  if (offer) $('detected').innerHTML = `<span>Media Ops is running on <b>${esc(os.label)}</b>. Add it to see ${os.kind === 'truenas' ? 'pools, disks, apps and alerts' : 'the array, parity checks and disks'} on the dashboard.</span>
+    <button class="btn small primary" type="button" data-add-kind="${esc(os.kind)}">Add ${esc(os.label)}</button>`;
 }
+$('detected').addEventListener('click', e => {
+  const b = e.target.closest('[data-add-kind]');
+  if (b) openForm(b.dataset.addKind);
+});
 
 $('apps').addEventListener('click', e => {
   const card = e.target.closest('.app-card');
@@ -185,7 +196,7 @@ function openPicker() {
     <h3 class="pick-group">${esc(g)}</h3>
     <div class="pick-grid">${S.kinds.filter(k => k.group === g).map(k => `
       <button type="button" class="pick" data-kind="${esc(k.kind)}">
-        <span class="app-icon k-${esc(k.kind)}" aria-hidden="true">${abbrev(k.label)}</span>${esc(k.label)}
+        <span class="app-icon k-${esc(k.kind)}" aria-hidden="true">${abbrev(k.label)}</span>${esc(k.label)}${k.kind === S.hostOs ? ' <span class="tag">this server</span>' : ''}
       </button>`).join('')}
     </div>`).join(''));
   $('modal-body').querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => openForm(b.dataset.kind)));
@@ -197,6 +208,7 @@ function suggestUrl(def) {
   let host = location.hostname;
   const first = S.services[0];
   if (first) try { host = new URL(first.url).hostname; } catch {}
+  if (def.kind === 'truenas') return `https://${host}`;
   return def.port ? `http://${host}:${def.port}` : `http://${host}`;
 }
 

@@ -5,9 +5,9 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { fixture, fakeServer } = require('./helpers');
+const { fixture, fakeServer, fakeTrueNAS } = require('./helpers');
 const c = require('../lib/collectors');
-const { clearCache } = require('../lib/http');
+const { clearCache, trace } = require('../lib/http');
 
 const arrRoutes = (prefix, extra) => ({
   [`${prefix}/system/status`]: { version: '4.0.15' },
@@ -158,4 +158,62 @@ test('ping: 401 still counts as up, 5xx is down', async t => {
   t.after(() => srv.close());
   assert.ok(await c.ping({ url: `${srv.url}/up` }));
   await assert.rejects(c.ping({ url: `${srv.url}/down` }));
+});
+
+test('truenas: logs in over wss with the key, reuses the connection, maps pools, disks, alerts, apps', async t => {
+  const big = 'x'.repeat(70000); // forces the 64-bit frame length path
+  const nas = await fakeTrueNAS({
+    __users: { mediaops: 'tn-key' },
+    'system.info': { version: 'TrueNAS-SCALE-25.10.1', hostname: 'nas', padding: big },
+    'pool.query': [
+      { name: 'tank', status: 'DEGRADED', healthy: false, size: 100, allocated: 85, free: 15, scan: { function: 'SCRUB', state: 'FINISHED', percentage: 100, errors: 3, end_time: { $date: 1790000000000 } } },
+      { name: 'apps', status: 'ONLINE', healthy: true, size: 10, allocated: 1, free: 9, scan: null },
+    ],
+    'disk.query': [{ name: 'sda', type: 'HDD', size: 18e12, pool: 'tank', serial: 'SECRET123' }, { name: 'nvme0n1', type: 'SSD', size: 2e12, pool: 'apps' }],
+    'disk.temperatures': ([names]) => Object.fromEntries(names.map(n => [n, n === 'sda' ? 56 : 41])),
+    'alert.list': [
+      { level: 'CRITICAL', klass: 'VolumeStatus', formatted: 'Pool tank state is <b>DEGRADED</b>', dismissed: false },
+      { level: 'WARNING', klass: 'Update', text: 'Update available', dismissed: true },
+      { level: 'INFO', klass: 'Info', text: 'fyi', dismissed: false },
+    ],
+    'app.query': [{ name: 'plex', state: 'RUNNING', upgrade_available: true }, { name: 'bazarr', state: 'CRASHED' }],
+  });
+  t.after(() => nas.close());
+  const cfg = { url: nas.url, username: 'mediaops', apiKey: 'tn-key' };
+  const r = await c.truenas(cfg);
+  assert.equal(r.version, '25.10.1');
+  assert.equal(r.data.server, 'nas');
+  assert.deepEqual(r.data.capacity, { total: 110, used: 86 });
+  assert.equal(r.data.pools[0].scan.end, 1790000000000);
+  const sda = r.data.disks.find(d => d.name === 'sda');
+  assert.deepEqual([sda.temp, sda.role, sda.ssd], [56, 'tank', false]);
+  assert.equal(r.data.disks.find(d => d.name === 'nvme0n1').tempWarn, 60, 'SSD limits');
+  const msgs = r.data.events.map(e => `${e.level} ${e.source} ${e.message}`);
+  assert.ok(msgs.includes('error TrueNAS Pool tank state is DEGRADED'), 'alert HTML stripped');
+  assert.ok(!msgs.some(m => /Pool tank is degraded/.test(m)), "no duplicate when TrueNAS already alerts on the pool");
+  assert.ok(msgs.includes('warn Pool Last scrub of tank found 3 errors'));
+  assert.ok(msgs.includes('error Pool Disk sda is critically hot'));
+  assert.ok(msgs.includes('error Apps App bazarr has crashed'));
+  assert.ok(!msgs.some(m => /Update available|fyi/.test(m)), 'dismissed and info alerts skipped');
+  assert.equal(r.data.alerts, 1);
+
+  await c.truenas(cfg);
+  assert.equal(nas.state.logins, 1, 'connection reused between polls');
+  nas.dropConnections();
+  await new Promise(res => setTimeout(res, 50));
+  await c.truenas(cfg);
+  assert.equal(nas.state.logins, 2, 'reconnects after the connection drops');
+
+  // Diagnostics: own connection, calls recorded, key and serial numbers never in the report.
+  const store = { calls: [] };
+  await trace.run(store, () => c.truenas(cfg));
+  assert.ok(store.calls.some(x => x.url.endsWith('· pool.query') && x.status === 'ok'));
+  assert.ok(!store.calls.some(x => /login/.test(x.url)), 'login call not recorded');
+  assert.ok(!JSON.stringify(store.calls).includes('tn-key') && !JSON.stringify(store.calls).includes('SECRET123'));
+});
+
+test('truenas: wrong key gives a clear error', async t => {
+  const nas = await fakeTrueNAS({ __users: { mediaops: 'right' } });
+  t.after(() => nas.close());
+  await assert.rejects(c.truenas({ url: nas.url, username: 'mediaops', apiKey: 'wrong' }), /refused the API key/);
 });

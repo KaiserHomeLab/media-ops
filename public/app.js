@@ -106,6 +106,7 @@ function render(d) {
   renderWatch(up('tautulli')[0]);
   renderTrends();
   renderUnraid(up('unraid')[0]);
+  renderTrueNAS(up('truenas')[0]);
   renderRecent(plex, arrs);
   renderRequests(all(['seerr', 'overseerr', 'jellyseerr']));
   renderDisks(d, arrs);
@@ -880,6 +881,50 @@ function renderUnraid(u) {
       ${bad ? `<div class="m hot">✕ ${esc(k.status.replace('DISK_', '').toLowerCase())}</div>` : k.errors ? `<div class="m hot">⚠ ${k.errors} errors</div>` : ''}
     </div>`;
   }).join(''));
+}
+
+// --------------------------------------------------------------------- TrueNAS
+const udiskTile = k => {
+  const hot = k.temp != null && k.temp >= k.tempCrit ? 'crit' : k.temp != null && k.temp >= k.tempWarn ? 'warn' : '';
+  return `<div class="udisk" title="${esc(`${k.name}${k.model ? ` · ${k.model}` : ''} · ${k.ssd ? 'SSD' : 'HDD'} · ${bytes(k.size)}${k.temp != null ? ` · ${k.temp} °C (warn ${k.tempWarn}, critical ${k.tempCrit})` : ''}`)}">
+    <div class="row1"><b>${esc(k.name)}</b><span class="role">${esc(k.role)}</span></div>
+    <div class="temp ${hot}">${k.temp != null ? `${hot ? '⚠ ' : ''}${k.temp} °C` : '—'}</div>
+    <div class="m">${k.ssd ? 'SSD' : 'HDD'} · ${bytes(k.size)}</div>
+  </div>`;
+};
+
+function renderTrueNAS(t) {
+  $('truenas-card').hidden = !t;
+  if (!t) return;
+  const d = t.data;
+  $('truenas-sub').textContent = [d.server, t.version && `v${t.version}`, `${d.pools.length} pool${d.pools.length === 1 ? '' : 's'}`,
+    d.capacity.total ? `${bytes(d.capacity.used)} of ${bytes(d.capacity.total)} used` : null,
+    d.alerts ? `${d.alerts} alert${d.alerts === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
+
+  setHTML($('truenas-pools'), d.pools.map(p => {
+    const pct = p.size ? (p.used / p.size) * 100 : null;
+    const fill = pct >= 90 ? 'crit' : pct >= 80 ? 'warn' : ''; // TrueNAS's own warning / critical levels
+    const sc = p.scan;
+    const scanning = sc?.state === 'SCANNING';
+    const scanLine = !sc ? 'never scrubbed'
+      : scanning ? `${sc.kind === 'RESILVER' ? 'resilvering' : 'scrubbing'} ${Math.floor(sc.progress ?? 0)}%`
+      : `last ${sc.kind.toLowerCase()} ${sc.state === 'CANCELED' ? 'canceled' : sc.end ? new Date(sc.end).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'finished'} · ${sc.errors ? `⚠ ${sc.errors} errors` : '0 errors'}`;
+    return `<div class="pool ${p.healthy && p.status === 'ONLINE' ? '' : 'bad'}">
+      <div class="row1"><b>${esc(p.name)}</b><span class="pool-st ${p.healthy && p.status === 'ONLINE' ? 'ok' : 'bad'}">${p.healthy && p.status === 'ONLINE' ? '✓' : '✕'} ${esc(String(p.status || '').toLowerCase())}</span></div>
+      ${pct != null ? `<div class="bar ${fill}"><i style="width:${pct.toFixed(0)}%"></i></div>
+      <div class="m">${bytes(p.used)} of ${bytes(p.size)} · ${pct.toFixed(0)}%</div>` : ''}
+      ${scanning ? `<div class="bar scan"><i style="width:${(sc.progress ?? 0).toFixed(1)}%"></i></div>` : ''}
+      <div class="m ${sc?.errors ? 'hot' : ''}">${esc(scanLine)}</div>
+    </div>`;
+  }).join(''));
+
+  setHTML($('truenas-disks'), d.disks.map(udiskTile).join(''));
+
+  const apps = d.apps || [];
+  const running = apps.filter(a => a.state === 'RUNNING').length;
+  const notRunning = apps.filter(a => a.state !== 'RUNNING');
+  const updates = apps.filter(a => a.upgrade).length;
+  setHTML($('truenas-apps'), apps.length ? `<span class="muted">Apps</span> <b>${running}</b> running${notRunning.length ? ` · ${notRunning.map(a => `<span class="chip ${a.state === 'CRASHED' ? 'bad' : ''}">${esc(a.name)} ${esc(a.state.toLowerCase())}</span>`).join(' ')}` : ''}${updates ? ` · <span class="muted">${updates} update${updates === 1 ? '' : 's'} available</span>` : ''}` : '');
 }
 
 // --------------------------------------------------------------------- recently added + imports

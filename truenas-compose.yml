@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 KaiserHomeLab
+# TrueNAS 24.10+: Apps → Discover Apps → ⋮ → Install via YAML, then paste this.
+# Change "tank" to your pool's name. Afterwards, in Media Ops: Settings → General → Disk paths
+# → /mnt/tank, and Settings → Add app → TrueNAS for pools, disks and alerts.
+services:
+  media-ops:
+    image: ghcr.io/kaiserhomelab/media-ops:latest
+    container_name: media-ops
+    restart: unless-stopped
+    environment:
+      - PUID=568           # TrueNAS's "apps" user
+      - PGID=568           # TrueNAS's "apps" group
+      - TZ=America/Chicago
+      - HOST_NAME=truenas  # name shown in the header
+    ports:
+      - "8484:8484"
+    volumes:
+      - /mnt/tank/apps/media-ops:/config               # create this dataset/folder first
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # optional: container list
+      - /mnt/tank:/mnt/tank:ro                         # optional: pool usage and forecast

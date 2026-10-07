@@ -18,7 +18,7 @@ let child;
 
 before(async () => {
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-    env: { ...process.env, PORT: String(PORT), CONFIG: path.join(dir, 'config.json'), DEMO: '' },
+    env: { ...process.env, PORT: String(PORT), CONFIG: path.join(dir, 'config.json'), DEMO: '', HOST_OS: 'Unraid' },
     stdio: 'ignore',
   });
   for (let i = 0; i < 50; i++) {
@@ -31,6 +31,12 @@ after(() => child.kill('SIGTERM'));
 
 const json = (method, p, body, headers = {}) =>
   fetch(base + p, { method, redirect: 'manual', headers: { 'Content-Type': 'application/json', ...headers }, body: body && JSON.stringify(body) });
+
+test('detects the NAS it runs on (Unraid sets HOST_OS) so Settings can offer it', async () => {
+  const s = await (await fetch(`${base}/api/settings`)).json();
+  assert.equal(s.hostOs, 'unraid');
+  assert.ok(s.kinds.some(k => k.kind === 'truenas'));
+});
 
 test('settings writes from another website are refused', async () => {
   const r = await json('PUT', '/api/settings/general', { refreshSeconds: 10 }, { Origin: 'http://evil.example' });

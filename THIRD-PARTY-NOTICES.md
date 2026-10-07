@@ -57,7 +57,7 @@ dashboard depends on.
 ## Trademarks
 
 Plex is a trademark of Plex, Inc. Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr,
-Tautulli, Seerr, Overseerr, Jellyseerr, SABnzbd, qBittorrent, Clonarr, Unraid and Docker
+Tautulli, Seerr, Overseerr, Jellyseerr, SABnzbd, qBittorrent, Clonarr, Unraid, TrueNAS and Docker
 are names or trademarks of their respective owners. They're used here only to say which
 apps Media Ops works with. Media Ops is an independent project, not affiliated with or
 endorsed by any of them. The colored app tiles on the Settings page are simple letter

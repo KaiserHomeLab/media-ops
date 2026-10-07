@@ -465,6 +465,9 @@ main.settings { max-width: 980px; }
 .k-seerr, .k-overseerr, .k-jellyseerr { background: #6b5bd6; color: #fff; }
 .k-sabnzbd { background: #f5c518; } .k-qbittorrent { background: #2f67ba; color: #fff; }
 .k-clonarr { background: #3fb6a8; } .k-ping { background: var(--line); color: var(--text-primary); }
+.k-unraid { background: #f15a2c; color: #fff; } .k-truenas { background: #0095d5; color: #fff; }
+.detected { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; margin-bottom: 14px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
 
 .modal {
   width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0;
@@ -593,6 +596,20 @@ fieldset.events legend { font-size: 12px; font-weight: 600; color: var(--text-se
 .udisk .bar.warn > i { background: var(--warning); }
 .udisk .bar.crit > i { background: var(--critical); }
 .udisk .m { font: 11px var(--mono); color: var(--text-muted); margin-top: 4px; }
+.pools { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.pool { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; border: 1px solid transparent; font-size: 13px; }
+.pool.bad { border-color: var(--critical); }
+.pool .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 6px; }
+.pool-st { font: 11px var(--mono); }
+.pool-st.ok { color: var(--good); } .pool-st.bad { color: var(--critical); }
+.pool .bar { height: 6px; margin-bottom: 4px; }
+.pool .bar > i { background: var(--series-1); }
+.pool .bar.warn > i { background: var(--warning); } .pool .bar.crit > i { background: var(--critical); }
+.pool .bar.scan { height: 4px; margin-top: 6px; } .pool .bar.scan > i { background: var(--series-2); }
+.pool .m { font: 11px var(--mono); color: var(--text-muted); }
+.tn-apps { margin-top: 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tn-apps:empty { display: none; }
+.chip.bad { color: var(--critical); border-color: var(--critical); }
 
 .posters { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
 .pcard { margin: 0; min-width: 0; }

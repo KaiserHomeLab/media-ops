@@ -36,7 +36,7 @@ const gpu = require('./lib/gpu');
 const pkg = require('./package.json');
 
 const PUBLIC = path.join(__dirname, 'public');
-const DEMO = process.env.DEMO === '1';
+const DEMO = ['1', 'truenas'].includes(process.env.DEMO); // DEMO=truenas: the demo server runs TrueNAS instead of Unraid
 const PORT = Number(process.env.PORT) || 8484;
 
 // ------------------------------------------------------------- host stats
@@ -55,12 +55,21 @@ function cpuPercent() {
   return total ? Math.round((1 - idle / total) * 100) : null;
 }
 
+// Which NAS OS the container is running on, so Settings can suggest the matching app.
+// Containers share the host's kernel, and both name it: "6.12.x-Unraid" and
+// "6.12.x-production+truenas". Unraid's Docker manager also sets HOST_OS=Unraid.
+function hostOs() {
+  const hint = `${process.env.HOST_OS || ''} ${os.release()}`;
+  return /unraid/i.test(hint) ? 'unraid' : /truenas/i.test(hint) ? 'truenas' : null;
+}
+
 // Stats for the machine this runs on. Inside a container, CPU, RAM, load and uptime are the
 // host's (Linux doesn't virtualise them), but the hostname isn't, hence HOST_NAME.
 function hostStats() {
   return {
     hostname: process.env.HOST_NAME || os.hostname(),
     platform: `${os.type()} ${os.release()}`,
+    os: hostOs(),
     cpus: os.cpus().length,
     cpuModel: os.cpus()[0]?.model?.trim(),
     cpu: cpuPercent(),
@@ -317,6 +326,7 @@ function settingsPayload(req) {
     },
     services: cfg.services.map(config.publicService),
     kinds: KINDS,
+    hostOs: hostOs(),
     notifications: {
       diskThreshold: cfg.notifications?.diskThreshold ?? 90,
       quiet: { enabled: false, from: '23:00', to: '07:00', allowDown: true, ...(cfg.notifications?.quiet || {}) },

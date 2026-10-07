@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
+<!-- SPDX-License-Identifier: MIT · Copyright (c) 2026 KaiserHomeLab -->
 <!-- Save as /boot/config/plugins/dockerMan/templates-user/my-media-ops.xml on Unraid,
      then Docker → Add Container → Template: media-ops. -->
 <Container version="2">

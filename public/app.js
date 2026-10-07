@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 KaiserHomeLab
+//
+// Dashboard page. Polls /api/overview every few seconds and redraws each panel.
+// Plain browser JavaScript with no build step or framework; markup is built as strings and
+// every value from an app is escaped with esc() before it reaches innerHTML.
 'use strict';
 
 const $ = id => document.getElementById(id);
@@ -37,6 +43,8 @@ let state = null;
 let lastOk = 0;
 let timer = null;
 
+// Poll loop. The next request is scheduled only after this one finishes, so a slow server never
+// piles up requests; switching back to the tab refreshes immediately.
 async function refresh() {
   clearTimeout(timer);
   try {
@@ -379,6 +387,7 @@ document.addEventListener('click', e => {
   }
 });
 
+// *arr/SABnzbd send ETAs as "hh:mm:ss" strings; qBittorrent sends seconds (8640000 = unknown).
 function etaText(eta) {
   if (eta == null || eta === '') return '';
   if (typeof eta === 'number') return eta >= 8640000 ? '∞' : clock(eta * 1000);
@@ -547,6 +556,8 @@ $('plays-table-toggle').addEventListener('click', e => {
 addEventListener('resize', () => { lastHTML.delete($('plays-chart')); if (state) renderWatch(state.services.find(s => s.kind === 'tautulli' && s.up)); });
 
 // --------------------------------------------------------------------- storage / host
+// Disks come from two places: what each *arr reports via its API, and the paths configured
+// under Settings (statfs inside this container). Merged by path.
 function renderDisks(d, arrs) {
   const map = new Map();
   for (const a of arrs) for (const k of a.data.disks || [])

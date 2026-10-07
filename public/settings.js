@@ -1,3 +1,9 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 KaiserHomeLab
+//
+// Settings page: add, edit, reorder and test apps; general options; the settings password
+// and its reset flow. Talks to /api/settings/*. Saved API keys never come back from the
+// server; the form only learns whether one is saved.
 'use strict';
 
 const $ = id => document.getElementById(id);

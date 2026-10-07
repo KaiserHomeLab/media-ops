@@ -1,5 +1,10 @@
 #!/usr/bin/with-contenv bash
 # shellcheck shell=bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 KaiserHomeLab
+#
+# s6 oneshot, runs at container start after the linuxserver.io base init (user/PUID/PGID).
+# Gives the abc user access to the Docker socket if it's mounted, then fixes /config ownership.
 
 mkdir -p /config
 

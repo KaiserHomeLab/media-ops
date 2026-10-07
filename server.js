@@ -1,3 +1,18 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 KaiserHomeLab
+//
+// Media Ops server. Serves the dashboard (/) and settings (/settings) pages, polls every
+// configured app, and exposes the JSON API the pages use:
+//
+//   GET  /api/overview                     poll results + errors feed (cached a few seconds)
+//   GET  /api/plex/thumb?p=…               Plex poster proxy (keeps the Plex token server-side)
+//   POST /api/events/dismiss|restore       hide / unhide errors-feed entries
+//   POST /api/events/services/:id/clear    clear an app's own log (needs login if a password is set)
+//   POST /api/events/services/:id/recheck  re-run an app's health checks
+//   *    /api/settings/…                   apps, general options, password, password reset
+//   GET  /healthz                          liveness probe
+//
+// No dependencies beyond Node's standard library.
 'use strict';
 const http = require('node:http');
 const fs = require('node:fs');
@@ -19,6 +34,8 @@ const PORT = Number(process.env.PORT) || 8484;
 
 // ------------------------------------------------------------- host stats
 let lastCpu = os.cpus();
+// CPU % since the previous call. os.cpus() only gives cumulative tick counters, so
+// we diff against the last sample.
 function cpuPercent() {
   const now = os.cpus();
   let idle = 0, total = 0;
@@ -31,6 +48,8 @@ function cpuPercent() {
   return total ? Math.round((1 - idle / total) * 100) : null;
 }
 
+// Stats for the machine this runs on. Inside a container, CPU, RAM, load and uptime are the
+// host's (Linux doesn't virtualise them), but the hostname isn't, hence HOST_NAME.
 function hostStats() {
   return {
     hostname: process.env.HOST_NAME || os.hostname(),
@@ -46,6 +65,7 @@ function hostStats() {
   };
 }
 
+// Free/total space for the paths listed under Settings → Disks (as seen inside the container).
 async function localDisks(paths = []) {
   const out = [];
   for (const p of paths) {
@@ -57,6 +77,7 @@ async function localDisks(paths = []) {
   return out;
 }
 
+// Container list from the Docker Engine API over its unix socket. Read-only: one GET.
 async function dockerContainers(cfg) {
   if (!cfg?.socket) return null;
   if (!fs.existsSync(cfg.socket)) return null; // socket not mounted — just hide the panel
@@ -88,6 +109,7 @@ function describeError(e) {
   return code || (e.message === 'fetch failed' && e.cause?.message) || e.message;
 }
 
+// Run one collector with a hard 15 s cap. Never throws: a failure becomes { up: false, error }.
 async function runService(s) {
   const base = { id: s.id, kind: s.kind, name: s.name, link: s.link || s.url };
   try {
@@ -99,6 +121,9 @@ async function runService(s) {
   }
 }
 
+// Poll cache. Every open tab hits /api/overview, so results are reused for 4 s and concurrent
+// callers share one in-flight poll. `gen` bumps when settings change, so a poll that started
+// with the old settings isn't cached.
 let cache = { at: 0, value: null, pending: null, gen: 0 };
 function invalidate() {
   cache = { at: 0, value: null, pending: null, gen: cache.gen + 1 };
@@ -186,6 +211,8 @@ async function plexThumb(res, p) {
 }
 
 // ------------------------------------------------------------- settings: sessions & guards
+// Sessions are kept in memory: a restart signs everyone out of Settings, which is fine for an
+// admin page and means no session secrets are ever written to disk.
 const sessions = new Map(); // token -> expiry
 const SESSION_DAYS = 30;
 
@@ -240,6 +267,8 @@ function settingsPayload(req) {
   };
 }
 
+// Routes under /api/settings. /login, /logout, /forgot and /reset work without a session;
+// everything else needs one when a settings password is set.
 async function settingsApi(req, res, route) {
   const method = req.method;
 

@@ -1,3 +1,11 @@
+/* SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 KaiserHomeLab
+ *
+ * Styles for both pages. Colors are tokens on :root: dark by default, light via
+ * prefers-color-scheme. Chart series use a colorblind-checked categorical palette
+ * (TV, Movies, Music), and status colors (good/warning/serious/critical) are only
+ * ever shown next to an icon or label, never as the only signal.
+ */
 :root {
   color-scheme: dark;
   --bg: #121211;

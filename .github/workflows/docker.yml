@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 KaiserHomeLab
 # Builds the image on every push to main (and on version tags) and publishes it to
 # GitHub Container Registry as ghcr.io/<your-user>/media-ops.
 name: Docker image

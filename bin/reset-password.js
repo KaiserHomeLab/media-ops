@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 KaiserHomeLab
 'use strict';
 // Removes the settings password. The running dashboard notices the change within a refresh.
 //   Docker/Unraid:  reset-password   (from the container console)

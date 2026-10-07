@@ -105,3 +105,27 @@ The s6 service files are in `root/etc/s6-overlay/s6-rc.d/`:
 - The settings-form definition for each app is in `lib/kinds.js`.
 - The config store is `lib/config.js`. It writes atomically, with `0600` permissions.
 - Settings writes are rejected from other websites (Origin check), and the optional password is stored as a scrypt hash.
+
+## License
+
+Media Ops is released under the [MIT License](LICENSE).
+
+The Docker image is built on the [linuxserver.io](https://www.linuxserver.io/) Alpine base
+image (GPL-3.0) with s6-overlay (ISC) and Node.js (MIT). Those components keep their own
+licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). It's not an official
+linuxserver.io image.
+
+## Acknowledgements
+
+This dashboard only exists because of the projects it talks to: Sonarr, Radarr, Lidarr,
+Readarr, Prowlarr, Bazarr, Tautulli, Seerr/Overseerr/Jellyseerr, SABnzbd, qBittorrent,
+Clonarr and TRaSH Guides, plus Plex. Thanks also to linuxserver.io for the base image and
+container conventions. Media Ops uses only their public APIs and includes none of their code.
+Licenses and links are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Plex and the other app names are trademarks of their respective owners. Media Ops is an
+independent project, not affiliated with or endorsed by any of them.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for how secrets are stored and how to report a vulnerability.

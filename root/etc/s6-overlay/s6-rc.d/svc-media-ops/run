@@ -1,5 +1,10 @@
 #!/usr/bin/with-contenv bash
 # shellcheck shell=bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 KaiserHomeLab
+#
+# s6 longrun: the Media Ops server as the abc user. s6-notifyoncheck marks the service
+# ready once the port answers, so dependent services and `docker logs` see a clean start.
 
 # Stay in the service directory: s6-notifyoncheck finds its supervisor via ./supervise.
 if [[ -z ${LSIO_NON_ROOT_USER} ]]; then

@@ -49,6 +49,7 @@ async function refresh() {
   clearTimeout(timer);
   try {
     const r = await fetch('/api/overview', { cache: 'no-store' });
+    if (r.status === 401) { location.href = `/settings?next=${encodeURIComponent(location.pathname + location.search)}`; return; }
     if (!r.ok) throw new Error(r.status);
     state = await r.json();
     lastOk = Date.now();
@@ -104,8 +105,11 @@ function render(d) {
   renderUpcoming(arrs);
   renderWatch(up('tautulli')[0]);
   renderTrends();
+  renderUnraid(up('unraid')[0]);
+  renderRecent(plex, arrs);
+  renderRequests(all(['seerr', 'overseerr', 'jellyseerr']));
   renderDisks(d, arrs);
-  renderHost(d.host, d.docker);
+  renderHost(d.host, d.docker, d.gpus, plex?.data.resources);
 }
 
 function renderAlerts(d) {
@@ -159,7 +163,12 @@ function renderKpis(d, { streams, arrs, clients }) {
 
   setHTML($('kpis'), [
     kpi('Streaming now', `${streams.length}`, streams.length ? `${tc} transcoding · ${paused} paused` : 'nobody watching'),
-    kpi('Stream bandwidth', mbps(wan + lan).replace(' Mbps', '<small>Mbps</small>'), `WAN ${mbps(wan)} · LAN ${mbps(lan)}`),
+    kpi('Stream bandwidth', mbps(wan + lan).replace(' Mbps', '<small>Mbps</small>'), d.uploadMbps
+      ? (() => {
+          const pct = Math.round((wan / 1000 / d.uploadMbps) * 100);
+          return `<span class="${pct >= 85 ? 'hot' : ''}">${pct >= 85 ? '⚠ ' : ''}WAN ${(wan / 1000).toFixed(1)} of ${d.uploadMbps} Mbps upload (${pct}%)</span>`;
+        })()
+      : `WAN ${mbps(wan)} · LAN ${mbps(lan)}`),
     kpi('Services up', `${upCount}<small>/ ${d.services.length}</small>`, down.length ? `down: ${esc(down.join(', '))}` : 'all green'),
     kpi('Library on disk', size ? bytes(size, 1).replace(/ (\w+)$/, '<small>$1</small>') : '—', parts.join(' · ')),
     kpi('Downloading', clients.length ? rate(sum(clients, c => c.data.downBps)).replace(/ (.+)$/, '<small>$1</small>') : '—',
@@ -571,7 +580,7 @@ async function runAction(btn, fn) {
 }
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed],[data-stop],[data-qretry],[data-qremove]');
+  const b = e.target.closest('[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed],[data-stop],[data-qretry],[data-qremove],[data-rq]');
   if (!b) return;
   e.preventDefault(); // buttons inside <summary> must not toggle the row
   e.stopPropagation();
@@ -581,6 +590,10 @@ document.addEventListener('click', e => {
   if ('restore' in b.dataset) return runAction(b, () => post('/restore'));
   if ('recheck' in b.dataset) return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.recheck)}/recheck`));
   if ('toggleDismissed' in b.dataset) { evFilter.showDismissed = !evFilter.showDismissed; return renderEvents(state); }
+  if ('rq' in b.dataset) {
+    if (b.dataset.rq === 'decline' && !confirm(`Decline the request for ${b.dataset.title}?`)) return;
+    return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.svc)}/request-${b.dataset.rq}`, { requestId: Number(b.dataset.id) }));
+  }
   if ('stop' in b.dataset) {
     const reason = prompt(`Stop ${b.dataset.user}'s stream?\n\nMessage shown on their screen:`, 'The server is going down for maintenance. Sorry!');
     if (reason === null) return;
@@ -806,16 +819,19 @@ function renderDisks(d, arrs) {
   }).join(''));
 }
 
-function renderHost(h, docker) {
+function renderHost(h, docker, gpus = [], plexRes = null) {
   $('host-name').textContent = h.hostname;
   const memPct = (h.memUsed / h.memTotal) * 100;
-  const cell = (k, v, pct) => `<div class="h"><div class="k">${k}</div><div class="v">${v}</div>${pct != null ? `<div class="bar"><i style="width:${Math.min(100, pct).toFixed(0)}%"></i></div>` : ''}</div>`;
+  const cell = (k, v, pct, title = '') => `<div class="h"${title ? ` title="${esc(title)}"` : ''}><div class="k">${k}</div><div class="v">${v}</div>${pct != null ? `<div class="bar"><i style="width:${Math.min(100, pct).toFixed(0)}%"></i></div>` : ''}</div>`;
   setHTML($('host'), [
     cell('CPU', h.cpu != null ? `${h.cpu}%` : '—', h.cpu),
     cell('Memory', `${bytes(h.memUsed)}`, memPct),
     cell(`Load (${h.cpus} cores)`, h.load.map(l => l.toFixed(2)).join(' ')),
     cell('Uptime', uptime(h.uptime)),
-  ].join(''));
+    plexRes?.plexCpu != null && cell('Plex CPU', `${Math.round(plexRes.plexCpu)}%`, plexRes.plexCpu, `Plex Media Server's own CPU use (host total ${Math.round(plexRes.hostCpu)}%)`),
+    ...gpus.map(g => cell(esc(g.name), g.busy != null ? `${g.busy}%` : g.freqMhz != null ? `${g.freqMhz} MHz` : '—', g.busy ?? (g.freqMhz && g.maxMhz ? (g.freqMhz / g.maxMhz) * 100 : null),
+      [g.busy != null && `${g.busy}% busy`, g.freqMhz && `${g.freqMhz}${g.maxMhz ? ` of ${g.maxMhz}` : ''} MHz`, g.temp != null && `${g.temp} °C`, g.encoderSessions != null && `${g.encoderSessions} encode sessions`].filter(Boolean).join(' · '))),
+  ].filter(Boolean).join(''));
 
   if (!docker) return setHTML($('docker'), '');
   if (docker.error) return setHTML($('docker'), `<div class="empty">Docker: ${esc(docker.error)}</div>`);
@@ -823,6 +839,64 @@ function renderHost(h, docker) {
     const cls = c.state !== 'running' ? 'down' : c.health === 'unhealthy' ? 'warn' : 'up';
     return `<div class="ctr" title="${esc(c.image)}"><span class="dot ${cls}" aria-label="${esc(c.state)}"></span><span class="n">${esc(c.name)}</span><span class="s">${esc(c.status)}</span></div>`;
   }).join(''));
+}
+
+// --------------------------------------------------------------------- Unraid
+function renderUnraid(u) {
+  $('unraid-card').hidden = !u;
+  if (!u) return;
+  const d = u.data;
+  $('unraid-sub').textContent = `${d.server ? `${d.server} · ` : ''}v${u.version || '?'} · array ${d.state.toLowerCase().replace(/_/g, ' ')} · ${bytes(d.capacity.used)} of ${bytes(d.capacity.total)} used`;
+  const p = d.parity;
+  const when = p.date ? new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null;
+  setHTML($('unraid-parity'), p.running || p.paused
+    ? `<div class="row1"><span><b>Parity ${p.correcting ? 'check (correcting)' : 'check'}</b> ${p.paused ? '· paused' : ''}</span><span class="m">${p.progress ?? 0}%${p.speed ? ` · ${esc(p.speed)}` : ''} · ${p.errors} errors</span></div><div class="bar"><i style="width:${p.progress ?? 0}%"></i></div>`
+    : `<div class="row1"><span><b>Parity</b> ${p.status === 'NEVER_RUN' ? '· never checked' : `· last check ${esc((p.status || '').toLowerCase())}${when ? ` ${when}` : ''}`}</span><span class="m ${p.errors ? 'hot' : ''}">${p.errors ? `⚠ ${p.errors} errors` : '0 errors'}</span></div>`);
+  setHTML($('unraid-disks'), d.disks.map(k => {
+    const pct = k.used != null && k.size ? (k.used / k.size) * 100 : null;
+    const hot = k.temp != null && k.temp >= k.tempCrit ? 'crit' : k.temp != null && k.temp >= k.tempWarn ? 'warn' : '';
+    const full = pct != null && k.fullCrit && pct >= k.fullCrit ? 'crit' : pct != null && k.fullWarn && pct >= k.fullWarn ? 'warn' : '';
+    const bad = k.status !== 'DISK_OK';
+    return `<div class="udisk ${bad ? 'bad' : ''}" title="${esc(`${k.name} · ${k.role}${k.ssd ? ' (SSD)' : ''} · ${bytes(k.size)}${k.temp != null ? ` · ${k.temp} °C (warn ${k.tempWarn}, critical ${k.tempCrit})` : ''}`)}">
+      <div class="row1"><b>${esc(k.name)}</b><span class="role">${esc(k.role)}</span></div>
+      <div class="temp ${hot}">${k.temp != null ? `${hot ? '⚠ ' : ''}${k.temp} °C` : k.spinning === false ? '◌ spun down' : '—'}</div>
+      ${pct != null ? `<div class="bar ${full}"><i style="width:${pct.toFixed(0)}%"></i></div><div class="m">${pct.toFixed(0)}% of ${bytes(k.size)}</div>` : `<div class="m">${bytes(k.size)}</div>`}
+      ${bad ? `<div class="m hot">✕ ${esc(k.status.replace('DISK_', '').toLowerCase())}</div>` : k.errors ? `<div class="m hot">⚠ ${k.errors} errors</div>` : ''}
+    </div>`;
+  }).join(''));
+}
+
+// --------------------------------------------------------------------- recently added + imports
+function renderRecent(plex, arrs) {
+  const items = plex?.data.recentlyAdded || [];
+  const imports = arrs.flatMap(a => (a.data.imports || []).map(x => ({ ...x, source: a.name })))
+    .filter(x => Date.now() - new Date(x.time) < 2 * 864e5)
+    .sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 8);
+  $('recent-card').hidden = !items.length && !imports.length;
+  const thumb = t => (t && !state?.demo ? `/api/plex/thumb?p=${encodeURIComponent(t)}` : null);
+  setHTML($('recent-posters'), items.slice(0, 8).map(m => `<figure class="pcard" title="${esc(`${m.title} ${m.sub} · ${m.library || ''}`)}">
+      ${thumb(m.thumb) ? `<img loading="lazy" alt="" src="${thumb(m.thumb)}" data-fallback="${initials(m.title)}">` : `<div class="ph" aria-hidden="true">${initials(m.title)}</div>`}
+      <figcaption><b>${esc(m.title)}</b><span>${esc(m.sub)}</span><span class="muted">${ago(m.addedAt)}</span></figcaption></figure>`).join(''));
+  $('recent-posters').querySelectorAll('img[data-fallback]').forEach(img => img.addEventListener('error', () => {
+    const div = Object.assign(document.createElement('div'), { className: 'ph', textContent: img.dataset.fallback });
+    img.replaceWith(div);
+  }, { once: true }));
+  $('imports-h').hidden = !imports.length;
+  setHTML($('imports'), imports.map(x => `<li><span class="t">${esc(x.title)}</span>${x.quality ? `<span class="chip">${esc(x.quality)}</span>` : ''}<span class="muted">${esc(x.source)} · ${ago(new Date(x.time).getTime())}</span></li>`).join(''));
+}
+
+// --------------------------------------------------------------------- Seerr requests
+function renderRequests(seerrs) {
+  const reqs = seerrs.flatMap(s => (s.data.requests || []).map(r => ({ ...r, svcId: s.id })));
+  $('requests-card').hidden = !seerrs.length;
+  $('requests-count').textContent = reqs.length ? `${reqs.length} waiting` : '';
+  setHTML($('requests'), reqs.map(r => `<li>
+      <div class="rq-main"><b>${esc(r.title)}</b>${r.year ? ` <span class="muted">(${esc(r.year)})</span>` : ''}
+        <span class="chip">${r.type === 'tv' ? `TV${r.seasons?.length ? ` · S${r.seasons.join(', S')}` : ''}` : 'Movie'}</span>${r.is4k ? '<span class="chip">4K</span>' : ''}
+        <div class="muted">requested by ${esc(r.requestedBy)} · ${ago(new Date(r.createdAt).getTime())}</div></div>
+      <div class="rq-acts"><button class="btn small" type="button" data-rq="approve" data-svc="${esc(r.svcId)}" data-id="${r.id}" data-title="${esc(r.title)}">✓ Approve</button>
+        <button class="btn small ghost" type="button" data-rq="decline" data-svc="${esc(r.svcId)}" data-id="${r.id}" data-title="${esc(r.title)}">Decline</button></div>
+    </li>`).join('') || '<li class="empty">No requests waiting. 🎉</li>');
 }
 
 // --------------------------------------------------------------------- trends (last 24 h)

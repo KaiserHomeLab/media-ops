@@ -23,7 +23,14 @@ there as soon as I can.
   (plex.tv, authenticated with your Plex token; the same service Tautulli uses). No other
   third party receives them. Only city-level locations reach the browser, never the IPs.
   You can turn the map off under Settings → General.
-- The dashboard view itself is **not** password-protected. It's meant for your LAN. Don't
-  expose port 8484 to the internet without a reverse proxy that adds authentication.
+- **Backups** downloaded from Settings contain your API keys and the password hash. Store them like
+  a password manager export. A restore keeps the current password if the backup has none.
+- The dashboard view is open on your LAN by default. Turn on **Settings → Security → Also require
+  the password to view the dashboard** before exposing it more widely, or put it behind your
+  reverse proxy's login (Authelia, Authentik, etc.).
+- Diagnostics reports are redacted (keys, tokens, IPs, emails and usernames removed) so they can
+  be shared.
+- Without the dashboard login, don't expose port 8484 to the internet unless a reverse proxy in
+  front of it adds authentication.
 - Mounting the Docker socket gives the container root-equivalent access to the host. Media
   Ops only reads the container list, but leave the socket out if you don't need that panel.

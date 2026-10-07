@@ -73,6 +73,8 @@ $('login-form').addEventListener('submit', async e => {
   try {
     await api('/login', { method: 'POST', body: { password: e.target.password.value } });
     e.target.reset();
+    const next = new URLSearchParams(location.search).get('next');
+    if (next && next.startsWith('/') && !next.startsWith('//')) return (location.href = next);
     load();
   } catch (err) { showError($('login-error'), err.message); }
 });
@@ -315,7 +317,10 @@ const sinceText = t => { const m = Math.round((Date.now() - t) / 60e3); return m
 function renderNotifs() {
   const list = S.notifications.targets;
   $('notif-count').textContent = list.length ? `${list.length} set up` : '';
-  $('notif-options').diskThreshold.value = S.notifications.diskThreshold;
+  const o = $('notif-options'), n = S.notifications;
+  o.diskThreshold.value = n.diskThreshold;
+  o.quietEnabled.checked = n.quiet.enabled; o.quietFrom.value = n.quiet.from; o.quietTo.value = n.quiet.to; o.quietAllowDown.checked = n.quiet.allowDown;
+  o.digestEnabled.checked = n.digest.enabled; o.digestTime.value = n.digest.time;
   const type = t => S.notifyTypes.find(x => x.type === t);
   $('notifs').innerHTML = list.map(t => {
     const evs = S.notifyEvents.filter(e => t.events?.[e.key]).length;
@@ -418,10 +423,46 @@ $('notif-options').addEventListener('submit', async e => {
   e.preventDefault();
   showError($('notif-error'), '');
   try {
-    await api('/notification-options', { method: 'PUT', body: { diskThreshold: e.target.diskThreshold.value } });
-    S.notifications.diskThreshold = Number(e.target.diskThreshold.value);
+    const o = e.target;
+    const body = {
+      diskThreshold: o.diskThreshold.value,
+      quiet: { enabled: o.quietEnabled.checked, from: o.quietFrom.value, to: o.quietTo.value, allowDown: o.quietAllowDown.checked },
+      digest: { enabled: o.digestEnabled.checked, time: o.digestTime.value },
+    };
+    await api('/notification-options', { method: 'PUT', body });
+    Object.assign(S.notifications, { diskThreshold: Number(body.diskThreshold), quiet: body.quiet, digest: body.digest });
     flash($('notif-saved'));
   } catch (err) { showError($('notif-error'), err.message); }
+});
+
+$('digest-now').addEventListener('click', async e => {
+  e.target.disabled = true;
+  try {
+    const r = await api('/digest-test', { method: 'POST', body: {} });
+    const pre = $('digest-preview');
+    pre.hidden = false;
+    pre.textContent = `${r.preview.title}\n\n${r.preview.lines.join('\n')}\n\n${r.sent ? `✓ Sent to ${r.sent} destination${r.sent === 1 ? '' : 's'}.` : 'Not sent: no destination has “Daily digest” ticked. (This is a preview.)'}`;
+  } catch (err) { showError($('notif-error'), err.message); }
+  e.target.disabled = false;
+});
+
+// --------------------------------------------------------------------- backup & restore
+$('restore-file').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  showError($('restore-error'), '');
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { return showError($('restore-error'), "That file isn't valid JSON."); }
+  const cfg = data?.config || data;
+  const n = cfg?.services?.length ?? 0;
+  if (!confirm(`Restore ${n} app${n === 1 ? '' : 's'} and their settings from ${file.name}?\n\nThis replaces everything currently set up here.`)) return;
+  try {
+    const r = await api('/restore', { method: 'POST', body: data });
+    $('restore-saved').textContent = `✓ Restored ${r.apps} apps`;
+    flash($('restore-saved'));
+    load();
+  } catch (err) { showError($('restore-error'), err.message); }
 });
 
 // --------------------------------------------------------------------- diagnostics
@@ -481,6 +522,7 @@ function renderGeneral() {
   f.refreshSeconds.value = S.general.refreshSeconds;
   f.dockerSocket.value = S.general.dockerSocket;
   f.paths.value = S.general.paths.join('\n');
+  f.uploadMbps.value = S.general.uploadMbps ?? '';
   f.mapEnabled.checked = S.general.mapEnabled;
   f.mapHome.value = S.general.mapHome;
 }
@@ -491,7 +533,7 @@ $('general-form').addEventListener('submit', async e => {
   try {
     await api('/general', { method: 'PUT', body: {
       refreshSeconds: f.refreshSeconds.value, dockerSocket: f.dockerSocket.value, paths: f.paths.value,
-      mapEnabled: f.mapEnabled.checked, mapHome: f.mapHome.value,
+      mapEnabled: f.mapEnabled.checked, mapHome: f.mapHome.value, uploadMbps: f.uploadMbps.value,
     } });
     flash($('general-saved'));
   } catch (err) { showError($('general-error'), err.message); }
@@ -507,6 +549,9 @@ function renderSecurity() {
   $('pw-remove').hidden = !on;
   $('pw-next-label').textContent = on ? 'New password' : 'Password';
   $('pw-submit').textContent = on ? 'Change password' : 'Set password';
+  $('dash-lock').checked = S.dashboardAuth;
+  $('dash-lock').disabled = !on;
+  $('dash-lock-wrap').title = on ? '' : 'Set a password first';
 }
 async function setPassword(next) {
   const f = $('pw-form');
@@ -514,6 +559,7 @@ async function setPassword(next) {
   try {
     const r = await api('/password', { method: 'PUT', body: { current: f.current.value, next } });
     S.authEnabled = r.authEnabled;
+    if (!r.authEnabled) S.dashboardAuth = false;
     f.reset();
     renderSecurity();
     $('logout').hidden = !S.authEnabled;
@@ -525,6 +571,14 @@ $('pw-form').addEventListener('submit', e => {
   const next = e.target.next.value;
   if (next.length < 8) return showError($('pw-error'), 'Use at least 8 characters');
   setPassword(next);
+});
+$('dash-lock').addEventListener('change', async e => {
+  showError($('pw-error'), '');
+  try {
+    await api('/security', { method: 'PUT', body: { dashboardAuth: e.target.checked } });
+    S.dashboardAuth = e.target.checked;
+    flash($('pw-saved'));
+  } catch (err) { e.target.checked = !e.target.checked; showError($('pw-error'), err.message); }
 });
 $('pw-remove').addEventListener('click', () => {
   if (confirm('Remove the settings password? Anyone on your network will be able to change settings.')) setPassword('');

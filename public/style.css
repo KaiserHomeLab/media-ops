@@ -565,3 +565,53 @@ fieldset.events legend { font-size: 12px; font-weight: 600; color: var(--text-se
 .diag-call .url { color: var(--text-secondary); overflow-wrap: anywhere; }
 .diag pre { font: 11px/1.5 var(--mono); background: var(--surface-2); border-radius: 8px; padding: 10px; overflow: auto; max-height: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .diag-err { color: var(--critical); }
+
+/* ================================================================== Unraid, recently added, requests */
+.hot { color: var(--serious); }
+.kpi .foot .hot { color: var(--serious); }
+.parity { margin-bottom: 14px; font-size: 13px; }
+.parity .row1 { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.parity .m { font: 12px var(--mono); color: var(--text-muted); }
+.parity .bar { margin-top: 6px; height: 6px; }
+.parity .bar > i { background: var(--series-1); }
+.udisks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.udisk { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; border: 1px solid transparent; }
+.udisk.bad { border-color: var(--critical); }
+.udisk .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.udisk .role { font: 10px var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.udisk .temp { font: 600 18px var(--mono); margin: 2px 0 6px; }
+.udisk .temp.warn { color: var(--warning); }
+.udisk .temp.crit { color: var(--critical); }
+.udisk .bar { height: 4px; }
+.udisk .bar > i { background: var(--series-1); }
+.udisk .bar.warn > i { background: var(--warning); }
+.udisk .bar.crit > i { background: var(--critical); }
+.udisk .m { font: 11px var(--mono); color: var(--text-muted); margin-top: 4px; }
+
+.posters { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; }
+.pcard { margin: 0; min-width: 0; }
+.pcard img, .pcard .ph { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 8px; background: var(--surface-2); display: grid; place-items: center; font: 700 18px var(--mono); color: var(--text-muted); }
+.pcard figcaption { display: grid; font-size: 12px; margin-top: 5px; line-height: 1.35; }
+.pcard figcaption > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pcard figcaption span { color: var(--text-secondary); }
+.pcard figcaption .muted { color: var(--text-muted); font-size: 11px; }
+.sub-h { margin: 16px 0 6px; }
+.imports, .requests { list-style: none; margin: 0; padding: 0; display: grid; }
+.imports li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; min-width: 0; }
+.imports li:last-child, .requests li:last-child { border-bottom: 0; }
+.imports .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imports .muted { font-size: 12px; white-space: nowrap; }
+.requests li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+.requests .rq-main { min-width: 0; flex: 1; }
+.requests .chip { margin-left: 6px; }
+.requests .muted { font-size: 12px; margin-top: 2px; }
+.rq-acts { display: flex; gap: 6px; flex: none; }
+body.tv .rq-acts { display: none; }
+
+/* settings: notification options, backup */
+.notif-options { margin-top: 16px; display: grid; gap: 14px; }
+.opt-group { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: grid; gap: 8px; margin: 0; }
+.opt-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px; color: var(--text-secondary); padding-left: 24px; }
+.opt-row input[type="time"] { font: 13px var(--mono); color: var(--text-primary); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; margin-left: 4px; color-scheme: inherit; }
+.digest-preview { font: 12px/1.6 var(--mono); background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin: 4px 0 0; white-space: pre-wrap; }
+.file-btn { cursor: pointer; }

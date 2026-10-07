@@ -31,6 +31,9 @@ const geo = require('./lib/geo');
 const history = require('./lib/history');
 const notify = require('./lib/notify');
 const diagnostics = require('./lib/diagnostics');
+const digest = require('./lib/digest');
+const gpu = require('./lib/gpu');
+const pkg = require('./package.json');
 
 const PUBLIC = path.join(__dirname, 'public');
 const DEMO = process.env.DEMO === '1';
@@ -141,15 +144,16 @@ async function polled() {
   const gen = cache.gen;
   const p = (async () => {
     const services = cfg.services.filter(s => s.enabled !== false && collectors[s.kind]);
-    const [results, docker, disks] = await Promise.all([
+    const [results, docker, disks, gpus] = await Promise.all([
       Promise.all(services.map(runService)),
       dockerContainers(cfg.docker),
       localDisks(cfg.paths),
+      gpu.read().catch(() => []),
     ]);
     await geo.enrich(results, cfg);
     const value = {
       generatedAt: Date.now(), demo: false, refreshSeconds: cfg.refreshSeconds,
-      configured: cfg.services.length > 0, host: hostStats(), services: results, docker, disks,
+      configured: cfg.services.length > 0, host: hostStats(), services: results, docker, disks, gpus,
     };
     if (gen === cache.gen) cache = { ...cache, at: Date.now(), value, pending: null };
     return value;
@@ -165,7 +169,7 @@ async function overview() {
   const { events, changed } = feed.apply(feed.collect(raw.services), raw.services, config.load().dismissed);
   if (changed) config.update(c => ({ ...c, dismissed: changed }));
   const services = raw.services.map(s => ({ ...s, actions: actions.capabilities(s.kind, s.name) }));
-  return { ...raw, services, events };
+  return { ...raw, services, events, uploadMbps: Number(config.load().uploadMbps) || null, version: pkg.version };
 }
 
 // ------------------------------------------------------------- background monitor
@@ -178,6 +182,7 @@ async function monitorTick() {
     const { events } = feed.apply(feed.collect(raw.services), raw.services, cfg.dismissed);
     history.record(raw);
     await notify.handle(raw, events, history.diskList(raw), cfg);
+    await digest.maybeSend(cfg, raw, events, notify.sendDigest);
   } catch (e) {
     console.error(`Monitor: ${e.message}`);
   }
@@ -209,8 +214,8 @@ async function eventsApi(req, res, route) {
     return send(res, 200, { ok: true });
   }
 
-  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove)
-  const m = /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove)$/.exec(route);
+  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline)
+  const m = /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline)$/.exec(route);
   if (!m) return send(res, 404, { error: 'Not found' });
   const [, id, action] = m;
   // Anything that changes or deletes something inside an app is behind the settings password
@@ -226,6 +231,8 @@ async function eventsApi(req, res, route) {
       stop: () => actions.stopStream(svc, body.sessionId, body.reason),
       'queue-retry': () => actions.queueRetry(svc),
       'queue-remove': () => actions.queueRemove(svc, body.queueId),
+      'request-approve': () => actions.seerrRequest(svc, body.requestId, 'approve'),
+      'request-decline': () => actions.seerrRequest(svc, body.requestId, 'decline'),
     }[action];
     const message = await run();
     invalidate(); // re-fetch logs/health right away
@@ -298,17 +305,22 @@ function settingsPayload(req) {
   const cfg = config.load();
   return {
     authEnabled: !!cfg.auth,
+    dashboardAuth: !!cfg.dashboardAuth,
+    version: pkg.version,
     loggedIn: loggedIn(req),
     demo: DEMO,
     configFile: config.FILE,
     general: {
       refreshSeconds: cfg.refreshSeconds, paths: cfg.paths, dockerSocket: cfg.docker?.socket || '',
       mapEnabled: cfg.map?.enabled !== false, mapHome: cfg.map?.home || '',
+      uploadMbps: cfg.uploadMbps || '',
     },
     services: cfg.services.map(config.publicService),
     kinds: KINDS,
     notifications: {
       diskThreshold: cfg.notifications?.diskThreshold ?? 90,
+      quiet: { enabled: false, from: '23:00', to: '07:00', allowDown: true, ...(cfg.notifications?.quiet || {}) },
+      digest: { enabled: false, time: '08:00', ...(cfg.notifications?.digest || {}) },
       targets: (cfg.notifications?.targets || []).map(t => ({ ...notify.publicTarget(t), last: notify.lastResult(t.id) })),
     },
     notifyTypes: notify.TYPES,
@@ -434,10 +446,55 @@ async function settingsApi(req, res, route) {
     return send(res, 200, { ok: true });
   }
   if (method === 'PUT' && route === '/notification-options') {
-    const { diskThreshold } = await readJson(req);
+    const { diskThreshold, quiet = {}, digest: dg = {} } = await readJson(req);
     const n = Math.round(Number(diskThreshold));
     if (!(n >= 50 && n <= 99)) return send(res, 400, { error: 'Disk threshold must be between 50 and 99%' });
-    config.update(c => ({ ...c, notifications: { ...(c.notifications || {}), diskThreshold: n } }));
+    const hhmm = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ''));
+    if (quiet.enabled && !(hhmm(quiet.from) && hhmm(quiet.to))) return send(res, 400, { error: 'Quiet hours need a start and end time' });
+    if (dg.enabled && !hhmm(dg.time)) return send(res, 400, { error: 'Pick a time for the daily digest' });
+    config.update(c => ({
+      ...c,
+      notifications: {
+        ...(c.notifications || {}), diskThreshold: n,
+        quiet: { enabled: !!quiet.enabled, from: quiet.from || '23:00', to: quiet.to || '07:00', allowDown: quiet.allowDown !== false },
+        digest: { enabled: !!dg.enabled, time: dg.time || '08:00' },
+      },
+    }));
+    return send(res, 200, { ok: true });
+  }
+  if (method === 'POST' && route === '/digest-test') {
+    const raw = DEMO ? demo.overview(hostStats()) : await polled();
+    const { events } = feed.apply(feed.collect(raw.services), raw.services, config.load().dismissed);
+    const preview = digest.build(raw, events);
+    const sent = await notify.sendDigest(config.load(), preview);
+    return send(res, 200, { ok: true, sent, preview });
+  }
+
+  // Backup / restore: the whole config, secrets included, as one JSON file.
+  if (method === 'GET' && route === '/backup') {
+    const body = JSON.stringify({ app: 'media-ops', version: pkg.version, exportedAt: new Date().toISOString(), config: config.load() }, null, 2);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Content-Disposition': `attachment; filename="media-ops-backup-${new Date().toISOString().slice(0, 10)}.json"`,
+      'Cache-Control': 'no-store',
+    });
+    return res.end(body);
+  }
+  if (method === 'POST' && route === '/restore') {
+    const b = await readJson(req);
+    const incoming = b?.app === 'media-ops' ? b.config : b;
+    if (!incoming || !Array.isArray(incoming.services)) return send(res, 400, { error: "That doesn't look like a Media Ops backup" });
+    const bad = incoming.services.find(x => !collectors[x.kind]);
+    if (bad) return send(res, 400, { error: `Unknown app type "${bad.kind}" in the backup` });
+    // Keep the current password if the backup has none, so a restore can't silently unlock Settings.
+    config.update(c => ({ ...incoming, auth: incoming.auth || c.auth }));
+    invalidate();
+    return send(res, 200, { ok: true, apps: incoming.services.length });
+  }
+  if (method === 'PUT' && route === '/security') {
+    const { dashboardAuth } = await readJson(req);
+    if (dashboardAuth && !config.load().auth) return send(res, 400, { error: 'Set a settings password first' });
+    config.update(c => ({ ...c, dashboardAuth: !!dashboardAuth }));
     return send(res, 200, { ok: true });
   }
 
@@ -460,9 +517,12 @@ async function settingsApi(req, res, route) {
     if (paths.some(p => !p.startsWith('/'))) return send(res, 400, { error: 'Disk paths must be absolute, like /mnt/user' });
     const mapHome = String(g.mapHome || '').trim();
     if (mapHome && !geo.parseLatLon(mapHome)) return send(res, 400, { error: 'Home location must look like "41.88, -87.63" (latitude, longitude)' });
+    const upload = g.uploadMbps === '' || g.uploadMbps == null ? null : Number(g.uploadMbps);
+    if (upload != null && !(upload > 0 && upload < 100000)) return send(res, 400, { error: 'Upload speed should be in Mbps, e.g. 40' });
     config.update(c => ({
       ...c, refreshSeconds: refresh, paths, docker: { socket: String(g.dockerSocket || '').trim() },
       map: { enabled: g.mapEnabled !== false, home: mapHome },
+      uploadMbps: upload,
     }));
     invalidate();
     return send(res, 200, { ok: true });
@@ -473,7 +533,7 @@ async function settingsApi(req, res, route) {
     const cfg = config.load();
     if (cfg.auth && !config.checkPassword(current)) return send(res, 401, { error: 'Current password is wrong' });
     if (next && String(next).length < 8) return send(res, 400, { error: 'Use at least 8 characters' });
-    config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null }));
+    config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null, dashboardAuth: next ? c.dashboardAuth : false }));
     sessions.clear();
     if (next) startSession(res);
     return send(res, 200, { ok: true, authEnabled: !!next });
@@ -486,9 +546,23 @@ async function settingsApi(req, res, route) {
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const PAGES = { '/': '/index.html', '/settings': '/settings.html' };
 
+// With "require login for the dashboard" on, only the login page (Settings) and what it needs
+// are reachable without a session.
+const ALWAYS_OPEN = new Set(['/healthz', '/settings', '/settings.html', '/settings.js', '/style.css', '/manifest.webmanifest', '/icon.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png']);
+function dashboardLocked(req, pathname) {
+  const cfg = config.load();
+  if (!cfg.dashboardAuth || !cfg.auth || ALWAYS_OPEN.has(pathname) || pathname.startsWith('/api/settings')) return false;
+  return !loggedIn(req);
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
+    if (dashboardLocked(req, url.pathname)) {
+      if (url.pathname.startsWith('/api/')) return send(res, 401, { error: 'Log in to view the dashboard', needLogin: true });
+      res.writeHead(302, { Location: `/settings?next=${encodeURIComponent(url.pathname + url.search)}` });
+      return res.end();
+    }
     if (url.pathname === '/api/overview') return send(res, 200, await overview());
     if (url.pathname === '/api/history') return send(res, 200, historyPayload());
     if (url.pathname === '/api/plex/thumb') return plexThumb(res, url.searchParams.get('p'));

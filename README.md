@@ -22,6 +22,14 @@ A live dashboard for a Plex + *arr server. It shows:
 - **Trends**: 24-hour charts of streams (with transcodes), stream bandwidth and download speed, plus today's peak.
 - **Disk forecast**: "Full in ~N weeks at +X GB/day", from a straight-line fit over the last 30 days. It starts after 3 days of data.
 - **Why it's transcoding**: each transcoding stream shows a likely reason (client can't play the codec, quality limit, subtitles being burned in, audio conversion), worked out from what Plex reports. 4K transcodes get a red badge.
+- **Unraid**: add it as an app (Settings → Add app → Unraid, with an API key from Unraid's **Settings → Management Access → API Keys**; a read-only *viewer* key is enough; needs Unraid 7.2+ or the Unraid Connect plugin). Shows array state, parity-check progress and history, and every disk's temperature, fill level, spin state and errors. Alerts for disabled or missing disks, hot disks (45/55 °C for hard drives, 60/70 °C for SSDs), disks past Unraid's critical fill level, read/write errors, and parity errors.
+- **GPU and Plex load**: the Host panel shows Plex's own CPU use (from Plex's resource statistics) and your GPU: Intel iGPU and AMD read from the host drivers through `/sys`, Nvidia through `nvidia-smi` when the container uses the Nvidia runtime.
+- **Recently added**: the newest posters in Plex, and what Sonarr and Radarr imported in the last two days, with quality.
+- **Requests**: pending Seerr/Overseerr/Jellyseerr requests with **Approve** and **Decline** buttons.
+- **Upload headroom**: set your internet upload speed under Settings → General and the bandwidth tile shows how much of it remote streams use, with an alert at 85%.
+- **Quiet hours and daily digest** (Settings → Notifications): hold alerts overnight and get them as one message in the morning, optionally still sending "app down". The digest is one daily summary: plays, new episodes and movies, disk growth, downtime, errors, pending requests and array health. **Send one now** previews it.
+- **Backup and restore** (Settings): download everything as one file, or restore from one. The file includes your API keys, so keep it private.
+- **Dashboard login** (Settings → Security): optionally require the settings password to view the dashboard too, for sharing it outside your home.
 - **Admin actions** (behind the settings password, if one is set): **Stop** a stream with a message the viewer sees (needs Plex Pass), and for stuck downloads **Retry** the import or **Replace…** it (remove, blocklist, search for another).
 - **TV mode**: a full-screen, larger, read-only view with a clock. Edit buttons are hidden and the mouse pointer hides when idle. Open `http://<server>:8484/?tv=1` on a wall tablet or TV browser to start straight in it.
 - **Add to home screen**: install it like an app on your phone, with an icon, full-screen view and shortcuts to TV mode and Settings.

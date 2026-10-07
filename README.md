@@ -126,7 +126,7 @@ The server keeps checking your apps every refresh interval (at least every 10 s)
 ## Development
 
 ```bash
-npm test        # node --test test/  (no dependencies)
+npm test        # node --test test/*.test.js  (no dependencies)
 npm run demo    # fake data on http://localhost:8484
 ```
 

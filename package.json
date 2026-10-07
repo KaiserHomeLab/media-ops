@@ -13,7 +13,7 @@
     "demo": "DEMO=1 node server.js",
     "reset-password": "node bin/reset-password.js",
     "build-map": "node scripts/build-world-map.js",
-    "test": "node --test test/"
+    "test": "node --test test/*.test.js"
   },
   "repository": {
     "type": "git",

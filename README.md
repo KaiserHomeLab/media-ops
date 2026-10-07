@@ -43,6 +43,14 @@ Settings → **Add app** → pick the app → enter its address and API key → 
 - Saved API keys are never sent back to the browser. To keep a key, leave the field blank when editing.
 - **Security**: set a password to lock the Settings page. The dashboard itself stays viewable without logging in.
 
+### Forgot the settings password?
+
+You need access to the server itself. Use any one of these:
+
+1. **Forgot password?** on the Settings login screen → **Get a reset code**. The code is written to the container log (Unraid: Docker tab → media-ops icon → **Logs**) and to `password-reset.txt` in the appdata folder. Enter it with a new password, or leave the password blank to remove it. Codes expire after 15 minutes or 5 wrong tries.
+2. **Console:** Unraid Docker tab → media-ops icon → **Console**, then run `reset-password`. This removes the password. Locally, run `npm run reset-password`.
+3. **Edit the file:** set `"auth": null` in `config.json`. The app picks up the change without a restart.
+
 Settings are stored in `/config/config.json` (i.e. `/mnt/user/appdata/media-ops/config.json`). Back up that folder and you've backed up everything.
 
 ### Clonarr

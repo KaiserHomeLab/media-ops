@@ -11,6 +11,7 @@ const { KINDS } = require('./lib/kinds');
 const demo = require('./lib/demo');
 const feed = require('./lib/events');
 const actions = require('./lib/actions');
+const recovery = require('./lib/recovery');
 
 const PUBLIC = path.join(__dirname, 'public');
 const DEMO = process.env.DEMO === '1';
@@ -250,6 +251,24 @@ async function settingsApi(req, res, route) {
     }
     startSession(res);
     return send(res, 200, { ok: true });
+  }
+  if (route === '/forgot' && method === 'POST') {
+    const r = recovery.request();
+    return send(res, r.ok ? 200 : 400, r.ok ? { ok: true, file: r.file } : { error: r.error });
+  }
+  if (route === '/reset' && method === 'POST') {
+    const { code, next } = await readJson(req);
+    if (next && String(next).length < 8) return send(res, 400, { error: 'Use at least 8 characters, or leave it blank to remove the password' });
+    const err = recovery.verify(code);
+    if (err) {
+      await new Promise(r => setTimeout(r, 800));
+      return send(res, 400, { error: err });
+    }
+    config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null }));
+    sessions.clear(); // sign out everywhere else
+    if (next) startSession(res);
+    console.log(`Settings password ${next ? 'reset' : 'removed'} using a reset code.`);
+    return send(res, 200, { ok: true, authEnabled: !!next });
   }
   if (route === '/logout' && method === 'POST') {
     sessions.delete(cookie(req, 'mo_session'));

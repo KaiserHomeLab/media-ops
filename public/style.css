@@ -373,7 +373,14 @@ code { font: 12px var(--mono); background: var(--surface-2); padding: 1px 5px; b
 .foot-note { color: var(--text-muted); font-size: 12px; text-align: center; }
 main.settings { max-width: 980px; }
 #settings-body { display: grid; gap: 16px; }
-.login { max-width: 420px; justify-self: center; width: 100%; }
+.login { max-width: 460px; justify-self: center; width: 100%; }
+.reset-how { margin: 0; }
+.reset-where { font-size: 13px; color: var(--text-secondary); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.reset-where p { margin: 0 0 6px; }
+.reset-where ul { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 4px; }
+.reset-where code { overflow-wrap: anywhere; }
+.small-note { font-size: 12px; margin: 0; }
+#send-code { justify-self: start; }
 
 .test-result { padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); }
 .test-result.ok { border-color: var(--good); }

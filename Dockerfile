@@ -26,12 +26,13 @@ RUN \
 # app
 COPY package.json server.js /app/media-ops/
 COPY lib/ /app/media-ops/lib/
+COPY bin/ /app/media-ops/bin/
 COPY public/ /app/media-ops/public/
 
 # add local files
 COPY root/ /
 # in case the repo was uploaded without exec bits (e.g. via GitHub's web UI)
-RUN chmod +x /etc/s6-overlay/s6-rc.d/*-media-ops*/run
+RUN chmod +x /etc/s6-overlay/s6-rc.d/*-media-ops*/run /usr/local/bin/reset-password
 
 # ports and volumes
 EXPOSE 8484

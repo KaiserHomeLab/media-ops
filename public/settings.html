@@ -28,7 +28,27 @@
       <form id="login-form" class="form">
         <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required autofocus></label>
         <div class="form-error" id="login-error" hidden></div>
-        <div class="actions"><button class="btn primary" type="submit">Unlock</button></div>
+        <div class="actions"><button class="linkish" type="button" id="forgot">Forgot password?</button><span class="spacer"></span><button class="btn primary" type="submit">Unlock</button></div>
+      </form>
+
+      <form id="reset-form" class="form" hidden>
+        <p class="hint reset-how">
+          To prove it's you, get a one-time code from the server.
+        </p>
+        <button class="btn" type="button" id="send-code">Get a reset code</button>
+        <div class="reset-where" id="reset-where" hidden>
+          <p>A code was written to the server. Find it in <b>either</b> place:</p>
+          <ul>
+            <li><b>Container log</b>: on Unraid, Docker tab → <b>media-ops</b> icon → <b>Logs</b>. Look for "Reset code".</li>
+            <li><b>File</b>: <code id="reset-file"></code> (on Unraid: <code>/mnt/user/appdata/media-ops/password-reset.txt</code>)</li>
+          </ul>
+          <p class="muted">It's valid for 15 minutes.</p>
+        </div>
+        <label class="field"><span>Reset code</span><input name="code" autocomplete="one-time-code" placeholder="ABCD-EFGH" spellcheck="false" required></label>
+        <label class="field"><span>New password <em>leave blank to remove the password</em></span><input type="password" name="next" autocomplete="new-password"></label>
+        <div class="form-error" id="reset-error" hidden></div>
+        <div class="actions"><button class="linkish" type="button" id="back-to-login">← Back to login</button><span class="spacer"></span><button class="btn primary" type="submit">Reset password</button></div>
+        <p class="muted small-note">Prefer a terminal? Open the container's <b>Console</b> and run <code>reset-password</code>.</p>
       </form>
     </section>
 

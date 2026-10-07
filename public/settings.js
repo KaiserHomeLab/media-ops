@@ -69,6 +69,39 @@ $('login-form').addEventListener('submit', async e => {
     load();
   } catch (err) { showError($('login-error'), err.message); }
 });
+// Forgot password: one-time code from the server's log / config folder.
+const showReset = on => {
+  $('login-form').hidden = on;
+  $('reset-form').hidden = !on;
+  $('login').querySelector('h2').textContent = on ? 'Reset settings password' : 'Settings are locked';
+  if (on) $('send-code').focus();
+};
+$('forgot').addEventListener('click', () => showReset(true));
+$('back-to-login').addEventListener('click', () => showReset(false));
+$('send-code').addEventListener('click', async e => {
+  showError($('reset-error'), '');
+  e.target.disabled = true;
+  try {
+    const r = await api('/forgot', { method: 'POST', body: {} });
+    $('reset-file').textContent = r.file;
+    $('reset-where').hidden = false;
+    e.target.textContent = 'Send a new code';
+    $('reset-form').code.focus();
+  } catch (err) { showError($('reset-error'), err.message); }
+  setTimeout(() => (e.target.disabled = false), 30000); // server allows one new code per 30 s
+});
+$('reset-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  showError($('reset-error'), '');
+  try {
+    await api('/reset', { method: 'POST', body: { code: f.code.value, next: f.next.value } });
+    f.reset();
+    showReset(false);
+    load();
+  } catch (err) { showError($('reset-error'), err.message); }
+});
+
 $('logout').addEventListener('click', async () => { await api('/logout', { method: 'POST' }); location.reload(); });
 
 // --------------------------------------------------------------------- apps grid
@@ -289,7 +322,7 @@ $('general-form').addEventListener('submit', async e => {
 function renderSecurity() {
   const on = S.authEnabled;
   $('pw-status').innerHTML = on
-    ? '🔒 Settings are protected by a password. The dashboard itself stays viewable by anyone on your network.'
+    ? '🔒 Settings are protected by a password. The dashboard itself stays viewable by anyone on your network. If you forget it, use "Forgot password?" on the login screen; it gives you a reset code via the container log.'
     : 'Anyone who can open this page can change your apps and keys. Set a password to lock Settings. The dashboard stays viewable without it.';
   $('pw-current-wrap').hidden = !on;
   $('pw-remove').hidden = !on;

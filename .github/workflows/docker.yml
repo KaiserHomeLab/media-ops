@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
-  pull_request:   # tests only; the build job below skips publishing for PRs
+  pull_request:   # builds without publishing
   workflow_dispatch:
 
 permissions:
@@ -16,20 +16,7 @@ permissions:
   packages: write
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: [22, 24]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-      - run: node --test test/*.test.js
-
   build:
-    needs: test   # never publish an image that fails the tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

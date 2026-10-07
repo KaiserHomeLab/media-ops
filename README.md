@@ -126,11 +126,8 @@ The server keeps checking your apps every refresh interval (at least every 10 s)
 ## Development
 
 ```bash
-npm test        # node --test test/*.test.js  (no dependencies)
 npm run demo    # fake data on http://localhost:8484 (DEMO=truenas node server.js for TrueNAS)
 ```
-
-Tests run the collectors against a fake server answering with recorded-style replies (`test/fixtures/`). GitHub Actions runs them on Node 22 and 24 before every image build.
 
 ## License
 

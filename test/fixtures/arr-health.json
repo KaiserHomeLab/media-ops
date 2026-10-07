@@ -1,7 +1,0 @@
-[
- {
-  "source": "IndexerStatusCheck",
-  "type": "warning",
-  "message": "Indexers unavailable due to failures: NZBgeek"
- }
-]

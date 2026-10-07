@@ -9,6 +9,8 @@ const { join, unixGet, clearCache } = require('./lib/http');
 const config = require('./lib/config');
 const { KINDS } = require('./lib/kinds');
 const demo = require('./lib/demo');
+const feed = require('./lib/events');
+const actions = require('./lib/actions');
 
 const PUBLIC = path.join(__dirname, 'public');
 const DEMO = process.env.DEMO === '1';
@@ -102,9 +104,8 @@ function invalidate() {
   clearCache();
 }
 
-async function overview() {
+async function polled() {
   const cfg = config.load();
-  if (DEMO) return demo.overview(hostStats());
   if (cache.value && Date.now() - cache.at < 4000) return cache.value;
   if (cache.pending) return cache.pending;
   const gen = cache.gen;
@@ -125,6 +126,47 @@ async function overview() {
   cache.pending = p;
   p.finally(() => { if (cache.pending === p) cache.pending = null; });
   return p;
+}
+
+// Poll results + the unified errors feed with dismissals applied (cheap, so done per request).
+async function overview() {
+  const raw = DEMO ? demo.overview(hostStats()) : await polled();
+  const { events, changed } = feed.apply(feed.collect(raw.services), raw.services, config.load().dismissed);
+  if (changed) config.update(c => ({ ...c, dismissed: changed }));
+  const services = raw.services.map(s => ({ ...s, actions: actions.capabilities(s.kind, s.name) }));
+  return { ...raw, services, events };
+}
+
+// ------------------------------------------------------------- dashboard actions: dismiss / clear / re-check
+async function eventsApi(req, res, route) {
+  if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
+  const body = await readJson(req);
+
+  if (route === '/dismiss') {
+    const { events } = await overview();
+    config.update(c => ({ ...c, dismissed: feed.dismiss(c.dismissed, events, body) }));
+    return send(res, 200, { ok: true });
+  }
+  if (route === '/restore') {
+    config.update(c => ({ ...c, dismissed: feed.emptyState() }));
+    return send(res, 200, { ok: true });
+  }
+
+  const m = /^\/services\/([\w-]+)\/(clear|recheck)$/.exec(route);
+  if (!m) return send(res, 404, { error: 'Not found' });
+  const [, id, action] = m;
+  // Clearing deletes data inside the app, so it's behind the settings password when one is set.
+  if (action === 'clear' && !loggedIn(req)) return send(res, 401, { error: 'Log in under Settings to clear app logs', needLogin: true });
+  if (DEMO) return send(res, 200, { ok: true, message: 'Demo mode — nothing was changed' });
+  const svc = config.load().services.find(s => s.id === id);
+  if (!svc) return send(res, 404, { error: 'App not found' });
+  try {
+    const message = await actions[action](svc);
+    invalidate(); // re-fetch logs/health right away
+    return send(res, 200, { ok: true, message });
+  } catch (e) {
+    return send(res, e.status || 502, { error: describeError(e) });
+  }
 }
 
 // ------------------------------------------------------------- Plex poster proxy (keeps token server-side)
@@ -304,6 +346,10 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/overview') return send(res, 200, await overview());
     if (url.pathname === '/api/plex/thumb') return plexThumb(res, url.searchParams.get('p'));
     if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
+    if (url.pathname.startsWith('/api/events/')) {
+      if (!sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });
+      return await eventsApi(req, res, url.pathname.slice('/api/events'.length));
+    }
     if (url.pathname === '/api/settings' || url.pathname.startsWith('/api/settings/')) {
       if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });
       return await settingsApi(req, res, url.pathname.slice('/api/settings'.length));

@@ -75,7 +75,7 @@ function render(d) {
   $('dash').hidden = firstRun;
   $('hostline').textContent = `${d.host.hostname} · ${d.host.platform} · up ${uptime(d.host.uptime)}`;
 
-  renderAlerts(d, arrs);
+  renderAlerts(d);
   renderKpis(d, { streams, arrs, clients });
   renderStreams(streams, d.demo);
   renderServices(d.services);
@@ -88,13 +88,12 @@ function render(d) {
   renderHost(d.host, d.docker);
 }
 
-function renderAlerts(d, arrs) {
-  const items = [];
-  for (const s of d.services.filter(s => !s.up))
-    items.push({ cls: 'error', html: `<b>${esc(s.name)}</b> is unreachable — ${esc(s.error)}` });
-  for (const s of [...arrs, ...d.services.filter(s => s.kind === 'prowlarr' && s.up)])
-    for (const h of s.data.health || [])
-      items.push({ cls: h.type === 'error' ? 'error' : '', html: `<b>${esc(s.name)}</b> ${esc(h.message)}` });
+function renderAlerts(d) {
+  const items = d.events.filter(e => e.live && !e.dismissed && e.source !== 'Queue').map(e => ({
+    cls: e.level === 'error' ? 'error' : '',
+    html: `<b>${esc(e.svc)}</b> ${esc(e.source === 'Connection' ? `is unreachable — ${e.message.replace(/^Unreachable — /, '')}` : e.message)}`,
+    key: e.key, svcId: e.svcId,
+  }));
   if (Array.isArray(d.docker))
     for (const c of d.docker.filter(c => c.health === 'unhealthy'))
       items.push({ cls: 'error', html: `<b>${esc(c.name)}</b> container is unhealthy` });
@@ -102,7 +101,8 @@ function renderAlerts(d, arrs) {
   const el = $('alerts');
   el.hidden = !items.length;
   setHTML(el, items.map(a =>
-    `<div class="alert ${a.cls}"><span aria-hidden="true">${a.cls === 'error' ? '✕' : '⚠'}</span><div>${a.html}</div></div>`
+    `<div class="alert ${a.cls}"><span aria-hidden="true">${a.cls === 'error' ? '✕' : '⚠'}</span><div>${a.html}</div>${a.key ? `
+      <span class="alert-acts"><button class="icon-btn" type="button" data-recheck="${esc(a.svcId)}" title="Re-check" aria-label="Re-check">↻</button><button class="icon-btn" type="button" data-dismiss="${esc(a.key)}" title="Dismiss" aria-label="Dismiss">✕</button></span>` : ''}</div>`
   ).join(''));
 }
 
@@ -146,7 +146,7 @@ function renderKpis(d, { streams, arrs, clients }) {
       `↑ ${rate(sum(clients, c => c.data.upBps))} · ${queueLen} queued`),
     kpi('Wanted / missing', num(missing), missParts.join(' · ')),
     (() => {
-      const recent = collectEvents(d).filter(e => Date.now() - e.t < 864e5);
+      const recent = d.events.filter(e => !e.dismissed && Date.now() - e.t < 864e5);
       const errs = recent.filter(e => e.level === 'error').length;
       return kpi('Errors · 24h', `${errs}`, `${recent.length - errs} warnings`);
     })(),
@@ -244,7 +244,7 @@ function renderLibrary(plex, services) {
 }
 
 // --------------------------------------------------------------------- errors & warnings feed
-const evFilter = { svc: 'all', level: 'all' };
+const evFilter = { svc: 'all', level: 'all', showDismissed: false };
 
 function ago(t) {
   const s = Math.max(0, Math.round((Date.now() - t) / 1000));
@@ -254,60 +254,68 @@ function ago(t) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function collectEvents(d) {
-  const out = [];
-  for (const s of d.services) {
-    if (!s.up) {
-      out.push({ svc: s.name, level: 'error', t: Date.now(), source: 'Connection', message: `Unreachable — ${s.error}`, live: true });
-      continue;
-    }
-    for (const h of s.data?.health || [])
-      out.push({ svc: s.name, level: h.type === 'error' ? 'error' : 'warn', t: Date.now(), source: 'Health check', message: h.message, live: true });
-    for (const e of s.data?.events || []) {
-      const t = new Date(e.time).getTime();
-      out.push({ ...e, svc: s.name, t: isNaN(t) ? Date.now() : t });
-    }
-  }
-  // Live problems first, then newest log lines.
-  return out.sort((a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || b.t - a.t);
-}
-
 function renderEvents(d) {
-  const all = collectEvents(d);
-  const errs = all.filter(e => e.level === 'error').length;
-  $('ev-count').textContent = all.length ? `${errs} errors · ${all.length - errs} warnings` : '';
+  const active = d.events.filter(e => !e.dismissed);
+  const dismissedN = d.events.length - active.length;
+  const errs = active.filter(e => e.level === 'error').length;
+  $('ev-count').textContent = active.length ? `${errs} errors · ${active.length - errs} warnings` : '';
 
+  const names = new Map(d.services.map(s => [s.id, s.name]));
   const bySvc = new Map();
-  for (const e of all) bySvc.set(e.svc, (bySvc.get(e.svc) || 0) + 1);
-  if (evFilter.svc !== 'all' && !bySvc.has(evFilter.svc)) evFilter.svc = 'all';
+  for (const e of active) bySvc.set(e.svcId, (bySvc.get(e.svcId) || 0) + 1);
+  if (evFilter.svc !== 'all' && !names.has(evFilter.svc)) evFilter.svc = 'all';
   const btn = (kind, val, label, n) =>
     `<button type="button" data-${kind}="${esc(val)}" aria-pressed="${evFilter[kind] === val}">${esc(label)}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
   setHTML($('ev-filters'), [
     btn('level', 'all', 'All levels'), btn('level', 'error', 'Errors only', errs),
     '<span class="sep"></span>',
-    btn('svc', 'all', 'All apps', all.length),
-    ...[...bySvc].map(([name, n]) => btn('svc', name, name, n)),
+    btn('svc', 'all', 'All apps', active.length),
+    ...[...bySvc].map(([id, n]) => btn('svc', id, names.get(id) || id, n)),
+    // keep the selected app's chip even once its errors are all dismissed
+    ...(evFilter.svc !== 'all' && !bySvc.has(evFilter.svc) ? [btn('svc', evFilter.svc, names.get(evFilter.svc), 0)] : []),
   ].join(''));
 
-  const shown = all
-    .filter(e => evFilter.level === 'all' || e.level === evFilter.level)
-    .filter(e => evFilter.svc === 'all' || e.svc === evFilter.svc)
-    .slice(0, 150);
+  const inFilter = e => (evFilter.level === 'all' || e.level === evFilter.level) && (evFilter.svc === 'all' || e.svcId === evFilter.svc);
+  const shownActive = active.filter(inFilter);
+  const shown = (evFilter.showDismissed ? d.events : active).filter(inFilter).slice(0, 150);
+
+  // Action bar: app actions on the left (when one app is selected), feed actions on the right.
+  const sel = evFilter.svc !== 'all' && d.services.find(s => s.id === evFilter.svc);
+  const left = sel ? [
+    `<button class="btn small" type="button" data-recheck="${esc(sel.id)}" title="${sel.actions.recheck === 'health' ? `Run ${esc(sel.name)}'s health checks now` : `Poll ${esc(sel.name)} again now`}">↻ Re-check ${esc(sel.name)}</button>`,
+    sel.actions.clear ? `<button class="btn small danger ghost" type="button" data-clear="${esc(sel.id)}">Clear ${esc(sel.name)}'s log…</button>` : '',
+  ] : [];
+  const right = [
+    shownActive.length ? `<button class="btn small" type="button" data-dismiss-all>Dismiss ${evFilter.svc === 'all' ? 'all' : `all from ${esc(sel?.name || '')}`}</button>` : '',
+    dismissedN ? `<button class="btn small ghost" type="button" data-toggle-dismissed>${evFilter.showDismissed ? 'Hide' : 'Show'} dismissed <span class="num">${dismissedN}</span></button>` : '',
+    dismissedN && evFilter.showDismissed ? `<button class="btn small ghost" type="button" data-restore>Restore all</button>` : '',
+  ];
+  setHTML($('ev-actions'), `<div class="ev-left">${left.join('')}</div><div class="ev-right">${right.join('')}</div>`);
 
   const el = $('events');
-  if (!shown.length) return setHTML(el, `<div class="empty">${all.length ? 'Nothing matches this filter.' : '✓ No errors or warnings. Everything is behaving.'}</div>`);
+  if (!shown.length) {
+    const msg = d.events.length && !active.length ? `✓ All caught up. ${dismissedN} dismissed.`
+      : active.length ? 'Nothing matches this filter.' : '✓ No errors or warnings. Everything is behaving.';
+    return setHTML(el, `<div class="empty">${msg}</div>`);
+  }
 
   // Keep expanded rows expanded across refreshes.
   const open = new Set([...el.querySelectorAll('details[open]')].map(x => x.dataset.key));
   setHTML(el, shown.map(e => {
-    const key = esc(`${e.svc}|${e.t}|${e.message}`.slice(0, 200));
+    const svc = d.services.find(s => s.id === e.svcId);
+    const acts = e.dismissed
+      ? '<span class="tag">dismissed</span>'
+      : `${e.live && (e.healthCheck || e.source === 'Connection') ? `<button class="icon-btn" type="button" data-recheck="${esc(e.svcId)}" title="Re-check ${esc(svc?.name || '')}" aria-label="Re-check ${esc(svc?.name || '')}">↻</button>` : ''}
+         <button class="icon-btn" type="button" data-dismiss="${esc(e.key)}" title="Dismiss" aria-label="Dismiss">✕</button>`;
     const cells = `<span class="lvl ${e.level}">${e.level === 'error' ? 'error' : 'warn'}</span>
       <span class="svc-n">${esc(e.svc)}</span>
-      <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source || '')}</span>${esc(e.message)}</span>
-      <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>`;
+      <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}</span>
+      <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>
+      <span class="ev-acts">${acts}</span>`;
+    const cls = `ev${e.dismissed ? ' is-dismissed' : ''}`;
     return e.detail
-      ? `<details class="ev" data-key="${key}"${open.has(key) ? ' open' : ''}><summary>${cells}</summary><pre>${esc(e.detail)}</pre></details>`
-      : `<div class="ev"><div class="row">${cells}</div></div>`;
+      ? `<details class="${cls}" data-key="${esc(e.key)}"${open.has(e.key) ? ' open' : ''}><summary>${cells}</summary><pre>${esc(e.detail)}</pre></details>`
+      : `<div class="${cls}"><div class="row">${cells}</div></div>`;
   }).join(''));
 }
 
@@ -317,6 +325,58 @@ $('ev-filters').addEventListener('click', e => {
   if (b.dataset.level) evFilter.level = b.dataset.level;
   if (b.dataset.svc) evFilter.svc = b.dataset.svc;
   if (state) renderEvents(state);
+});
+
+// --------------------------------------------------------------------- dismiss / clear / re-check
+function toast(msg, kind = 'ok') {
+  const t = $('toast');
+  t.innerHTML = msg;
+  t.className = `toast ${kind}`;
+  t.hidden = false;
+  clearTimeout(t._t);
+  t._t = setTimeout(() => (t.hidden = true), kind === 'bad' ? 7000 : 3500);
+}
+
+async function post(path, body = {}) {
+  const r = await fetch(`/api/events${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { needLogin: data.needLogin });
+  return data;
+}
+
+async function runAction(btn, fn) {
+  btn.disabled = true;
+  const label = btn.innerHTML;
+  if (!btn.classList.contains('icon-btn')) btn.textContent = 'Working…';
+  try {
+    const r = await fn();
+    if (r?.message) toast(`✓ ${esc(r.message)}`);
+  } catch (err) {
+    toast(err.needLogin ? `${esc(err.message)} — <a href="/settings">open Settings</a>` : `✕ ${esc(err.message)}`, 'bad');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = label;
+    lastHTML.clear(); // force a full redraw with fresh data
+    refresh();
+  }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed]');
+  if (!b) return;
+  e.preventDefault(); // buttons inside <summary> must not toggle the row
+  e.stopPropagation();
+  const name = id => state?.services.find(s => s.id === id)?.name || 'app';
+  if ('dismiss' in b.dataset) return runAction(b, () => post('/dismiss', { keys: [b.dataset.dismiss] }));
+  if ('dismissAll' in b.dataset) return runAction(b, () => post('/dismiss', evFilter.svc === 'all' ? { all: true } : { svcId: evFilter.svc }));
+  if ('restore' in b.dataset) return runAction(b, () => post('/restore'));
+  if ('recheck' in b.dataset) return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.recheck)}/recheck`));
+  if ('toggleDismissed' in b.dataset) { evFilter.showDismissed = !evFilter.showDismissed; return renderEvents(state); }
+  if ('clear' in b.dataset) {
+    const svc = state.services.find(s => s.id === b.dataset.clear);
+    if (!confirm(`Clear ${name(svc.id)}'s log?\n\n${svc.actions.clear}`)) return;
+    return runAction(b, () => post(`/services/${encodeURIComponent(svc.id)}/clear`));
+  }
 });
 
 function etaText(eta) {

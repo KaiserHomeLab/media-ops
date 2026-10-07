@@ -13,6 +13,9 @@ A live dashboard for a Plex + *arr server. It shows:
   - Clonarr profile-sync failures
 
   Filter by app or show errors only. Click a row for the full exception.
+  - **Dismiss** (✕ on a row, or **Dismiss all**) hides entries on the dashboard only. Nothing is deleted in the app. Dismissals are saved and apply in every browser. A dismissed ongoing problem (health check, unreachable app, stuck download) shows up again if it clears and later comes back. **Show dismissed** / **Restore all** undo it.
+  - **Clear log** (select an app first) deletes the log inside the app, after a confirmation. For Sonarr/Radarr/Lidarr/Prowlarr it empties System → Logs; for SABnzbd it clears warnings and failed-download history. Seerr, Tautulli and Clonarr have no API for this, so use Dismiss. If a settings password is set, you need to be logged in.
+  - **Re-check** (↻) makes an arr re-run its health checks right away (same as its System → Status button) and refreshes. For other apps it polls them again.
 - **Library**: Plex library counts, and *arr totals (series, episodes, movies, missing, size on disk).
 - **Downloads, Coming up, Watch stats** (Tautulli), **Storage** and **Host**.
 

@@ -6,7 +6,7 @@ Media Ops is a dashboard for a home media server running Plex and the *arr apps 
 Radarr, Prowlarr and friends). It shows you who's watching, what's downloading, what's
 broken, and how full your disks are, all in one place, without opening ten browser tabs.
 
-It runs as a single Docker container on Unraid, TrueNAS or anything else that runs Docker.
+It runs as a single Docker container on Unraid, TrueNAS, Synology, Linux, Windows or a Mac.
 You set it up from a settings page in your browser; there are no files to edit.
 
 ![The Media Ops dashboard](docs/screenshots/dashboard.png)
@@ -83,34 +83,43 @@ won't wake you up.
 
 ## Install
 
-### Unraid
+Media Ops runs in Docker on almost anything: a NAS, a Linux box, a Raspberry Pi, or your Windows
+PC or Mac. **[The install guide](docs/install.md) has step-by-step instructions for each one**,
+including Synology, QNAP, Portainer and Proxmox. The short versions:
 
-1. Save [`unraid-template.xml`](unraid-template.xml) to your flash drive as
-   `/boot/config/plugins/dockerMan/templates-user/my-media-ops.xml`.
-2. In Unraid, go to **Docker → Add Container**, pick **media-ops** from the template list,
-   and click **Apply**.
-3. Open `http://<your-unraid-ip>:8484`.
+**Unraid.** Save [`unraid-template.xml`](unraid-template.xml) to your flash drive as
+`/boot/config/plugins/dockerMan/templates-user/my-media-ops.xml`, then go to **Docker → Add
+Container**, pick **media-ops** and click **Apply**.
 
-If you use the Docker Compose Manager plugin, [`docker-compose.yml`](docker-compose.yml)
-works too.
+**TrueNAS (24.10 or newer).** Go to **Apps → Discover Apps → ⋮ → Install via YAML** and paste in
+[`truenas-compose.yml`](truenas-compose.yml), with `tank` changed to your pool's name.
+[More detail](docs/install.md#truenas).
 
-### TrueNAS (24.10 or newer)
-
-1. Make a folder for Media Ops' settings, for example a dataset called `tank/apps/media-ops`.
-   Give the `apps` user (ID 568) permission to write to it.
-2. Go to **Apps → Discover Apps → ⋮ → Install via YAML** and paste in
-   [`truenas-compose.yml`](truenas-compose.yml). Change `tank` to your pool's name.
-3. Open `http://<your-truenas-ip>:8484`. Under **Settings → General**, set the disk path to
-   your pool (for example `/mnt/tank`).
-
-### Anything else with Docker
+**Linux.**
 
 ```bash
-docker run -d --name media-ops -p 8484:8484 \
-  -e PUID=1000 -e PGID=1000 -e TZ=America/Chicago \
-  -v /path/to/media-ops:/config \
+docker run -d --name media-ops --restart unless-stopped -p 8484:8484 \
+  -e PUID=$(id -u) -e PGID=$(id -g) -e TZ=America/Chicago -e HOST_NAME=$(hostname) \
+  -v ~/media-ops:/config \
+  -v /var/run/docker.sock:/var/run/docker.sock:ro \
   ghcr.io/kaiserhomelab/media-ops:latest
 ```
+
+**Windows** (with [Docker Desktop](https://www.docker.com/products/docker-desktop/)), in PowerShell:
+
+```powershell
+docker run -d --name media-ops --restart unless-stopped -p 8484:8484 `
+  -e TZ=America/Chicago -e HOST_NAME=$env:COMPUTERNAME `
+  -v C:\media-ops:/config `
+  -v /var/run/docker.sock:/var/run/docker.sock:ro `
+  ghcr.io/kaiserhomelab/media-ops:latest
+```
+
+**macOS** works like Linux, with Docker Desktop or OrbStack. **Docker Compose** fans can use
+[`docker-compose.yml`](docker-compose.yml), which works on every system.
+
+Then open `http://<that-computer's-ip>:8484`. To show free space for your media drives, map
+them into the container too; the [install guide](docs/install.md) shows how for each system.
 
 ## First steps
 
@@ -124,7 +133,8 @@ docker run -d --name media-ops -p 8484:8484 \
 A few tips:
 
 - Use your server's IP address, like `http://192.168.1.10:8989`, not `localhost`. (Inside a
-  container, `localhost` means the container itself.)
+  container, `localhost` means the container itself.) For apps installed directly on a
+  Windows PC or Mac, use `host.docker.internal`. [More on addresses](docs/install.md#reaching-your-apps).
 - Running two of the same app, like Sonarr and Sonarr Anime? Add it twice with different names.
 - Drag the app cards to change the order on the dashboard.
 - On Unraid or TrueNAS, Settings notices which one you're running and offers to add it.
@@ -151,10 +161,12 @@ Passwords, API keys, IP addresses and usernames are removed from it first.
 You'll need access to the server itself. Any of these works:
 
 - On the login screen, click **Forgot password?** → **Get a reset code**. The code shows up in
-  the container's log (on Unraid: Docker tab → media-ops icon → **Logs**) and in a file called
-  `password-reset.txt` in the settings folder. Codes expire after 15 minutes.
-- Open the container's console (on Unraid: Docker tab → media-ops icon → **Console**) and run
-  `reset-password`. This removes the password.
+  the container's log (Unraid: Docker tab → media-ops icon → **Logs**; Docker Desktop: click the
+  container; anywhere else: `docker logs media-ops`) and in a file called `password-reset.txt`
+  in the settings folder. Codes expire after 15 minutes.
+- Open the container's console (Unraid: Docker tab → media-ops icon → **Console**) and run
+  `reset-password`, or run `docker exec media-ops reset-password` from a terminal. This removes
+  the password.
 - Edit `config.json` in the settings folder and set `"auth": null`.
 
 ## Good to know
@@ -182,10 +194,11 @@ options work:
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PUID` / `PGID` | `911` | The user the app runs as. Unraid: `99` / `100`. TrueNAS: `568` / `568`. |
+| `PUID` / `PGID` | `911` | The user the app runs as. Unraid: `99` / `100`. TrueNAS: `568` / `568`. Linux and Synology: run `id`. Windows and Mac: not needed. |
 | `TZ` | `Etc/UTC` | Your time zone, like `America/Chicago`. Used for quiet hours and the daily summary. |
 | `UMASK` | `022` | File permissions for new files. |
 | `HOST_NAME` | container ID | The server name shown at the top of the dashboard. |
+| `HOST_OS` | detected | The system it runs on (`Unraid`, `TrueNAS`, `Synology`, `Windows`...), if the guess is wrong. |
 | `PORT` | `8484` | The port inside the container. |
 | `DEMO` | | Set to `1` to see the dashboard with made-up data. |
 

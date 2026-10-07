@@ -38,6 +38,7 @@ const gpu = require('./lib/gpu');
 const space = require('./lib/space');
 const selfupdate = require('./lib/selfupdate');
 const pins = require('./lib/pins');
+const { platform } = require('./lib/platform');
 const pkg = require('./package.json');
 
 const PUBLIC = path.join(__dirname, 'public');
@@ -60,12 +61,18 @@ function cpuPercent() {
   return total ? Math.round((1 - idle / total) * 100) : null;
 }
 
-// Which NAS OS the container is running on, so Settings can suggest the matching app.
-// Containers share the host's kernel, and both name it: "6.12.x-Unraid" and
-// "6.12.x-production+truenas". Unraid's Docker manager also sets HOST_OS=Unraid.
+// Which NAS the container is running on, so Settings can suggest adding it (lib/platform.js).
 function hostOs() {
-  const hint = `${process.env.HOST_OS || ''} ${os.release()}`;
-  return /unraid/i.test(hint) ? 'unraid' : /truenas/i.test(hint) ? 'truenas' : null;
+  const { id } = platform();
+  return id === 'unraid' || id === 'truenas' ? id : null;
+}
+
+// The most common setup mistake: inside a container, localhost is the container itself.
+function loopbackNote(url) {
+  let host = '';
+  try { host = new URL(url).hostname; } catch { return ''; }
+  if (!/^(localhost|127(\.\d+){3}|\[::1\])$/i.test(host)) return '';
+  return ` Note: inside the Media Ops container, ${host} means the container itself, not your server. Use the server's network IP${platform().vm ? ', or host.docker.internal for an app installed on this computer' : ''}.`;
 }
 
 // Stats for the machine this runs on. Inside a container, CPU, RAM, load and uptime are the
@@ -74,6 +81,8 @@ function hostStats() {
   return {
     hostname: process.env.HOST_NAME || os.hostname(),
     platform: `${os.type()} ${os.release()}`,
+    system: platform().label,
+    vm: platform().vm, // Docker Desktop: CPU, memory and uptime are its VM's, not the computer's
     os: hostOs(),
     cpus: os.cpus().length,
     cpuModel: os.cpus()[0]?.model?.trim(),
@@ -389,6 +398,7 @@ function settingsPayload(req) {
     services: cfg.services.map(config.publicService),
     kinds: KINDS,
     hostOs: hostOs(),
+    platform: platform(),
     notifications: {
       diskThreshold: cfg.notifications?.diskThreshold ?? 90,
       quiet: { enabled: false, from: '23:00', to: '07:00', allowDown: true, ...(cfg.notifications?.quiet || {}) },
@@ -458,9 +468,10 @@ async function settingsApi(req, res, route) {
     try { svc = config.mergeService(existing, input); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
     if (svc.kind === 'truenas') pins.forget(svc.url); // testing from Settings trusts its current certificate
     const r = await runService(svc);
+    const note = loopbackNote(svc.url);
     return send(res, 200, r.up
       ? { ok: true, version: r.version, latency: r.latency, note: r.data?.note || null }
-      : { ok: false, error: r.error });
+      : { ok: false, error: note ? `${String(r.error).replace(/[.\s]*$/, '.')}${note}` : r.error });
   }
 
   if (method === 'POST' && route === '/services') {

@@ -110,7 +110,9 @@ function render(d) {
   const firstRun = !d.demo && !d.configured;
   $('welcome').hidden = !firstRun;
   $('dash').hidden = firstRun;
-  $('hostline').textContent = `${d.host.hostname} · ${d.host.platform} · up ${uptime(d.host.uptime)}`;
+  const sys = !d.host.system || d.host.system === 'Linux' ? d.host.platform : d.host.system;
+  $('hostline').textContent = `${d.host.hostname} · ${sys} · up ${uptime(d.host.uptime)}`;
+  $('hostline').title = d.host.platform || '';
 
   renderAlerts(d);
   renderKpis(d, { streams, arrs, clients });
@@ -863,15 +865,18 @@ function renderDisks(d, arrs) {
   }).join(''));
 }
 
+const vmNote = "On Windows and Mac, Docker runs containers inside a small Linux VM, so this is the VM's share, not the whole computer's. In Docker Desktop you can change it under Settings → Resources.";
+
 function renderHost(h, docker, gpus = [], plexRes = null) {
   $('host-name').textContent = h.hostname;
   const memPct = (h.memUsed / h.memTotal) * 100;
   const cell = (k, v, pct, title = '') => `<div class="h"${title ? ` title="${esc(title)}"` : ''}><div class="k">${k}</div><div class="v">${v}</div>${pct != null ? `<div class="bar"><i style="width:${Math.min(100, pct).toFixed(0)}%"></i></div>` : ''}</div>`;
   setHTML($('host'), [
-    cell('CPU', h.cpu != null ? `${h.cpu}%` : '—', h.cpu),
-    cell('Memory', `${bytes(h.memUsed)}`, memPct),
+    // On Windows and Mac containers run in a small VM; these numbers are the VM's.
+    cell(h.vm ? 'CPU (Docker VM)' : 'CPU', h.cpu != null ? `${h.cpu}%` : '—', h.cpu, h.vm ? vmNote : ''),
+    cell(h.vm ? 'Memory (Docker VM)' : 'Memory', `${bytes(h.memUsed)}`, memPct, h.vm ? vmNote : ''),
     cell(`Load (${h.cpus} cores)`, h.load.map(l => l.toFixed(2)).join(' ')),
-    cell('Uptime', uptime(h.uptime)),
+    cell(h.vm ? 'VM uptime' : 'Uptime', uptime(h.uptime)),
     plexRes?.plexCpu != null && cell('Plex CPU', `${Math.round(plexRes.plexCpu)}%`, plexRes.plexCpu, `Plex Media Server's own CPU use (host total ${Math.round(plexRes.hostCpu)}%)`),
     ...gpus.map(g => cell(esc(g.name), g.busy != null ? `${g.busy}%` : g.freqMhz != null ? `${g.freqMhz} MHz` : '—', g.busy ?? (g.freqMhz && g.maxMhz ? (g.freqMhz / g.maxMhz) * 100 : null),
       [g.busy != null && `${g.busy}% busy`, g.freqMhz && `${g.freqMhz}${g.maxMhz ? ` of ${g.maxMhz}` : ''} MHz`, g.temp != null && `${g.temp} °C`, g.encoderSessions != null && `${g.encoderSessions} encode sessions`].filter(Boolean).join(' · '))),

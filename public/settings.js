@@ -205,11 +205,19 @@ function openPicker() {
 }
 
 // --------------------------------------------------------------------- modal: add / edit form
+const isLoopback = h => /^(localhost|127(\.\d+){3}|\[::1\])$/i.test(h);
+
 function suggestUrl(def) {
   // Most people run everything on one box, so reuse the host of an app already added (or this page's host).
   let host = location.hostname;
   const first = S.services[0];
   if (first) try { host = new URL(first.url).hostname; } catch {}
+  // Opened as localhost: that address means the container itself. Docker Desktop has a name for
+  // the computer it runs on; elsewhere leave it blank so the placeholder shows an IP to use.
+  if (isLoopback(host)) {
+    if (!S.platform?.vm) return '';
+    host = 'host.docker.internal';
+  }
   if (def.kind === 'truenas') return `https://${host}`;
   return def.port ? `http://${host}:${def.port}` : `http://${host}`;
 }
@@ -237,7 +245,7 @@ function openForm(kind, svc = null) {
       <label class="field toggle"><input type="checkbox" name="enabled" ${svc?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
       <label class="field wide"><span>Address</span><input name="url" required spellcheck="false" inputmode="url"
         value="${esc(svc?.url || suggestUrl(def))}" placeholder="http://192.168.1.10:${def.port || 80}">
-        <small>Use the server's network IP, not <code>localhost</code>.${def.port ? ` ${esc(def.label)}'s default port is ${def.port}.` : ''}</small></label>
+        <small>${S.platform?.vm ? "Use the computer's network IP, or <code>host.docker.internal</code> for an app installed on this computer. Not <code>localhost</code>." : "Use the server's network IP, not <code>localhost</code>."}${def.port ? ` ${esc(def.label)}'s default port is ${def.port}.` : ''}</small></label>
       ${fieldHtml}
       <details class="field wide more"${svc?.link ? ' open' : ''}><summary>Advanced</summary>
         <label class="field"><span>Link when clicked <em>optional</em></span><input name="link" spellcheck="false" value="${esc(svc?.link || '')}" placeholder="https://sonarr.example.com">
@@ -540,11 +548,27 @@ $('diag-download').addEventListener('click', () => {
 });
 
 // --------------------------------------------------------------------- general
+// Disk path examples for the platform Media Ops runs on (lib/platform.js). Static text only.
+const PATH_TIPS = {
+  unraid: { example: ['/mnt/user', '/mnt/cache'], text: 'Map <code>/mnt/user</code> (and <code>/mnt/cache</code>) into the container read-only, then list them here.' },
+  truenas: { example: ['/mnt/tank'], text: 'Map your pool, for example <code>/mnt/tank</code>, into the container read-only, then list it here.' },
+  synology: { example: ['/volume1'], text: 'Map <code>/volume1</code> into the container read-only, then list it here.' },
+  qnap: { example: ['/share/CACHEDEV1_DATA'], text: 'Map your data volume, for example <code>/share/CACHEDEV1_DATA</code>, into the container read-only, then list it here.' },
+  windows: { example: ['/mnt/media'], text: 'Map a folder on each drive into the container first, for example <code>-v D:\\Media:/mnt/media:ro</code>, then enter <code>/mnt/media</code>. It shows the whole drive\'s free space.' },
+  mac: { example: ['/mnt/media'], text: 'Map each drive into the container first, for example <code>-v /Volumes/Media:/mnt/media:ro</code>, then enter <code>/mnt/media</code>.' },
+  linux: { example: ['/mnt/media'], text: 'Map each disk into the container read-only, for example <code>-v /mnt/media:/mnt/media:ro</code>, then list it here.' },
+};
+PATH_TIPS['docker-desktop'] = PATH_TIPS.mac;
+PATH_TIPS.proxmox = PATH_TIPS.linux;
+
 function renderGeneral() {
   const f = $('general-form');
   f.refreshSeconds.value = S.general.refreshSeconds;
   f.dockerSocket.value = S.general.dockerSocket;
   f.paths.value = S.general.paths.join('\n');
+  const tip = PATH_TIPS[S.platform?.id] || PATH_TIPS.linux;
+  f.paths.placeholder = tip.example.join('\n');
+  $('paths-tip').innerHTML = `Paths as seen inside this container. ${tip.text} The disk space your arrs report is shown too.`;
   f.uploadMbps.value = S.general.uploadMbps ?? '';
   f.mapEnabled.checked = S.general.mapEnabled;
   f.mapHome.value = S.general.mapHome;

@@ -1,20 +1,36 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 KaiserHomeLab
-# Unraid: run with the "Docker Compose Manager" plugin, or use unraid-template.xml instead.
+#
+# Media Ops with Docker Compose. Works as-is on Linux, Windows (Docker Desktop), macOS,
+# Synology (Container Manager), Portainer and Unraid's Compose Manager plugin.
+# Start it from the folder this file is in:  docker compose up -d
+# Then open http://<this-computer's-ip>:8484
+# Step-by-step guides for each platform: docs/install.md
 services:
   media-ops:
-    image: ghcr.io/kaiserhomelab/media-ops:latest   # or comment this out and use `build: .`
+    image: ghcr.io/kaiserhomelab/media-ops:latest
     container_name: media-ops
     restart: unless-stopped
     environment:
-      - PUID=99            # Unraid's "nobody"
-      - PGID=100           # Unraid's "users"
-      - TZ=America/Chicago
-      - HOST_NAME=Tower    # name shown in the header
+      - PUID=1000          # run `id` on Linux to see yours. Unraid: 99. Synology: your user's uid.
+      - PGID=1000          # Unraid: 100. Synology: 100 (users). Windows and Mac: leave as is.
+      - TZ=America/Chicago # your time zone
+      - HOST_NAME=media-server   # the name shown at the top of the dashboard
     ports:
       - "8484:8484"
     volumes:
-      - /mnt/user/appdata/media-ops:/config
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # optional: container list
-      - /mnt/user:/mnt/user:ro                         # optional: array usage
-      - /mnt/cache:/mnt/cache:ro                       # optional: cache usage
+      # Settings folder. "./config" is created next to this file and works on every OS.
+      # Unraid: /mnt/user/appdata/media-ops   Synology: /volume1/docker/media-ops
+      - ./config:/config
+
+      # Optional: the Docker container list. Same path on Linux, Windows and Mac.
+      # Safer: a read-only socket proxy instead (see "Good to know" in the README).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+      # Optional: disks to show free space for. Mount read-only, then list the
+      # right-hand path under Settings → General → Disks to show.
+      # Linux:    - /mnt/media:/mnt/media:ro
+      # Windows:  - D:\Media:/mnt/media:ro   (the free space shown is the whole D: drive's)
+      # macOS:    - /Volumes/Media:/mnt/media:ro
+      # Unraid:   - /mnt/user:/mnt/user:ro
+      # Synology: - /volume1:/volume1:ro

@@ -39,8 +39,11 @@ COPY public/ /app/media-ops/public/
 
 # add local files
 COPY root/ /
-# in case the repo was uploaded without exec bits (e.g. via GitHub's web UI)
-RUN chmod +x /etc/s6-overlay/s6-rc.d/*-media-ops*/run /usr/local/bin/reset-password
+# in case the repo was uploaded without exec bits (e.g. via GitHub's web UI), or checked out
+# on Windows with CRLF line endings (s6 can't run a script whose first line ends in \r)
+RUN \
+  find /etc/s6-overlay/s6-rc.d/*-media-ops* /usr/local/bin/reset-password -type f -exec sed -i 's/\r$//' {} + && \
+  chmod +x /etc/s6-overlay/s6-rc.d/*-media-ops*/run /usr/local/bin/reset-password
 
 # ports and volumes
 EXPOSE 8484

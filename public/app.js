@@ -815,8 +815,8 @@ $('plays-chart').addEventListener('mousemove', e => {
   const { dates, series } = t.data.playsByDate;
   const shown = series.slice(0, 3);
   tip.innerHTML = `<div style="margin-bottom:4px;color:var(--text-secondary)">${new Date(dates[i] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>` +
-    shown.map((s, si) => `<div class="r"><span><i style="background:var(${SERIES_VAR[si]})"></i>${esc(s.name)}</span><b>${s.data[i] || 0}</b></div>`).join('') +
-    `<div class="r" style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Total</span><b>${sum(shown, s => s.data[i])}</b></div>`;
+    shown.map((s, si) => `<div class="r"><span><i style="background:var(${SERIES_VAR[si]})"></i>${esc(s.name)}</span><b>${n0(s.data[i])}</b></div>`).join('') +
+    `<div class="r" style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Total</span><b>${n0(sum(shown, s => s.data[i]))}</b></div>`;
   placeTip(e);
 });
 $('plays-chart').addEventListener('mouseleave', () => (tip.hidden = true));

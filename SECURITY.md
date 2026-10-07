@@ -11,7 +11,8 @@ there as soon as I can.
 - API keys and tokens are stored in `/config/config.json` (permissions `0600`) on your
   server, and are never sent back to the browser. The Settings form only shows that one is saved.
 - The optional Settings password is stored as a salted scrypt hash. Sessions live in
-  memory only. Ten wrong passwords (or reset codes) from one address lock it out for 15 minutes.
+  memory only. Ten wrong passwords (or reset codes) from one address lock it out for 15 minutes;
+  this also covers the "current password" on the change-password form.
 - A saved API key or token is only ever sent to the address it was saved for. Changing an app's
   address (or a notification server) requires entering the key again, so nobody who can edit
   settings can redirect a stored key to their own server.
@@ -19,12 +20,18 @@ there as soon as I can.
   so only someone with access to the server can reset it.
 - Requests that change anything are rejected if they come from another website (Origin and
   Sec-Fetch-Site checks; the session cookie is also SameSite=Strict, and Secure behind https).
-- Every page is sent with a strict Content Security Policy (no inline or third-party scripts),
-  `frame-ancestors 'none'` against clickjacking, `nosniff` and `no-referrer`. Values coming from
+- Every page is sent with a strict Content Security Policy (no inline or third-party scripts, no
+  injected `<style>` elements), `frame-ancestors 'none'` against clickjacking, `nosniff`,
+  `no-referrer`, and `Cross-Origin-Resource-Policy: same-origin` so other sites can't embed
+  its responses. Values coming from
   your apps (titles, versions, log lines) are escaped before they're shown, and only http(s)
   links are ever made clickable.
 - Actions that change something inside an app (clear its log, stop a stream, retry or replace
-  a download) need the settings login when a password is set. Re-check only reads, so it's open.
+  a download) need the settings login when a password is set. Re-check only reads, so it's open,
+  but limited to once per 15 seconds per app. IDs sent from the browser must be whole numbers
+  before they go into an app's address.
+- Plex posters are fetched by the server (so the Plex token never reaches the browser), with
+  redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, tokens, keys) are stored like API keys: in `config.json`,
   never sent back to the browser. Messages go only to the destinations you add.
 - The stream map looks up remote viewers' IP addresses with Plex's own GeoIP service
@@ -55,5 +62,9 @@ there as soon as I can.
   could do anything. Safer: run a read-only socket proxy (e.g. `tecnativa/docker-socket-proxy`
   with only `CONTAINERS=1`) and enter its address (`http://socket-proxy:2375`) under Settings →
   General instead, or leave the socket out if you don't need that panel.
-- Replies from apps are capped (128 MB per reply, 64 MB per TrueNAS message), so a misbehaving
-  app can't exhaust memory. Settings writes are capped at 64 KB (2 MB for a restore).
+- Replies from apps are capped (128 MB per reply, 64 MB per TrueNAS message, 5 MB per poster),
+  so a misbehaving app can't exhaust memory. Settings writes are capped at 64 KB (2 MB for a
+  restore), and a client gets 30 seconds to send a request.
+- Discord messages can't ping `@everyone`, even when they quote an app's log line.
+- The image is built by GitHub Actions pinned to exact commits, so a moved tag can't change
+  what runs with the publishing token.

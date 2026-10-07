@@ -147,12 +147,15 @@ function describeError(e) {
 // Run one collector with a hard 15 s cap. Never throws: a failure becomes { up: false, error }.
 async function runService(s, limitMs = 15000) {
   const base = { id: s.id, kind: s.kind, name: s.name, link: s.link || s.url };
+  let timer;
   try {
-    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Timed out')), limitMs));
+    const timeout = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('Timed out')), limitMs); });
     const r = await Promise.race([collectors[s.kind](s), timeout]);
     return { ...base, up: true, ...r };
   } catch (e) {
     return { ...base, up: false, error: describeError(e) };
+  } finally {
+    clearTimeout(timer); // otherwise one stray timer per app per poll
   }
 }
 
@@ -242,6 +245,7 @@ function historyPayload() {
 }
 
 // ------------------------------------------------------------- dashboard actions: dismiss / clear / re-check
+const lastRecheck = new Map(); // service id -> when it was last re-checked
 async function eventsApi(req, res, route) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
   const body = await readJson(req);
@@ -266,6 +270,11 @@ async function eventsApi(req, res, route) {
   if (DEMO) return send(res, 200, { ok: true, message: 'Demo mode — nothing was changed' });
   const svc = config.load().services.find(s => s.id === id);
   if (!svc) return send(res, 404, { error: 'App not found' });
+  if (action === 'recheck') {
+    // Open without a login, so keep anyone from making an app run its checks nonstop.
+    if (Date.now() - (lastRecheck.get(id) || 0) < 15e3) return send(res, 429, { error: `${svc.name} was re-checked a moment ago. Try again in a few seconds.` });
+    lastRecheck.set(id, Date.now());
+  }
   try {
     const run = {
       clear: () => actions.clear(svc),
@@ -285,15 +294,21 @@ async function eventsApi(req, res, route) {
 }
 
 // ------------------------------------------------------------- Plex poster proxy (keeps token server-side)
+const THUMB_MAX = 5 * 1024 * 1024; // a 240×360 poster is ~30 KB
 async function plexThumb(res, p) {
   const plex = config.load().services.find(s => s.kind === 'plex' && s.enabled !== false);
   if (!plex || !/^\/library\/metadata\/\d+\/(thumb|art)\/\d+$/.test(p || '')) return send(res, 404);
   const url = join(plex.url, `/photo/:/transcode?width=240&height=360&minSize=1&upscale=1&url=${encodeURIComponent(p)}`);
   try {
-    const r = await fetch(url, { headers: { 'X-Plex-Token': plex.token }, signal: AbortSignal.timeout(8000) });
-    if (!r.ok) throw new Error();
-    res.writeHead(200, { 'Content-Type': r.headers.get('content-type') || 'image/jpeg', 'Cache-Control': 'max-age=86400' });
-    res.end(Buffer.from(await r.arrayBuffer()));
+    // No redirects: fetch would carry the X-Plex-Token header along to wherever it points.
+    const r = await fetch(url, { headers: { 'X-Plex-Token': plex.token }, signal: AbortSignal.timeout(8000), redirect: 'manual' });
+    const type = r.headers.get('content-type') || 'image/jpeg';
+    if (!r.ok || !/^image\/(jpeg|png|webp|gif)/.test(type) || Number(r.headers.get('content-length')) > THUMB_MAX) throw new Error();
+    const chunks = [];
+    let size = 0;
+    for await (const c of r.body) { if ((size += c.length) > THUMB_MAX) throw new Error(); chunks.push(c); }
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'private, max-age=86400' });
+    res.end(Buffer.concat(chunks, size));
   } catch {
     send(res, 502);
   }
@@ -355,11 +370,13 @@ function sameOrigin(req) {
 
 async function readJson(req, limit = 64 * 1024) {
   if (!/^application\/json/.test(req.headers['content-type'] || '')) throw Object.assign(new Error('Expected JSON'), { status: 415 });
-  let body = '';
+  const chunks = [];
+  let size = 0;
   for await (const chunk of req) {
-    body += chunk;
-    if (body.length > limit) throw Object.assign(new Error('Request too large'), { status: 413 });
+    if ((size += chunk.length) > limit) throw Object.assign(new Error('Request too large'), { status: 413 });
+    chunks.push(chunk);
   }
+  const body = Buffer.concat(chunks, size).toString('utf8');
   try { return JSON.parse(body || '{}'); } catch { throw Object.assign(new Error('Invalid JSON'), { status: 400 }); }
 }
 
@@ -371,9 +388,10 @@ function send(res, status, body) {
 // gzip text bodies over 1 KB when the browser accepts it: the overview JSON and app.js
 // shrink to a fifth, which matters on phones and wall tablets on Wi-Fi.
 const gzip = promisify(zlib.gzip);
+const COMPRESSIBLE = /json|text|javascript|css|svg|manifest/;
 async function reply(res, status, headers, body) {
   const req = res.req;
-  if (body.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && /json|text|javascript|css|svg|manifest/.test(headers['Content-Type'] || '')) {
+  if (body.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && COMPRESSIBLE.test(headers['Content-Type'] || '')) {
     body = await gzip(body, { level: 6 });
     headers = { ...headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' };
   }
@@ -417,13 +435,13 @@ const hhmm = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ''));
 async function settingsApi(req, res, route) {
   const method = req.method;
 
-  if ((route === '/login' || route === '/reset') && method === 'POST') {
+  if ((route === '/login' || route === '/reset') && method === 'POST' || route === '/password' && method === 'PUT') {
     const wait = lockedOut(req);
     if (wait) return send(res, 429, { error: `Too many wrong attempts. Try again in ${wait} minute${wait === 1 ? '' : 's'}.` });
   }
   if (route === '/login' && method === 'POST') {
     const { password } = await readJson(req);
-    if (!config.checkPassword(password)) {
+    if (!(await config.checkPassword(password))) {
       noteFailure(req);
       await new Promise(r => setTimeout(r, 800)); // slow down guessing
       return send(res, 401, { error: 'Wrong password' });
@@ -658,7 +676,11 @@ async function settingsApi(req, res, route) {
   if (method === 'PUT' && route === '/password') {
     const { current, next } = await readJson(req);
     const cfg = config.load();
-    if (cfg.auth && !config.checkPassword(current)) return send(res, 401, { error: 'Current password is wrong' });
+    if (cfg.auth && !(await config.checkPassword(current))) {
+      noteFailure(req);
+      await new Promise(r => setTimeout(r, 800));
+      return send(res, 401, { error: 'Current password is wrong' });
+    }
     if (next && String(next).length < 8) return send(res, 400, { error: 'Use at least 8 characters' });
     config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null, dashboardAuth: next ? c.dashboardAuth : false }));
     sessions.clear();
@@ -686,11 +708,12 @@ function dashboardLocked(req, pathname) {
 // so the policy can be strict: a value injected into the page can't run code, the pages can't
 // be framed by another site (clickjacking), and links don't leak the dashboard's address.
 const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; style-src-elem 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'no-referrer',
   'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Resource-Policy': 'same-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
 };
 
@@ -738,6 +761,13 @@ const server = http.createServer(async (req, res) => {
     const f = await staticFile(file);
     const headers = { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', ETag: f.etag, 'Cache-Control': 'no-cache' };
     if (req.headers['if-none-match'] === f.etag) return res.writeHead(304, headers).end();
+    // Static files never change between deploys: compress each one once (at the best level),
+    // not on every request.
+    if (f.body.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && COMPRESSIBLE.test(headers['Content-Type'])) {
+      f.gz ||= await gzip(f.body, { level: 9 });
+      res.writeHead(200, { ...headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding', 'Content-Length': f.gz.length });
+      return res.end(f.gz); // Node drops the body itself for HEAD
+    }
     return reply(res, 200, headers, f.body);
   } catch (e) {
     if (e.code === 'ENOENT' || e.code === 'EISDIR' || e.code === 'ENOTDIR') return res.writeHead(404).end('Not found');
@@ -746,6 +776,9 @@ const server = http.createServer(async (req, res) => {
     send(res, 500, { error: 'Server error' });
   }
 });
+
+server.headersTimeout = 15000; // a client gets 15 s to send its headers...
+server.requestTimeout = 30000; // ...and 30 s for the whole request (the biggest is a 2 MB restore)
 
 history.load();
 setInterval(history.save, 5 * 60e3).unref();

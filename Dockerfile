@@ -45,6 +45,10 @@ RUN \
   find /etc/s6-overlay/s6-rc.d/*-media-ops* /usr/local/bin/reset-password -type f -exec sed -i 's/\r$//' {} + && \
   chmod +x /etc/s6-overlay/s6-rc.d/*-media-ops*/run /usr/local/bin/reset-password
 
+# lets Docker, Unraid, Synology and Portainer show whether it's healthy
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
+  CMD curl -fsS "http://localhost:${PORT:-8484}/healthz" > /dev/null || exit 1
+
 # ports and volumes
 EXPOSE 8484
 VOLUME /config

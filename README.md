@@ -119,6 +119,19 @@ The server keeps checking your apps every refresh interval (at least every 10 s)
 - The config store is `lib/config.js`. It writes atomically, with `0600` permissions.
 - Settings writes are rejected from other websites (Origin check), and the optional password is stored as a scrypt hash.
 
+## Troubleshooting
+
+**Settings → Diagnostics → Run diagnostics** checks every app live and shows each API call it made: address, status, timing and a sample of the reply. **Copy debug report** gives you a report you can paste into a GitHub issue. Keys, tokens, viewer IP addresses and usernames are removed from it.
+
+## Development
+
+```bash
+npm test        # node --test test/  (no dependencies)
+npm run demo    # fake data on http://localhost:8484
+```
+
+Tests run the collectors against a fake server answering with recorded-style replies (`test/fixtures/`). GitHub Actions runs them on Node 22 and 24 before every image build.
+
 ## License
 
 Media Ops is released under the [MIT License](LICENSE).

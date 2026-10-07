@@ -424,6 +424,57 @@ $('notif-options').addEventListener('submit', async e => {
   } catch (err) { showError($('notif-error'), err.message); }
 });
 
+// --------------------------------------------------------------------- diagnostics
+let diagReport = null;
+$('diag-run').addEventListener('click', async e => {
+  const btn = e.target;
+  btn.disabled = true; btn.textContent = 'Checking every app…';
+  try {
+    diagReport = await api('/diagnostics');
+    renderDiag(diagReport);
+    $('diag-copy').hidden = $('diag-download').hidden = false;
+  } catch (err) {
+    $('diag-results').innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
+  }
+  btn.disabled = false; btn.textContent = 'Run again';
+});
+
+function renderDiag(r) {
+  const ok = r.apps.filter(a => a.ok).length;
+  $('diag-results').innerHTML = `<p class="muted small-note">Media Ops ${esc(r.mediaOps)} · Node ${esc(r.node)} · ${esc(r.platform)} · ${ok}/${r.apps.length} apps OK</p>` +
+    r.apps.map(a => `<details class="diag-app"${a.ok ? '' : ' open'}>
+      <summary><span class="dot ${a.ok ? 'up' : 'down'}"></span><b>${esc(a.name)}</b>
+        <span class="muted">${esc(a.kind)}${a.version ? ` · v${esc(String(a.version).replace(/^v/, ''))}` : ''} · ${a.ms} ms · ${a.calls.length} call${a.calls.length === 1 ? '' : 's'}</span>
+        ${a.error ? `<span class="diag-err">✕ ${esc(a.error)}</span>` : ''}${a.note ? `<span class="muted"> · ${esc(a.note)}</span>` : ''}</summary>
+      ${a.calls.map(c => `<details class="diag-call"><summary>
+          <span class="mono">${esc(c.method)}</span> <span class="mono url">${esc(c.url)}</span>
+          <span class="mono ${c.error || (c.status >= 400) ? 'diag-err' : 'muted'}">${c.status ?? '—'} · ${c.ms ?? '—'} ms${c.bytes != null ? ` · ${c.bytes.toLocaleString()} B` : ''}${c.error ? ` · ${esc(c.error)}` : ''}</span>
+        </summary>${c.sample ? `<pre>${esc(c.sample)}</pre>` : ''}</details>`).join('')}
+    </details>`).join('') +
+    (r.recentLog.length ? `<details class="diag-app"><summary><b>Recent server warnings</b> <span class="muted">${r.recentLog.length}</span></summary><pre>${esc(r.recentLog.map(l => `${l.at} ${l.level.toUpperCase()} ${l.text}`).join('\n'))}</pre></details>` : '');
+}
+
+const reportText = () => `Media Ops debug report\n\`\`\`json\n${JSON.stringify(diagReport, null, 2)}\n\`\`\`\n`;
+$('diag-copy').addEventListener('click', async () => {
+  const text = reportText();
+  try {
+    await navigator.clipboard.writeText(text); // only available on https:// or localhost
+  } catch {
+    const ta = Object.assign(document.createElement('textarea'), { value: text });
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  flash($('diag-copied'));
+});
+$('diag-download').addEventListener('click', () => {
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([JSON.stringify(diagReport, null, 2)], { type: 'application/json' })),
+    download: `media-ops-debug-${new Date().toISOString().slice(0, 10)}.json`,
+  });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
 // --------------------------------------------------------------------- general
 function renderGeneral() {
   const f = $('general-form');

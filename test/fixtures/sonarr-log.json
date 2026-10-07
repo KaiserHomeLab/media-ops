@@ -1,0 +1,26 @@
+{
+ "page": 1,
+ "pageSize": 50,
+ "totalRecords": 3,
+ "records": [
+  {
+   "time": "2026-10-07T04:12:17.882736Z",
+   "level": "error",
+   "logger": "ImportApprovedEpisodes",
+   "message": "Couldn't import episode: Access to the path is denied.",
+   "exception": "System.UnauthorizedAccessException: Access denied"
+  },
+  {
+   "time": "2026-10-07T03:24:17.882736Z",
+   "level": "warn",
+   "logger": "Newznab",
+   "message": "API request limit reached"
+  },
+  {
+   "time": "2026-10-07T02:24:17.882736Z",
+   "level": "info",
+   "logger": "RssSyncService",
+   "message": "RSS Sync Completed"
+  }
+ ]
+}

@@ -1,0 +1,49 @@
+{
+ "pageInfo": {
+  "pages": 1,
+  "pageSize": 10,
+  "results": 1,
+  "page": 1
+ },
+ "results": [
+  {
+   "id": 41,
+   "status": 1,
+   "type": "movie",
+   "is4k": false,
+   "createdAt": "2026-10-07T00:24:17.882736Z",
+   "requestedBy": {
+    "id": 3,
+    "displayName": "viewer-c",
+    "email": "c@example.com"
+   },
+   "media": {
+    "tmdbId": 1233413,
+    "mediaType": "movie"
+   }
+  },
+  {
+   "id": 42,
+   "status": 1,
+   "type": "tv",
+   "is4k": false,
+   "createdAt": "2026-10-07T03:24:17.882736Z",
+   "requestedBy": {
+    "id": 4,
+    "displayName": "viewer-d"
+   },
+   "seasons": [
+    {
+     "seasonNumber": 1
+    },
+    {
+     "seasonNumber": 2
+    }
+   ],
+   "media": {
+    "tmdbId": 136315,
+    "mediaType": "tv"
+   }
+  }
+ ]
+}

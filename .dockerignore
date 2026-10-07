@@ -5,3 +5,5 @@ config.json
 .github
 *.xml
 README.md
+test
+scripts

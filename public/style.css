@@ -553,3 +553,15 @@ fieldset.events { border: 1px solid var(--line); border-radius: 10px; padding: 1
 fieldset.events legend { font-size: 12px; font-weight: 600; color: var(--text-secondary); padding: 0 6px; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* settings: diagnostics */
+.actions.start { justify-content: flex-start; }
+.diag { display: grid; gap: 6px; margin-top: 12px; }
+.diag-app { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.diag-app > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.diag-app > summary .dot { width: 8px; height: 8px; }
+.diag-call { margin: 6px 0 0 16px; font-size: 12px; }
+.diag-call summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.diag-call .url { color: var(--text-secondary); overflow-wrap: anywhere; }
+.diag pre { font: 11px/1.5 var(--mono); background: var(--surface-2); border-radius: 8px; padding: 10px; overflow: auto; max-height: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diag-err { color: var(--critical); }

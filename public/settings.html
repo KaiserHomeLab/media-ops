@@ -113,6 +113,18 @@
         </form>
       </section>
 
+      <section class="card">
+        <h2>Diagnostics</h2>
+        <p class="hint">Checks every app live and shows exactly what each one answered. If something on the dashboard looks wrong, run this and share the debug report. Keys, tokens, viewer IPs and usernames are removed from it.</p>
+        <div class="actions start">
+          <button class="btn primary" type="button" id="diag-run">Run diagnostics</button>
+          <button class="btn" type="button" id="diag-copy" hidden>Copy debug report</button>
+          <button class="btn" type="button" id="diag-download" hidden>Download</button>
+          <span class="saved" id="diag-copied" hidden>✓ Copied</span>
+        </div>
+        <div id="diag-results" class="diag"></div>
+      </section>
+
       <p class="foot-note">Settings are saved to <code id="config-file"></code>.</p>
     </div>
   </main>

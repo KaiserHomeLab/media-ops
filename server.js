@@ -30,6 +30,7 @@ const recovery = require('./lib/recovery');
 const geo = require('./lib/geo');
 const history = require('./lib/history');
 const notify = require('./lib/notify');
+const diagnostics = require('./lib/diagnostics');
 
 const PUBLIC = path.join(__dirname, 'public');
 const DEMO = process.env.DEMO === '1';
@@ -394,6 +395,10 @@ async function settingsApi(req, res, route) {
     config.update(c => ({ ...c, services: c.services.filter(s => s.id !== svcMatch[1]) }));
     invalidate();
     return send(res, 200, { ok: true });
+  }
+
+  if (method === 'GET' && route === '/diagnostics') {
+    return send(res, 200, await diagnostics.run(config.load().services, runService));
   }
 
   // Notification destinations

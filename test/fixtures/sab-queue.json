@@ -1,0 +1,17 @@
+{
+ "queue": {
+  "version": "4.5.1",
+  "status": "Downloading",
+  "paused": false,
+  "kbpersec": "2048.0",
+  "slots": [
+   {
+    "filename": "Andor.S02E09.2160p.WEB",
+    "percentage": "74",
+    "mb": "4000",
+    "timeleft": "0:04:12",
+    "status": "Downloading"
+   }
+  ]
+ }
+}

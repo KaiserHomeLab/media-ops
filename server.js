@@ -128,10 +128,10 @@ function describeError(e) {
 }
 
 // Run one collector with a hard 15 s cap. Never throws: a failure becomes { up: false, error }.
-async function runService(s) {
+async function runService(s, limitMs = 15000) {
   const base = { id: s.id, kind: s.kind, name: s.name, link: s.link || s.url };
   try {
-    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Timed out')), 15000));
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Timed out')), limitMs));
     const r = await Promise.race([collectors[s.kind](s), timeout]);
     return { ...base, up: true, ...r };
   } catch (e) {
@@ -156,7 +156,7 @@ async function polled() {
   const p = (async () => {
     const services = cfg.services.filter(s => s.enabled !== false && collectors[s.kind]);
     const [results, docker, disks, gpus] = await Promise.all([
-      Promise.all(services.map(runService)),
+      Promise.all(services.map(s => runService(s))),
       dockerContainers(cfg.docker),
       localDisks(cfg.paths),
       gpu.read().catch(() => []),
@@ -425,7 +425,8 @@ async function settingsApi(req, res, route) {
   }
 
   if (method === 'GET' && route === '/diagnostics') {
-    return send(res, 200, await diagnostics.run(config.load().services, runService));
+    // Diagnostics skips every cache, so allow up to a minute per app.
+    return send(res, 200, await diagnostics.run(config.load().services, s => runService(s, 60000)));
   }
 
   // Notification destinations

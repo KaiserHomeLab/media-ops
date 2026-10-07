@@ -943,7 +943,8 @@ function renderSpace(sp) {
     list = sp.downloaded.items;
     sizeOf = x => x.bytes;
     extra = x => `${x.count} import${x.count === 1 ? '' : 's'}`;
-    note = list.length ? `${bytes(sp.downloaded.total)} imported in the last 30 days (upgrades included, so it isn't all new space).` : 'Nothing imported in the last 30 days.';
+    note = list.length ? `${bytes(sp.downloaded.total)} imported in the last 30 days (upgrades included, so it isn't all new space).${sp.downloaded.loading ? ' Still loading import history from some apps…' : ''}`
+      : sp.downloaded.loading ? 'Loading import history… (this can take a minute on a big library)' : 'Nothing imported in the last 30 days.';
   } else if (!c) {
     note = sp.tautulli ? 'Collecting watch history from Tautulli…' : 'Add Tautulli (Settings → Add app) to see which movies and shows nobody watches.';
   } else {

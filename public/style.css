@@ -143,6 +143,10 @@ h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight
 .viewers .where { grid-column: 2; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-legend { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-muted); line-height: 1.6; }
 
+.card.collapsed { padding-top: 14px; padding-bottom: 14px; }
+.card.collapsed h2 { margin-bottom: 0; }
+.map-toggle { margin-left: auto; font-size: 12px; letter-spacing: 0; text-transform: none; }
+
 /* ------------------------------------------------------------------ errors & warnings */
 .ev-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .ev-filters button {

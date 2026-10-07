@@ -277,10 +277,28 @@ let mapModel = { clusters: [], atHome: [], home: null };
 const place = g => [g.city, g.region && g.region !== g.city ? g.region : null, g.code || g.country].filter(Boolean).join(', ');
 const streamLine = s => `<b>${esc(s.user)}</b> · ${esc(s.title)}${s.subtitle && s.type !== 'movie' ? ` <span class="muted">${esc(s.subtitle.split(' · ')[0])}</span>` : ''}`;
 
+let mapPeek = false; // "Show map" pressed while nobody is watching
+
 function renderMap(plex) {
   const show = !!plex && plex.data.mapEnabled !== false && !!window.WORLD_MAP;
   $('map-card').hidden = !show;
   if (!show) return;
+
+  // Collapse to a slim bar while nobody is watching; open again as soon as someone starts.
+  const idle = !plex.data.streams.length;
+  if (!idle) mapPeek = false;
+  const collapsed = idle && !mapPeek;
+  $('map-card').classList.toggle('collapsed', collapsed);
+  $('map-wrap').hidden = collapsed;
+  const toggle = $('map-toggle');
+  toggle.hidden = !idle;
+  toggle.textContent = collapsed ? 'Show map' : 'Hide map';
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  if (collapsed) {
+    $('map-count').textContent = 'nobody watching';
+    return;
+  }
+
   const { project } = MapProjection;
   const { width: W, height: H, land } = WORLD_MAP;
   const streams = plex.data.streams;
@@ -370,7 +388,7 @@ function renderMap(plex) {
   svg += '</svg>';
   setHTML($('map'), svg);
 
-  $('map-count').textContent = streams.length ? `${remote.length + unknown.length} remote · ${atHome.length} local` : '';
+  $('map-count').textContent = streams.length ? `${remote.length + unknown.length} remote · ${atHome.length} local` : 'nobody watching';
 
   // Side list doubles as the text alternative to the map.
   const li = (cls, s, where) => `<li><span class="sw ${cls}" aria-hidden="true"></span><span>${streamLine(s)}</span><span class="where">${where}</span></li>`;
@@ -402,6 +420,11 @@ $('map').addEventListener('mousemove', e => {
   placeTip(e);
 });
 $('map').addEventListener('mouseleave', () => (tip.hidden = true));
+$('map-toggle').addEventListener('click', () => {
+  mapPeek = !mapPeek;
+  lastHTML.delete($('map')); // it was drawn (or not) while hidden; redraw at the real width
+  if (state) renderMap(state.services.find(s => s.kind === 'plex' && s.up));
+});
 
 // --------------------------------------------------------------------- errors & warnings feed
 const evFilter = { svc: 'all', level: 'all', showDismissed: false };

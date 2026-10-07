@@ -222,46 +222,91 @@ function suggestUrl(def) {
   return def.port ? `http://${host}:${def.port}` : `http://${host}`;
 }
 
-function openForm(kind, svc = null) {
-  const def = kindDef(kind);
-  const sameKind = S.services.filter(s => s.kind === kind).length;
-  const defaultName = !svc && sameKind ? `${def.label} ${sameKind + 1}` : def.label;
+// Shared by the app and notification forms --------------------------------------------------
 
-  const fieldHtml = def.fields.map(f => {
-    const saved = svc?.[`${f.key}Saved`];
-    const ph = f.type === 'secret' && saved ? '•••••••••••• saved — leave blank to keep' : '';
-    return `<label class="field wide"><span>${esc(f.label)}${f.optional ? ' <em>optional</em>' : ''}</span>
+// One input from a field definition (lib/kinds.js for apps, lib/notify.js for notifications).
+// Secrets are never filled in: a saved one shows as dots, and leaving the box blank keeps it.
+function fieldHtml(f, item, required = !f.optional) {
+  const saved = item?.[`${f.key}Saved`];
+  const ph = f.type === 'secret' && saved ? '•••••••••••• saved — leave blank to keep' : f.placeholder || '';
+  return `<label class="field wide"><span>${esc(f.label)}${f.optional ? ' <em>optional</em>' : ''}</span>
       <input name="${esc(f.key)}" type="${f.type === 'secret' ? 'password' : 'text'}" autocomplete="off" spellcheck="false"
-        placeholder="${esc(ph)}" value="${f.type === 'secret' ? '' : esc(svc?.[f.key] || '')}"
-        ${!f.optional && !saved ? 'required' : ''}>
+        placeholder="${esc(ph)}" value="${f.type === 'secret' ? '' : esc(item?.[f.key] || '')}"
+        ${required && !saved ? 'required' : ''}>
       ${f.help ? `<small>${esc(f.help)}${f.link ? ` <a href="${esc(f.link)}" target="_blank" rel="noopener">How?</a>` : ''}</small>` : ''}
     </label>`;
-  }).join('');
+}
 
-  openModal(svc ? `Edit ${svc.name}` : `Add ${def.label}`, `
+// Delete (when editing) or Back to the picker (when adding), then Test and Save.
+function formActions(editing, ids, testLabel) {
+  return `<div class="actions wide">
+        ${editing ? `<button class="btn danger ghost" type="button" id="${ids.del}">Delete</button>` : `<button class="btn ghost" type="button" id="${ids.back}">← Back</button>`}
+        <span class="spacer"></span>
+        <button class="btn" type="button" id="${ids.test}">${testLabel}</button>
+        <button class="btn primary" type="submit" id="${ids.save}">Save</button>
+      </div>`;
+}
+
+const setBusy = (btn, busy, label) => { btn.disabled = busy; btn.textContent = busy ? '…' : label; };
+const focusFirstEmpty = (form, fallback) => ([...form.querySelectorAll('input[required]')].find(i => !i.value) || fallback).focus();
+
+// Apps -----------------------------------------------------------------------------------------
+
+function appFormHtml(def, svc) {
+  const sameKind = S.services.filter(s => s.kind === def.kind).length;
+  const defaultName = !svc && sameKind ? `${def.label} ${sameKind + 1}` : def.label;
+  const urlHelp = S.platform?.vm
+    ? "Use the computer's network IP, or <code>host.docker.internal</code> for an app installed on this computer. Not <code>localhost</code>."
+    : "Use the server's network IP, not <code>localhost</code>.";
+  return `
     <form class="form grid-form" id="app-form" novalidate>
       ${def.note ? `<p class="hint wide">${esc(def.note)}</p>` : ''}
       <label class="field"><span>Name</span><input name="name" required value="${esc(svc?.name || defaultName)}" placeholder="${esc(def.label)}"></label>
       <label class="field toggle"><input type="checkbox" name="enabled" ${svc?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
       <label class="field wide"><span>Address</span><input name="url" required spellcheck="false" inputmode="url"
         value="${esc(svc?.url || suggestUrl(def))}" placeholder="http://192.168.1.10:${def.port || 80}">
-        <small>${S.platform?.vm ? "Use the computer's network IP, or <code>host.docker.internal</code> for an app installed on this computer. Not <code>localhost</code>." : "Use the server's network IP, not <code>localhost</code>."}${def.port ? ` ${esc(def.label)}'s default port is ${def.port}.` : ''}</small></label>
-      ${fieldHtml}
+        <small>${urlHelp}${def.port ? ` ${esc(def.label)}'s default port is ${def.port}.` : ''}</small></label>
+      ${def.fields.map(f => fieldHtml(f, svc)).join('')}
       <details class="field wide more"${svc?.link ? ' open' : ''}><summary>Advanced</summary>
         <label class="field"><span>Link when clicked <em>optional</em></span><input name="link" spellcheck="false" value="${esc(svc?.link || '')}" placeholder="https://sonarr.example.com">
         <small>Where the dashboard tile opens, for example your reverse-proxy address. Defaults to the address above.</small></label>
       </details>
       <div class="test-result wide" id="test-result" hidden></div>
-      <div class="actions wide">
-        ${svc ? '<button class="btn danger ghost" type="button" id="del">Delete</button>' : '<button class="btn ghost" type="button" id="back">← Back</button>'}
-        <span class="spacer"></span>
-        <button class="btn" type="button" id="test">Test</button>
-        <button class="btn primary" type="submit" id="save">Save</button>
-      </div>
-    </form>`);
+      ${formActions(!!svc, { del: 'del', back: 'back', test: 'test', save: 'save' }, 'Test')}
+    </form>`;
+}
 
-  const form = $('app-form');
-  const result = $('test-result');
+function appTestResultHtml(def, r) {
+  if (!r.ok) return `✕ ${esc(r.error)}`;
+  const version = r.version ? ` — ${esc(def.label)} v${esc(String(r.version).replace(/^v/, ''))}` : '';
+  const latency = r.latency != null ? ` · ${r.latency} ms` : '';
+  return `✓ Connected${version}${latency}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}`;
+}
+
+async function saveApp(svc, body) {
+  const saved = svc
+    ? await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'PUT', body })
+    : await api('/services', { method: 'POST', body });
+  S.services = svc ? S.services.map(s => (s.id === saved.id ? saved : s)) : [...S.services, saved];
+  delete appStatus[saved.id];
+  modal.close();
+  renderApps();
+  loadStatus();
+}
+
+async function deleteApp(svc) {
+  if (!confirm(`Remove ${svc.name} from the dashboard?`)) return;
+  await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'DELETE' });
+  S.services = S.services.filter(s => s.id !== svc.id);
+  modal.close();
+  renderApps();
+}
+
+function openForm(kind, svc = null) {
+  const def = kindDef(kind);
+  openModal(svc ? `Edit ${svc.name}` : `Add ${def.label}`, appFormHtml(def, svc));
+  const form = $('app-form'), result = $('test-result');
+
   const values = () => {
     const v = Object.fromEntries(new FormData(form));
     v.enabled = form.enabled.checked;
@@ -269,18 +314,12 @@ function openForm(kind, svc = null) {
     if (svc) v.id = svc.id;
     return v;
   };
-  const setBusy = (btn, busy, label) => { btn.disabled = busy; btn.textContent = busy ? '…' : label; };
   const showResult = r => {
     result.hidden = false;
     result.className = `test-result wide ${r.ok ? 'ok' : 'bad'}`;
-    result.innerHTML = r.ok
-      ? `✓ Connected${r.version ? ` — ${esc(def.label)} v${esc(String(r.version).replace(/^v/, ''))}` : ''}${r.latency != null ? ` · ${r.latency} ms` : ''}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}`
-      : `✕ ${esc(r.error)}`;
+    result.innerHTML = appTestResultHtml(def, r);
   };
-  const test = async () => {
-    try { return await api('/test', { method: 'POST', body: values() }); }
-    catch (e) { return { ok: false, error: e.message }; }
-  };
+  const test = () => api('/test', { method: 'POST', body: values() }).catch(e => ({ ok: false, error: e.message }));
 
   $('test').addEventListener('click', async () => {
     setBusy($('test'), true, 'Test');
@@ -288,12 +327,12 @@ function openForm(kind, svc = null) {
     setBusy($('test'), false, 'Test');
   });
 
+  // Like Prowlarr: test on save, and only save a failing connection if you insist.
   let forceSave = false;
   form.addEventListener('submit', async e => {
     e.preventDefault();
     if (!form.reportValidity()) return;
     setBusy($('save'), true, 'Save');
-    // Like Prowlarr: test on save, and only save a failing connection if you insist.
     if (!forceSave && form.enabled.checked) {
       const r = await test();
       showResult(r);
@@ -304,15 +343,7 @@ function openForm(kind, svc = null) {
       }
     }
     try {
-      const body = values();
-      const saved = svc
-        ? await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'PUT', body })
-        : await api('/services', { method: 'POST', body });
-      S.services = svc ? S.services.map(s => (s.id === saved.id ? saved : s)) : [...S.services, saved];
-      delete appStatus[saved.id];
-      modal.close();
-      renderApps();
-      loadStatus();
+      await saveApp(svc, values());
     } catch (err) {
       showResult({ ok: false, error: err.message });
       setBusy($('save'), false, 'Save');
@@ -321,15 +352,8 @@ function openForm(kind, svc = null) {
   form.addEventListener('input', () => { if (forceSave) { forceSave = false; $('save').textContent = 'Save'; } });
 
   $('back')?.addEventListener('click', openPicker);
-  $('del')?.addEventListener('click', async () => {
-    if (!confirm(`Remove ${svc.name} from the dashboard?`)) return;
-    await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'DELETE' });
-    S.services = S.services.filter(s => s.id !== svc.id);
-    modal.close();
-    renderApps();
-  });
-
-  ([...form.querySelectorAll('input[required]')].find(i => !i.value) || form.url).focus();
+  $('del')?.addEventListener('click', () => deleteApp(svc));
+  focusFirstEmpty(form, form.url);
 }
 
 // --------------------------------------------------------------------- notifications
@@ -371,42 +395,54 @@ function openNotifPicker() {
   $('modal-body').querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => openNotifForm(b.dataset.type)));
 }
 
-function openNotifForm(type, target = null) {
-  const def = S.notifyTypes.find(t => t.type === type);
-  const fields = def.fields.map(f => {
-    const saved = target?.[`${f.key}Saved`];
-    const ph = f.type === 'secret' && saved ? '•••••••••••• saved — leave blank to keep' : f.placeholder || '';
-    return `<label class="field wide"><span>${esc(f.label)}${f.optional ? ' <em>optional</em>' : ''}</span>
-      <input name="${esc(f.key)}" type="${f.type === 'secret' ? 'password' : 'text'}" autocomplete="off" spellcheck="false"
-        placeholder="${esc(ph)}" value="${f.type === 'secret' ? '' : esc(target?.[f.key] || '')}" ${!f.optional && !saved && f.key !== 'server' ? 'required' : ''}>
-      ${f.help ? `<small>${esc(f.help)}</small>` : ''}</label>`;
-  }).join('');
+function notifFormHtml(def, target) {
+  // The ntfy server defaults to ntfy.sh when left blank, so it's never required.
+  const fields = def.fields.map(f => fieldHtml(f, target, !f.optional && f.key !== 'server')).join('');
   const events = S.notifyEvents.map(e => `<label class="check"><input type="checkbox" name="ev-${esc(e.key)}" ${(target ? target.events?.[e.key] : e.def) ? 'checked' : ''}><span>${esc(e.label)}</span></label>`).join('');
-
-  openModal(target ? `Edit ${target.name}` : `Add ${def.label}`, `
+  return `
     <form class="form grid-form" id="notif-form" novalidate>
       <label class="field"><span>Name</span><input name="name" required value="${esc(target?.name || def.label)}"></label>
       <label class="field toggle"><input type="checkbox" name="enabled" ${target?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
       ${fields}
       <fieldset class="field wide events"><legend>Send me</legend>${events}</fieldset>
       <div class="test-result wide" id="notif-result" hidden></div>
-      <div class="actions wide">
-        ${target ? '<button class="btn danger ghost" type="button" id="ndel">Delete</button>' : '<button class="btn ghost" type="button" id="nback">← Back</button>'}
-        <span class="spacer"></span>
-        <button class="btn" type="button" id="ntest">Send test</button>
-        <button class="btn primary" type="submit" id="nsave">Save</button>
-      </div>
-    </form>`);
+      ${formActions(!!target, { del: 'ndel', back: 'nback', test: 'ntest', save: 'nsave' }, 'Send test')}
+    </form>`;
+}
 
+// The form's values as the server expects them: the type's fields plus one flag per event.
+function notifValues(form, def, target) {
+  const v = Object.fromEntries(new FormData(form));
+  const out = { type: def.type, name: v.name, enabled: form.enabled.checked, events: {} };
+  for (const f of def.fields) out[f.key] = v[f.key];
+  for (const e of S.notifyEvents) out.events[e.key] = form[`ev-${e.key}`].checked;
+  if (target) out.id = target.id;
+  return out;
+}
+
+async function saveNotif(target, body) {
+  const saved = target
+    ? await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'PUT', body })
+    : await api('/notifications', { method: 'POST', body });
+  // Keep the "last sent" line: the server's reply doesn't carry it.
+  S.notifications.targets = target ? S.notifications.targets.map(t => (t.id === saved.id ? { ...saved, last: t.last } : t)) : [...S.notifications.targets, saved];
+  modal.close();
+  renderNotifs();
+}
+
+async function deleteNotif(target) {
+  if (!confirm(`Delete ${target.name}?`)) return;
+  await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+  S.notifications.targets = S.notifications.targets.filter(t => t.id !== target.id);
+  modal.close();
+  renderNotifs();
+}
+
+function openNotifForm(type, target = null) {
+  const def = S.notifyTypes.find(t => t.type === type);
+  openModal(target ? `Edit ${target.name}` : `Add ${def.label}`, notifFormHtml(def, target));
   const form = $('notif-form'), result = $('notif-result');
-  const values = () => {
-    const v = Object.fromEntries(new FormData(form));
-    const out = { type, name: v.name, enabled: form.enabled.checked, events: {} };
-    for (const f of def.fields) out[f.key] = v[f.key];
-    for (const e of S.notifyEvents) out.events[e.key] = form[`ev-${e.key}`].checked;
-    if (target) out.id = target.id;
-    return out;
-  };
+  const values = () => notifValues(form, def, target);
   const show = (ok, msg) => { result.hidden = false; result.className = `test-result wide ${ok ? 'ok' : 'bad'}`; result.textContent = msg; };
 
   $('ntest').addEventListener('click', async () => {
@@ -422,23 +458,12 @@ function openNotifForm(type, target = null) {
     e.preventDefault();
     if (!form.reportValidity()) return;
     try {
-      const saved = target
-        ? await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'PUT', body: values() })
-        : await api('/notifications', { method: 'POST', body: values() });
-      S.notifications.targets = target ? S.notifications.targets.map(t => (t.id === saved.id ? { ...saved, last: t.last } : t)) : [...S.notifications.targets, saved];
-      modal.close();
-      renderNotifs();
+      await saveNotif(target, values());
     } catch (err) { show(false, `✕ ${err.message}`); }
   });
   $('nback')?.addEventListener('click', openNotifPicker);
-  $('ndel')?.addEventListener('click', async () => {
-    if (!confirm(`Delete ${target.name}?`)) return;
-    await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
-    S.notifications.targets = S.notifications.targets.filter(t => t.id !== target.id);
-    modal.close();
-    renderNotifs();
-  });
-  ([...form.querySelectorAll('input[required]')].find(i => !i.value) || form.name).focus();
+  $('ndel')?.addEventListener('click', () => deleteNotif(target));
+  focusFirstEmpty(form, form.name);
 }
 
 $('notif-options').addEventListener('submit', async e => {

@@ -67,4 +67,12 @@ there as soon as I can.
   restore), and a client gets 30 seconds to send a request.
 - Discord messages can't ping `@everyone`, even when they quote an app's log line.
 - The image is built by GitHub Actions pinned to exact commits, so a moved tag can't change
-  what runs with the publishing token.
+  what runs with the publishing token. It's only published after lint, every test and a smoke
+  test pass, and `main` only accepts changes through pull requests that pass those checks.
+- Each published image carries build provenance (how and from which commit it was built) and an
+  SBOM (every package inside). To see them:
+  `docker buildx imagetools inspect ghcr.io/kaiserhomelab/media-ops:latest --format '{{ json .Provenance }}'`
+  (or `.SBOM`).
+- The base image is pinned to an exact digest. Dependabot opens weekly pull requests for newer
+  base images, GitHub Actions and the development tools, and CodeQL scans every change for
+  security problems.

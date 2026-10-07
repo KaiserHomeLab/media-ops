@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media Ops Settings</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23e5a00d'/><path d='M12 9l11 7-11 7z' fill='%231a1a19'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>Settings</h1>
+        <div class="sub">Media Ops</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <button class="btn ghost small" id="logout" type="button" hidden>Log out</button>
+      <a class="btn small" href="/">← Dashboard</a>
+    </div>
+  </header>
+
+  <main class="settings">
+    <section class="card login" id="login" hidden>
+      <h2>Settings are locked</h2>
+      <form id="login-form" class="form">
+        <label class="field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required autofocus></label>
+        <div class="form-error" id="login-error" hidden></div>
+        <div class="actions"><button class="btn primary" type="submit">Unlock</button></div>
+      </form>
+    </section>
+
+    <div id="settings-body" hidden>
+      <div class="banner" id="demo-banner" hidden>
+        The dashboard is running with <code>DEMO=1</code>, so it shows fake data. Apps you add here are saved and used once you restart without it.
+      </div>
+
+      <section class="card">
+        <h2>Apps <span class="count" id="apps-count"></span></h2>
+        <p class="hint">Add each app with its address and API key. Drag the cards to change the order they appear on the dashboard.</p>
+        <div class="app-grid" id="apps"></div>
+      </section>
+
+      <section class="card">
+        <h2>General</h2>
+        <form id="general-form" class="form grid-form">
+          <label class="field"><span>Refresh every (seconds)</span><input type="number" name="refreshSeconds" min="3" max="300" required></label>
+          <label class="field"><span>Docker socket <em>optional</em></span><input name="dockerSocket" placeholder="/var/run/docker.sock" spellcheck="false">
+            <small>Lists your containers and whether they're running. The socket must be mounted into this container. Leave blank to hide.</small></label>
+          <label class="field wide"><span>Disks to show <em>one path per line</em></span><textarea name="paths" rows="3" placeholder="/mnt/user&#10;/mnt/cache" spellcheck="false"></textarea>
+            <small>Paths as seen inside this container. The disk space your arrs report is shown too.</small></label>
+          <div class="form-error" id="general-error" hidden></div>
+          <div class="actions wide"><span class="saved" id="general-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Security</h2>
+        <p class="hint" id="pw-status"></p>
+        <form id="pw-form" class="form grid-form">
+          <label class="field" id="pw-current-wrap"><span>Current password</span><input type="password" name="current" autocomplete="current-password"></label>
+          <label class="field"><span id="pw-next-label">New password</span><input type="password" name="next" autocomplete="new-password" minlength="8"></label>
+          <div class="form-error" id="pw-error" hidden></div>
+          <div class="actions wide">
+            <span class="saved" id="pw-saved" hidden>✓ Updated</span>
+            <button class="btn danger ghost" type="button" id="pw-remove" hidden>Remove password</button>
+            <button class="btn primary" type="submit" id="pw-submit">Set password</button>
+          </div>
+        </form>
+      </section>
+
+      <p class="foot-note">Settings are saved to <code id="config-file"></code>.</p>
+    </div>
+  </main>
+
+  <dialog id="modal" class="modal" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h2 id="modal-title">Add app</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </dialog>
+
+  <script src="settings.js"></script>
+</body>
+</html>

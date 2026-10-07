@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!-- Save as /boot/config/plugins/dockerMan/templates-user/my-media-ops.xml on Unraid,
+     then Docker → Add Container → Template: media-ops. -->
+<Container version="2">
+  <Name>media-ops</Name>
+  <Repository>ghcr.io/kaiserhomelab/media-ops:latest</Repository>
+  <Registry>https://github.com/KaiserHomeLab/media-ops/pkgs/container/media-ops</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/KaiserHomeLab/media-ops/issues</Support>
+  <Project>https://github.com/KaiserHomeLab/media-ops</Project>
+  <Overview>Live dashboard for a Plex + arr media server: what's up or down, who's streaming, library stats, downloads, upcoming releases, and one feed of errors from every app. Add your apps under Settings in the web UI. Built on the linuxserver.io Alpine base image (PUID/PGID/UMASK/TZ, Docker Mods).</Overview>
+  <Category>MediaServer:Other Tools:Utilities</Category>
+  <WebUI>http://[IP]:[PORT:8484]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/KaiserHomeLab/media-ops/main/unraid-template.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/KaiserHomeLab/media-ops/main/public/icon.png</Icon>
+  <Config Name="WebUI" Target="8484" Default="8484" Mode="tcp" Description="Dashboard port" Type="Port" Display="always" Required="true" Mask="false">8484</Config>
+  <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/media-ops" Mode="rw" Description="Saved settings (app addresses, API keys)" Type="Path" Display="advanced-hide" Required="true" Mask="false">/mnt/user/appdata/media-ops</Config>
+  <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Optional: lets the dashboard list your containers and their health" Type="Path" Display="always" Required="false" Mask="false">/var/run/docker.sock</Config>
+  <Config Name="Array" Target="/mnt/user" Default="/mnt/user" Mode="ro" Description="Optional: show array usage" Type="Path" Display="always" Required="false" Mask="false">/mnt/user</Config>
+  <Config Name="Cache" Target="/mnt/cache" Default="/mnt/cache" Mode="ro" Description="Optional: show cache pool usage" Type="Path" Display="advanced" Required="false" Mask="false">/mnt/cache</Config>
+  <Config Name="Server name" Target="HOST_NAME" Default="Tower" Mode="" Description="Name shown in the dashboard header" Type="Variable" Display="always" Required="false" Mask="false">Tower</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID the app runs as" Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID the app runs as" Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="File creation mask" Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
+</Container>

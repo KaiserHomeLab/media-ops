@@ -1,0 +1,16 @@
+{
+  "name": "media-ops",
+  "version": "1.2.0",
+  "description": "Nerdy live dashboard for a Plex + *arr media server",
+  "main": "server.js",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "demo": "DEMO=1 node server.js"
+  },
+  "repository": "github:KaiserHomeLab/media-ops"
+}

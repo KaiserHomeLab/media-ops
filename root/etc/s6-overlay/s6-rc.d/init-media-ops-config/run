@@ -1,0 +1,25 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+mkdir -p /config
+
+# Docker socket (optional): let abc read it via the socket's group, so the
+# dashboard can list containers without the app itself running as root.
+SOCK="${DOCKER_SOCKET:-/var/run/docker.sock}"
+if [[ -z ${LSIO_NON_ROOT_USER} ]] && [[ -S "${SOCK}" ]]; then
+    SOCK_GID=$(stat -c '%g' "${SOCK}")
+    if ! id -G abc | grep -qw "${SOCK_GID}"; then
+        GROUP_NAME=$(getent group "${SOCK_GID}" | cut -d: -f1)
+        if [[ -z "${GROUP_NAME}" ]]; then
+            GROUP_NAME="dockersock"
+            groupadd -g "${SOCK_GID}" "${GROUP_NAME}"
+        fi
+        usermod -a -G "${GROUP_NAME}" abc
+        echo "**** docker socket found: added abc to group ${GROUP_NAME} (${SOCK_GID}) ****"
+    fi
+fi
+
+# permissions
+if [[ -z ${LSIO_NON_ROOT_USER} ]]; then
+    lsiown -R abc:abc /config
+fi

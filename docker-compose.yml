@@ -1,0 +1,18 @@
+# Unraid: run with the "Docker Compose Manager" plugin, or use unraid-template.xml instead.
+services:
+  media-ops:
+    image: ghcr.io/kaiserhomelab/media-ops:latest   # or comment this out and use `build: .`
+    container_name: media-ops
+    restart: unless-stopped
+    environment:
+      - PUID=99            # Unraid's "nobody"
+      - PGID=100           # Unraid's "users"
+      - TZ=America/Chicago
+      - HOST_NAME=Tower    # name shown in the header
+    ports:
+      - "8484:8484"
+    volumes:
+      - /mnt/user/appdata/media-ops:/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # optional: container list
+      - /mnt/user:/mnt/user:ro                         # optional: array usage
+      - /mnt/cache:/mnt/cache:ro                       # optional: cache usage

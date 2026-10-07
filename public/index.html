@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media Ops</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23e5a00d'/><path d='M12 9l11 7-11 7z' fill='%231a1a19'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>Media Ops</h1>
+        <div class="sub" id="hostline">connecting…</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <span class="badge demo" id="demo-badge" hidden>DEMO DATA</span>
+      <span class="live" id="live"><span class="pulse"></span><span id="updated">—</span></span>
+      <a class="btn small" href="/settings" title="Settings">⚙ <span class="hide-sm">Settings</span></a>
+    </div>
+  </header>
+
+  <main>
+    <section class="card welcome" id="welcome" hidden>
+      <h2>Connect your apps</h2>
+      <p>Add Plex, your arrs, SABnzbd and the rest with their address and API key. The dashboard fills in as soon as you save.</p>
+      <a class="btn primary" href="/settings">Open settings</a>
+    </section>
+
+    <div id="dash" class="dash">
+    <section id="alerts" class="alerts" hidden></section>
+
+    <section class="kpis" id="kpis"></section>
+
+    <div class="grid two">
+      <section class="card" id="now-playing">
+        <h2>Now playing <span class="count" id="np-count"></span></h2>
+        <div id="streams" class="streams"></div>
+      </section>
+      <section class="card" id="services-card">
+        <h2>Services <span class="count" id="svc-count"></span></h2>
+        <div id="services" class="services"></div>
+      </section>
+    </div>
+
+    <section class="card" id="events-card">
+      <h2>Errors &amp; warnings <span class="count" id="ev-count"></span></h2>
+      <div class="ev-filters" id="ev-filters" role="toolbar" aria-label="Filter errors"></div>
+      <div id="events" class="events"></div>
+    </section>
+
+    <section class="card">
+      <h2>Library</h2>
+      <div id="libraries" class="libs"></div>
+      <div id="arr-stats" class="arr-stats"></div>
+    </section>
+
+    <div class="grid two even">
+      <section class="card">
+        <h2>Downloads</h2>
+        <div id="clients" class="clients"></div>
+        <div id="queue" class="queue"></div>
+      </section>
+      <section class="card">
+        <h2>Coming up</h2>
+        <div id="upcoming" class="upcoming"></div>
+      </section>
+    </div>
+
+    <section class="card" id="watch-card" hidden>
+      <h2>Watch stats <span class="count">last 30 days · Tautulli</span></h2>
+      <div class="watch">
+        <div class="chart-wrap">
+          <div class="chart-head">
+            <div class="legend" id="plays-legend"></div>
+            <button class="linkish" id="plays-table-toggle" type="button">Show as table</button>
+          </div>
+          <div id="plays-chart" class="chart"></div>
+          <div id="plays-table" hidden></div>
+        </div>
+        <div id="toplists" class="toplists"></div>
+      </div>
+    </section>
+
+    <div class="grid two even">
+      <section class="card">
+        <h2>Storage</h2>
+        <div id="disks" class="disks"></div>
+      </section>
+      <section class="card">
+        <h2>Host <span class="count" id="host-name"></span></h2>
+        <div id="host" class="host"></div>
+        <div id="docker" class="docker"></div>
+      </section>
+    </div>
+    </div>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

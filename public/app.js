@@ -1,0 +1,534 @@
+'use strict';
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const num = n => (n == null ? '—' : Number(n).toLocaleString());
+const sum = (arr, f) => arr.reduce((a, x) => a + (Number(f(x)) || 0), 0);
+
+function bytes(b, digits = 1) {
+  if (b == null || isNaN(b)) return '—';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  let i = 0;
+  while (Math.abs(b) >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  return `${b.toFixed(i < 2 ? 0 : digits)} ${u[i]}`;
+}
+const rate = bps => `${bytes(bps)}/s`;
+const mbps = kbps => (kbps ? `${(kbps / 1000).toFixed(1)} Mbps` : '—');
+function clock(ms) {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return `${h ? h + ':' : ''}${String(m).padStart(h ? 2 : 1, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+function uptime(sec) {
+  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+}
+const initials = s => esc((s || '?').replace(/^(the|a)\s+/i, '').slice(0, 2).toUpperCase());
+
+// Only touch the DOM when a section actually changed (prevents image flicker / hover loss).
+const lastHTML = new Map();
+function setHTML(el, html) {
+  if (lastHTML.get(el) === html) return;
+  lastHTML.set(el, html);
+  el.innerHTML = html;
+}
+
+// --------------------------------------------------------------------- state
+let state = null;
+let lastOk = 0;
+let timer = null;
+
+async function refresh() {
+  clearTimeout(timer);
+  try {
+    const r = await fetch('/api/overview', { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    state = await r.json();
+    lastOk = Date.now();
+    render(state);
+  } catch (e) {
+    console.warn('refresh failed', e);
+  }
+  timer = setTimeout(refresh, (state?.refreshSeconds || 10) * 1000);
+}
+
+setInterval(() => {
+  if (!lastOk) return;
+  const ago = Math.round((Date.now() - lastOk) / 1000);
+  $('updated').textContent = ago < 2 ? 'live' : `updated ${ago}s ago`;
+  $('live').classList.toggle('stale', ago > (state?.refreshSeconds || 10) * 3);
+}, 1000);
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+
+// --------------------------------------------------------------------- render
+function render(d) {
+  const up = kind => d.services.filter(s => s.kind === kind && s.up);
+  const all = kinds => d.services.filter(s => kinds.includes(s.kind) && s.up);
+  const arrs = all(['sonarr', 'radarr', 'lidarr', 'readarr']);
+  const plex = up('plex')[0];
+  const streams = plex?.data.streams || [];
+  const clients = all(['sabnzbd', 'qbittorrent']);
+
+  $('demo-badge').hidden = !d.demo;
+  const firstRun = !d.demo && !d.configured;
+  $('welcome').hidden = !firstRun;
+  $('dash').hidden = firstRun;
+  $('hostline').textContent = `${d.host.hostname} · ${d.host.platform} · up ${uptime(d.host.uptime)}`;
+
+  renderAlerts(d, arrs);
+  renderKpis(d, { streams, arrs, clients });
+  renderStreams(streams, d.demo);
+  renderServices(d.services);
+  renderEvents(d);
+  renderLibrary(plex, d.services);
+  renderDownloads(clients, arrs);
+  renderUpcoming(arrs);
+  renderWatch(up('tautulli')[0]);
+  renderDisks(d, arrs);
+  renderHost(d.host, d.docker);
+}
+
+function renderAlerts(d, arrs) {
+  const items = [];
+  for (const s of d.services.filter(s => !s.up))
+    items.push({ cls: 'error', html: `<b>${esc(s.name)}</b> is unreachable — ${esc(s.error)}` });
+  for (const s of [...arrs, ...d.services.filter(s => s.kind === 'prowlarr' && s.up)])
+    for (const h of s.data.health || [])
+      items.push({ cls: h.type === 'error' ? 'error' : '', html: `<b>${esc(s.name)}</b> ${esc(h.message)}` });
+  if (Array.isArray(d.docker))
+    for (const c of d.docker.filter(c => c.health === 'unhealthy'))
+      items.push({ cls: 'error', html: `<b>${esc(c.name)}</b> container is unhealthy` });
+
+  const el = $('alerts');
+  el.hidden = !items.length;
+  setHTML(el, items.map(a =>
+    `<div class="alert ${a.cls}"><span aria-hidden="true">${a.cls === 'error' ? '✕' : '⚠'}</span><div>${a.html}</div></div>`
+  ).join(''));
+}
+
+function kpi(label, value, foot = '') {
+  return `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div><div class="foot">${foot}</div></div>`;
+}
+
+function renderKpis(d, { streams, arrs, clients }) {
+  const tc = streams.filter(s => s.decision.startsWith('Transcode')).length;
+  const paused = streams.filter(s => s.state === 'paused').length;
+  const wan = sum(streams.filter(s => !s.local), s => s.bandwidth);
+  const lan = sum(streams.filter(s => s.local), s => s.bandwidth);
+  const upCount = d.services.filter(s => s.up).length;
+  const down = d.services.filter(s => !s.up).map(s => s.name);
+  // Totals across every instance of a kind (e.g. Sonarr + Sonarr Anime).
+  const tot = (kind, key) => {
+    const list = arrs.filter(a => a.kind === kind);
+    return list.length ? sum(list, a => a.data.stats[key]) : null;
+  };
+  const size = sum(arrs, a => a.data.stats.size);
+  const missing = sum(arrs, a => a.data.stats.missing);
+  const queueLen = sum(arrs, a => a.data.queue.length);
+
+  const parts = [
+    tot('radarr', 'onDisk') != null && `${num(tot('radarr', 'onDisk'))} movies`,
+    tot('sonarr', 'episodes') != null && `${num(tot('sonarr', 'episodes'))} eps`,
+    tot('lidarr', 'tracks') != null && `${num(tot('lidarr', 'tracks'))} tracks`,
+  ].filter(Boolean);
+  const missParts = [
+    tot('sonarr', 'missing') != null && `${num(tot('sonarr', 'missing'))} eps`,
+    tot('radarr', 'missing') != null && `${num(tot('radarr', 'missing'))} movies`,
+    tot('lidarr', 'missing') != null && `${num(tot('lidarr', 'missing'))} albums`,
+  ].filter(Boolean);
+
+  setHTML($('kpis'), [
+    kpi('Streaming now', `${streams.length}`, streams.length ? `${tc} transcoding · ${paused} paused` : 'nobody watching'),
+    kpi('Stream bandwidth', mbps(wan + lan).replace(' Mbps', '<small>Mbps</small>'), `WAN ${mbps(wan)} · LAN ${mbps(lan)}`),
+    kpi('Services up', `${upCount}<small>/ ${d.services.length}</small>`, down.length ? `down: ${esc(down.join(', '))}` : 'all green'),
+    kpi('Library on disk', size ? bytes(size, 1).replace(/ (\w+)$/, '<small>$1</small>') : '—', parts.join(' · ')),
+    kpi('Downloading', clients.length ? rate(sum(clients, c => c.data.downBps)).replace(/ (.+)$/, '<small>$1</small>') : '—',
+      `↑ ${rate(sum(clients, c => c.data.upBps))} · ${queueLen} queued`),
+    kpi('Wanted / missing', num(missing), missParts.join(' · ')),
+    (() => {
+      const recent = collectEvents(d).filter(e => Date.now() - e.t < 864e5);
+      const errs = recent.filter(e => e.level === 'error').length;
+      return kpi('Errors · 24h', `${errs}`, `${recent.length - errs} warnings`);
+    })(),
+  ].join(''));
+}
+
+function renderStreams(streams, demo) {
+  $('np-count').textContent = streams.length ? `${streams.length} active` : '';
+  if (!streams.length) return setHTML($('streams'), '<div class="empty">Nothing playing. The server is resting.</div>');
+
+  const html = streams.map(s => {
+    const poster = s.thumb && !demo
+      ? `<img class="poster" loading="lazy" alt="" src="/api/plex/thumb?p=${encodeURIComponent(s.thumb)}" data-fallback="${initials(s.title)}">`
+      : `<div class="poster" aria-hidden="true">${initials(s.title)}</div>`;
+    const dc = s.decision.startsWith('Transcode') ? 'tc' : s.decision === 'Direct Play' ? 'dp' : 'ds';
+    const chips = [
+      `<span class="chip ${dc}">${esc(s.decision)}${s.hw && dc === 'tc' ? ' (HW)' : ''}${s.transcodeSpeed ? ` ${s.transcodeSpeed}×` : ''}</span>`,
+      s.resolution && `<span class="chip">${esc(/^\d+$/.test(s.resolution) ? s.resolution + 'p' : s.resolution.toUpperCase())}</span>`,
+      s.videoCodec && `<span class="chip">${esc(s.videoCodec.toUpperCase())}</span>`,
+      s.audioCodec && `<span class="chip">${esc(s.audioCodec.toUpperCase())}</span>`,
+      s.bandwidth && `<span class="chip">${mbps(s.bandwidth)}</span>`,
+      `<span class="chip">${s.local ? 'LAN' : 'WAN'}</span>`,
+    ].filter(Boolean).join('');
+    const pct = s.duration ? Math.min(100, (s.offset / s.duration) * 100) : 0;
+    return `<article class="stream ${esc(s.type)}">
+      ${poster}
+      <div style="min-width:0">
+        <div class="row1"><div class="title">${esc(s.title)}</div><span class="state">${s.state === 'paused' ? '❚❚ paused' : s.state === 'buffering' ? '◌ buffering' : '▶ playing'}</span></div>
+        <div class="subtitle">${esc(s.subtitle)}</div>
+        <div class="who"><b>${esc(s.user)}</b> on ${esc(s.player || s.product)} · ${esc(s.product)}${s.platform ? ` (${esc(s.platform)})` : ''}</div>
+        <div class="chips">${chips}</div>
+        <div class="progress"><div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div><span class="t">${clock(s.offset)} / ${clock(s.duration)}</span></div>
+      </div>
+    </article>`;
+  }).join('');
+  setHTML($('streams'), html);
+  $('streams').querySelectorAll('img[data-fallback]').forEach(img =>
+    img.addEventListener('error', () => {
+      const div = document.createElement('div');
+      div.className = 'poster';
+      div.textContent = img.dataset.fallback;
+      img.replaceWith(div);
+    }, { once: true }));
+}
+
+function renderServices(services) {
+  const up = services.filter(s => s.up).length;
+  $('svc-count').textContent = `${up}/${services.length} up`;
+  setHTML($('services'), services.map(s => {
+    const meta = s.up
+      ? [s.version && `v${String(s.version).replace(/^v/, '')}`, s.latency != null && `${s.latency}ms`].filter(Boolean).join(' · ')
+      : esc(s.error);
+    const slow = s.up && s.latency > 1500;
+    return `<a class="svc ${s.up ? '' : 'down'}" href="${esc(s.link)}" target="_blank" rel="noopener" title="${esc(s.up ? s.name + ' is up' : s.error)}">
+      <span class="dot ${!s.up ? 'down' : slow ? 'warn' : 'up'}" aria-label="${s.up ? 'up' : 'down'}"></span>
+      <span class="name">${esc(s.name)}</span>
+      <span class="meta">${s.up ? '' : '✕ '}${meta}</span>
+    </a>`;
+  }).join(''));
+}
+
+function renderLibrary(plex, services) {
+  const libs = plex?.data.libraries || [];
+  const icon = { movie: '🎬', show: '📺', artist: '🎵', photo: '📷' };
+  setHTML($('libraries'), libs.map(l => {
+    const unit = { movie: 'movies', show: 'shows', artist: 'artists', photo: 'items' }[l.type] || 'items';
+    const extra = l.type === 'show' ? `${num(l.episodes)} episodes`
+      : l.type === 'artist' ? `${num(l.albums)} albums · ${num(l.tracks)} tracks` : '';
+    return `<div class="lib"><div class="k">${icon[l.type] || '📁'} ${esc(l.title)}</div><div class="n">${num(l.count)}</div><div class="x">${unit}${extra ? ' · ' + extra : ''}</div></div>`;
+  }).join('') || (plex ? '' : '<div class="empty">Plex not configured or unreachable.</div>'));
+
+  const rows = {
+    sonarr: s => [['Series', num(s.series)], ['Continuing', num(s.continuing)], ['Episodes on disk', num(s.episodes)], ['Missing (monitored)', num(s.missing), s.missing > 0], ['Size', bytes(s.size)]],
+    radarr: s => [['Movies', num(s.movies)], ['On disk', num(s.onDisk)], ['Monitored', num(s.monitored)], ['Missing (available)', num(s.missing), s.missing > 0], ['Size', bytes(s.size)]],
+    lidarr: s => [['Artists', num(s.artists)], ['Albums', num(s.albums)], ['Tracks on disk', num(s.tracks)], ['Missing albums', num(s.missing), s.missing > 0], ['Size', bytes(s.size)]],
+    readarr: s => [['Authors', num(s.authors)], ['Books on disk', num(s.books)], ['Missing', num(s.missing), s.missing > 0], ['Size', bytes(s.size)]],
+    prowlarr: s => [['Indexers', `${num(s.enabled)} / ${num(s.indexers)}`], ['Failing', num(s.failing), s.failing > 0], ['Queries', num(s.queries)], ['Grabs', num(s.grabs)], ['Avg response', s.avgResponseMs != null ? `${s.avgResponseMs} ms` : '—']],
+    bazarr: s => [['Episodes missing subs', num(s.missingEpisodeSubs), s.missingEpisodeSubs > 0], ['Movies missing subs', num(s.missingMovieSubs), s.missingMovieSubs > 0], ['Provider issues', num(s.providerIssues), s.providerIssues > 0]],
+    overseerr: s => [['Pending approval', num(s.pending), s.pending > 0], ['Processing', num(s.processing)], ['Available', num(s.available)], ['Total requests', num(s.total)], ['Movies / TV', `${num(s.movie)} / ${num(s.tv)}`]],
+  };
+  rows.jellyseerr = rows.seerr = rows.overseerr;
+  rows.clonarr = s => [
+    ['Arr instances', num(s.instances)],
+    ['Sync profiles', `${num(s.active)} / ${num(s.profiles)} active`],
+    ['Profiles with errors', num(s.withErrors), s.withErrors > 0],
+    ['Auto-sync', s.paused ? 'paused' : 'on', s.paused],
+    ['Last TRaSH pull', s.lastPull ? ago(new Date(s.lastPull).getTime()) : '—'],
+    ['Last sync', s.lastSync ? ago(new Date(s.lastSync).getTime()) : '—'],
+  ];
+
+  setHTML($('arr-stats'), services.filter(s => s.up && rows[s.kind] && s.data?.stats).map(s => {
+    const kv = rows[s.kind](s.data.stats).map(([k, v, bad]) => `<dt>${k}</dt><dd class="${bad ? 'bad' : ''}">${v}</dd>`).join('');
+    return `<div class="arr"><h3>${esc(s.name)}<span>${s.data.queue ? `${s.data.queue.length} in queue` : ''}</span></h3><dl class="kv">${kv}</dl></div>`;
+  }).join(''));
+}
+
+// --------------------------------------------------------------------- errors & warnings feed
+const evFilter = { svc: 'all', level: 'all' };
+
+function ago(t) {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function collectEvents(d) {
+  const out = [];
+  for (const s of d.services) {
+    if (!s.up) {
+      out.push({ svc: s.name, level: 'error', t: Date.now(), source: 'Connection', message: `Unreachable — ${s.error}`, live: true });
+      continue;
+    }
+    for (const h of s.data?.health || [])
+      out.push({ svc: s.name, level: h.type === 'error' ? 'error' : 'warn', t: Date.now(), source: 'Health check', message: h.message, live: true });
+    for (const e of s.data?.events || []) {
+      const t = new Date(e.time).getTime();
+      out.push({ ...e, svc: s.name, t: isNaN(t) ? Date.now() : t });
+    }
+  }
+  // Live problems first, then newest log lines.
+  return out.sort((a, b) => (b.live ? 1 : 0) - (a.live ? 1 : 0) || b.t - a.t);
+}
+
+function renderEvents(d) {
+  const all = collectEvents(d);
+  const errs = all.filter(e => e.level === 'error').length;
+  $('ev-count').textContent = all.length ? `${errs} errors · ${all.length - errs} warnings` : '';
+
+  const bySvc = new Map();
+  for (const e of all) bySvc.set(e.svc, (bySvc.get(e.svc) || 0) + 1);
+  if (evFilter.svc !== 'all' && !bySvc.has(evFilter.svc)) evFilter.svc = 'all';
+  const btn = (kind, val, label, n) =>
+    `<button type="button" data-${kind}="${esc(val)}" aria-pressed="${evFilter[kind] === val}">${esc(label)}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
+  setHTML($('ev-filters'), [
+    btn('level', 'all', 'All levels'), btn('level', 'error', 'Errors only', errs),
+    '<span class="sep"></span>',
+    btn('svc', 'all', 'All apps', all.length),
+    ...[...bySvc].map(([name, n]) => btn('svc', name, name, n)),
+  ].join(''));
+
+  const shown = all
+    .filter(e => evFilter.level === 'all' || e.level === evFilter.level)
+    .filter(e => evFilter.svc === 'all' || e.svc === evFilter.svc)
+    .slice(0, 150);
+
+  const el = $('events');
+  if (!shown.length) return setHTML(el, `<div class="empty">${all.length ? 'Nothing matches this filter.' : '✓ No errors or warnings. Everything is behaving.'}</div>`);
+
+  // Keep expanded rows expanded across refreshes.
+  const open = new Set([...el.querySelectorAll('details[open]')].map(x => x.dataset.key));
+  setHTML(el, shown.map(e => {
+    const key = esc(`${e.svc}|${e.t}|${e.message}`.slice(0, 200));
+    const cells = `<span class="lvl ${e.level}">${e.level === 'error' ? 'error' : 'warn'}</span>
+      <span class="svc-n">${esc(e.svc)}</span>
+      <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source || '')}</span>${esc(e.message)}</span>
+      <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>`;
+    return e.detail
+      ? `<details class="ev" data-key="${key}"${open.has(key) ? ' open' : ''}><summary>${cells}</summary><pre>${esc(e.detail)}</pre></details>`
+      : `<div class="ev"><div class="row">${cells}</div></div>`;
+  }).join(''));
+}
+
+$('ev-filters').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.level) evFilter.level = b.dataset.level;
+  if (b.dataset.svc) evFilter.svc = b.dataset.svc;
+  if (state) renderEvents(state);
+});
+
+function etaText(eta) {
+  if (eta == null || eta === '') return '';
+  if (typeof eta === 'number') return eta >= 8640000 ? '∞' : clock(eta * 1000);
+  return String(eta).replace(/^00:/, '');
+}
+
+function renderDownloads(clients, arrs) {
+  setHTML($('clients'), clients.map(c => {
+    const d = c.data;
+    const x = c.kind === 'qbittorrent'
+      ? `${num(d.torrents)} torrents · ratio ${d.ratio?.toFixed(2) ?? '—'} · ${bytes(d.allTimeUp)} seeded`
+      : `${d.paused ? 'PAUSED' : esc(d.status)}${d.totals ? ` · today ${bytes(d.totals.day)} · month ${bytes(d.totals.month)}` : ''}`;
+    return `<div class="client"><h3>${esc(c.name)}</h3>
+      <div class="speeds"><span class="down">${rate(d.downBps)}</span>${c.kind === 'qbittorrent' ? `<span class="up">${rate(d.upBps)}</span>` : ''}</div>
+      <div class="x">${x}</div></div>`;
+  }).join(''));
+
+  // Prefer the *arr queues (clean titles); fall back to raw client items when no arr is grabbing anything.
+  let items = arrs.flatMap(a => a.data.queue.map(q => ({ ...q, source: a.name })));
+  if (!items.length) items = clients.flatMap(c => c.data.items.map(q => ({ ...q, source: c.name })));
+  if (!items.length) return setHTML($('queue'), '<div class="empty">Queue is empty.</div>');
+
+  setHTML($('queue'), items.slice(0, 15).map(q => {
+    const done = q.progress >= 1;
+    const meta = [
+      `${Math.floor(q.progress * 100)}%`,
+      q.size && bytes(q.size),
+      !done && etaText(q.eta),
+      done && esc(q.status),
+      esc(q.source),
+    ].filter(Boolean).join(' · ');
+    return `<div class="qitem ${done ? 'done' : ''} ${q.warning ? 'warn' : ''}">
+      <div class="row1"><span class="name" title="${esc(q.title)}">${q.warning ? '⚠ ' : ''}${esc(q.title)}</span><span class="m">${meta}</span></div>
+      <div class="bar"><i style="width:${(q.progress * 100).toFixed(1)}%"></i></div></div>`;
+  }).join(''));
+}
+
+function dayLabel(date) {
+  const d = new Date(date), today = new Date();
+  const diff = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 864e5);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function renderUpcoming(arrs) {
+  const cutoff = Date.now() - 864e5;
+  const items = arrs.flatMap(a => a.data.upcoming)
+    .filter(u => new Date(u.date) >= cutoff)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 16);
+  if (!items.length) return setHTML($('upcoming'), '<div class="empty">Nothing on the calendar.</div>');
+  let html = '', last = '';
+  for (const u of items) {
+    const label = dayLabel(u.date);
+    if (label !== last) { html += `<div class="day">${label}</div>`; last = label; }
+    const time = u.kind === 'tv' ? new Date(u.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+    html += `<div class="up-item"><span class="sw ${u.kind}" aria-label="${u.kind}"></span>
+      <div class="t">${esc(u.title)}<span>${esc(u.sub)}</span></div>
+      <span class="when ${u.hasFile ? 'got' : ''}">${u.hasFile ? '✓ grabbed' : time}</span></div>`;
+  }
+  setHTML($('upcoming'), html);
+}
+
+// --------------------------------------------------------------------- watch stats (stacked bar chart)
+const SERIES_CLASS = ['s1', 's2', 's3'];
+const SERIES_VAR = ['--series-1', '--series-2', '--series-3'];
+
+// Axis top = 4 × a "nice" step (1, 2, 5 × 10^n), so every gridline is a whole number.
+function niceMax(v) {
+  const raw = Math.max(1, v) / 4, p = 10 ** Math.floor(Math.log10(raw)), n = raw / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p * 4;
+}
+const shortDate = s => new Date(s + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function renderWatch(t) {
+  $('watch-card').hidden = !t;
+  if (!t) return;
+  const { dates, series } = t.data.playsByDate;
+  const shown = series.slice(0, 3); // fixed slots: TV, Movies, Music
+
+  setHTML($('plays-legend'), shown.map((s, i) =>
+    `<span><i style="background:var(${SERIES_VAR[i]})"></i>${esc(s.name)} <b class="num">${num(sum(s.data, x => x))}</b></span>`).join(''));
+
+  const W = Math.max(320, $('plays-chart').clientWidth || 600), H = 220;
+  const m = { l: 30, r: 4, t: 8, b: 22 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const totals = dates.map((_, i) => sum(shown, s => s.data[i]));
+  const max = niceMax(Math.max(...totals));
+  const step = pw / dates.length, bw = Math.max(3, Math.min(22, step - 3));
+  const y = v => m.t + ph - (v / max) * ph;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Plays per day for the last 30 days, stacked by media type">`;
+  for (let k = 0; k <= 4; k++) {
+    const v = (max / 4) * k, yy = y(v);
+    svg += `<line class="grid-line" x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}"/>`;
+    svg += `<text class="axis" x="${m.l - 6}" y="${yy + 3}" text-anchor="end">${Math.round(v)}</text>`;
+  }
+  dates.forEach((dt, i) => {
+    const x = m.l + i * step + (step - bw) / 2;
+    let base = 0;
+    const segs = shown.map((s, si) => ({ v: s.data[i] || 0, si })).filter(s => s.v > 0);
+    segs.forEach((s, idx) => {
+      const y0 = y(base), y1 = y(base + s.v);
+      const top = idx === segs.length - 1;
+      const gap = idx > 0 ? 2 : 0; // 2px surface gap between stacked segments
+      const h = Math.max(0, y0 - y1 - gap);
+      const yTop = y1, r = top ? Math.min(4, bw / 2, h) : 0;
+      svg += r
+        ? `<path class="${SERIES_CLASS[s.si]}" d="M${x},${yTop + h} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + bw - r} Q${x + bw},${yTop} ${x + bw},${yTop + r} V${yTop + h} Z"/>`
+        : `<rect class="${SERIES_CLASS[s.si]}" x="${x}" y="${yTop}" width="${bw}" height="${h}"/>`;
+      base += s.v;
+    });
+    if (i % 7 === (dates.length - 1) % 7)
+      svg += `<text class="axis" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${shortDate(dt)}</text>`;
+    svg += `<rect class="hit" data-i="${i}" x="${m.l + i * step}" y="${m.t}" width="${step}" height="${ph}"/>`;
+  });
+  svg += '</svg>';
+  setHTML($('plays-chart'), svg);
+
+  setHTML($('plays-table'), `<table class="data"><thead><tr><th>Date</th>${shown.map(s => `<th>${esc(s.name)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${
+    dates.map((d, i) => `<tr><td>${shortDate(d)}</td>${shown.map(s => `<td>${s.data[i] || 0}</td>`).join('')}<td>${totals[i]}</td></tr>`).reverse().join('')
+  }</tbody></table>`);
+
+  const list = (title, rows) => {
+    if (!rows?.length) return '';
+    const top = rows[0].plays || 1;
+    return `<div class="toplist"><h3>${title}</h3><ol>${rows.map(r =>
+      `<li><span class="nm">${esc(r.name)}</span><span class="pl">${num(r.plays)}</span><span class="mini"><i style="width:${(r.plays / top) * 100}%"></i></span></li>`).join('')}</ol></div>`;
+  };
+  setHTML($('toplists'), [
+    list('Top users', t.data.topUsers),
+    list('Top shows', t.data.topShows),
+    list('Top movies', t.data.topMovies),
+    list('Top platforms', t.data.topPlatforms),
+  ].join('') + (t.data.mostConcurrent ? `<div class="toplist"><h3>Peak concurrent</h3><div class="num" style="font-size:22px;font-weight:600">${t.data.mostConcurrent} streams</div></div>` : ''));
+}
+
+// Chart hover tooltip (delegated so it survives re-renders)
+const tip = $('tooltip');
+$('plays-chart').addEventListener('mousemove', e => {
+  const hit = e.target.closest('.hit');
+  const t = state?.services.find(s => s.kind === 'tautulli' && s.up);
+  if (!hit || !t) { tip.hidden = true; return; }
+  const i = Number(hit.dataset.i);
+  const { dates, series } = t.data.playsByDate;
+  const shown = series.slice(0, 3);
+  tip.innerHTML = `<div style="margin-bottom:4px;color:var(--text-secondary)">${new Date(dates[i] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>` +
+    shown.map((s, si) => `<div class="r"><span><i style="background:var(${SERIES_VAR[si]})"></i>${esc(s.name)}</span><b>${s.data[i] || 0}</b></div>`).join('') +
+    `<div class="r" style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Total</span><b>${sum(shown, s => s.data[i])}</b></div>`;
+  tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let left = e.clientX + 14;
+  if (left + r.width > innerWidth - 8) left = e.clientX - r.width - 14;
+  tip.style.left = `${left}px`;
+  tip.style.top = `${Math.max(8, e.clientY - r.height - 10)}px`;
+});
+$('plays-chart').addEventListener('mouseleave', () => (tip.hidden = true));
+$('plays-table-toggle').addEventListener('click', e => {
+  const table = $('plays-table'), showTable = table.hidden;
+  table.hidden = !showTable;
+  $('plays-chart').hidden = showTable;
+  e.target.textContent = showTable ? 'Show as chart' : 'Show as table';
+});
+addEventListener('resize', () => { lastHTML.delete($('plays-chart')); if (state) renderWatch(state.services.find(s => s.kind === 'tautulli' && s.up)); });
+
+// --------------------------------------------------------------------- storage / host
+function renderDisks(d, arrs) {
+  const map = new Map();
+  for (const a of arrs) for (const k of a.data.disks || [])
+    if (k.totalSpace > 0) map.set(k.path, { path: k.path, label: k.label, total: k.totalSpace, free: k.freeSpace });
+  for (const k of d.disks || []) if (k.total > 0) map.set(k.path, k);
+  // Collapse mounts that are the same filesystem seen through different paths.
+  const seen = new Set();
+  const disks = [...map.values()].filter(k => {
+    const sig = `${k.total}:${Math.round(k.free / 1e8)}`;
+    if (seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  }).sort((a, b) => b.total - a.total);
+
+  if (!disks.length) return setHTML($('disks'), '<div class="empty">No disk info yet — it comes from the *arrs or the "paths" config.</div>');
+  setHTML($('disks'), disks.map(k => {
+    const used = k.total - k.free, pct = (used / k.total) * 100;
+    const cls = pct > 95 ? 'crit' : pct > 85 ? 'warn' : '';
+    return `<div class="disk ${cls}">
+      <div class="row1"><span class="p">${cls ? '⚠ ' : ''}${esc(k.path)}${k.label && k.label !== k.path ? ` <span class="muted">${esc(k.label)}</span>` : ''}</span>
+      <span class="m">${bytes(used)} / ${bytes(k.total)} · ${bytes(k.free)} free · ${pct.toFixed(0)}%</span></div>
+      <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div></div>`;
+  }).join(''));
+}
+
+function renderHost(h, docker) {
+  $('host-name').textContent = h.hostname;
+  const memPct = (h.memUsed / h.memTotal) * 100;
+  const cell = (k, v, pct) => `<div class="h"><div class="k">${k}</div><div class="v">${v}</div>${pct != null ? `<div class="bar"><i style="width:${Math.min(100, pct).toFixed(0)}%"></i></div>` : ''}</div>`;
+  setHTML($('host'), [
+    cell('CPU', h.cpu != null ? `${h.cpu}%` : '—', h.cpu),
+    cell('Memory', `${bytes(h.memUsed)}`, memPct),
+    cell(`Load (${h.cpus} cores)`, h.load.map(l => l.toFixed(2)).join(' ')),
+    cell('Uptime', uptime(h.uptime)),
+  ].join(''));
+
+  if (!docker) return setHTML($('docker'), '');
+  if (docker.error) return setHTML($('docker'), `<div class="empty">Docker: ${esc(docker.error)}</div>`);
+  setHTML($('docker'), docker.map(c => {
+    const cls = c.state !== 'running' ? 'down' : c.health === 'unhealthy' ? 'warn' : 'up';
+    return `<div class="ctr" title="${esc(c.image)}"><span class="dot ${cls}" aria-label="${esc(c.state)}"></span><span class="n">${esc(c.name)}</span><span class="s">${esc(c.status)}</span></div>`;
+  }).join(''));
+}
+
+refresh();

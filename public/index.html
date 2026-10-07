@@ -47,6 +47,17 @@
       </section>
     </div>
 
+    <section class="card" id="map-card" hidden>
+      <h2>Stream map <span class="count" id="map-count"></span></h2>
+      <div class="map-wrap">
+        <div class="map" id="map"></div>
+        <div class="map-side">
+          <ul class="viewers" id="viewers"></ul>
+          <div class="map-legend" id="map-legend"></div>
+        </div>
+      </div>
+    </section>
+
     <section class="card" id="events-card">
       <h2>Errors &amp; warnings <span class="count" id="ev-count"></span></h2>
       <div class="ev-filters" id="ev-filters" role="toolbar" aria-label="Filter errors"></div>
@@ -103,6 +114,8 @@
 
   <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="map-projection.js"></script>
+  <script src="world-map.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

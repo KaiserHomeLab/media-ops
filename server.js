@@ -27,6 +27,7 @@ const demo = require('./lib/demo');
 const feed = require('./lib/events');
 const actions = require('./lib/actions');
 const recovery = require('./lib/recovery');
+const geo = require('./lib/geo');
 
 const PUBLIC = path.join(__dirname, 'public');
 const DEMO = process.env.DEMO === '1';
@@ -142,6 +143,7 @@ async function polled() {
       dockerContainers(cfg.docker),
       localDisks(cfg.paths),
     ]);
+    await geo.enrich(results, cfg);
     const value = {
       generatedAt: Date.now(), demo: false, refreshSeconds: cfg.refreshSeconds,
       configured: cfg.services.length > 0, host: hostStats(), services: results, docker, disks,
@@ -261,7 +263,10 @@ function settingsPayload(req) {
     loggedIn: loggedIn(req),
     demo: DEMO,
     configFile: config.FILE,
-    general: { refreshSeconds: cfg.refreshSeconds, paths: cfg.paths, dockerSocket: cfg.docker?.socket || '' },
+    general: {
+      refreshSeconds: cfg.refreshSeconds, paths: cfg.paths, dockerSocket: cfg.docker?.socket || '',
+      mapEnabled: cfg.map?.enabled !== false, mapHome: cfg.map?.home || '',
+    },
     services: cfg.services.map(config.publicService),
     kinds: KINDS,
   };
@@ -365,7 +370,12 @@ async function settingsApi(req, res, route) {
     const paths = (Array.isArray(g.paths) ? g.paths : String(g.paths || '').split(/[\n,]/))
       .map(p => String(p).trim()).filter(Boolean);
     if (paths.some(p => !p.startsWith('/'))) return send(res, 400, { error: 'Disk paths must be absolute, like /mnt/user' });
-    config.update(c => ({ ...c, refreshSeconds: refresh, paths, docker: { socket: String(g.dockerSocket || '').trim() } }));
+    const mapHome = String(g.mapHome || '').trim();
+    if (mapHome && !geo.parseLatLon(mapHome)) return send(res, 400, { error: 'Home location must look like "41.88, -87.63" (latitude, longitude)' });
+    config.update(c => ({
+      ...c, refreshSeconds: refresh, paths, docker: { socket: String(g.dockerSocket || '').trim() },
+      map: { enabled: g.mapEnabled !== false, home: mapHome },
+    }));
     invalidate();
     return send(res, 200, { ok: true });
   }

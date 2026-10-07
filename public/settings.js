@@ -313,13 +313,18 @@ function renderGeneral() {
   f.refreshSeconds.value = S.general.refreshSeconds;
   f.dockerSocket.value = S.general.dockerSocket;
   f.paths.value = S.general.paths.join('\n');
+  f.mapEnabled.checked = S.general.mapEnabled;
+  f.mapHome.value = S.general.mapHome;
 }
 $('general-form').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target;
   showError($('general-error'), '');
   try {
-    await api('/general', { method: 'PUT', body: { refreshSeconds: f.refreshSeconds.value, dockerSocket: f.dockerSocket.value, paths: f.paths.value } });
+    await api('/general', { method: 'PUT', body: {
+      refreshSeconds: f.refreshSeconds.value, dockerSocket: f.dockerSocket.value, paths: f.paths.value,
+      mapEnabled: f.mapEnabled.checked, mapHome: f.mapHome.value,
+    } });
     flash($('general-saved'));
   } catch (err) { showError($('general-error'), err.message); }
 });

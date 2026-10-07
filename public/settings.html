@@ -72,6 +72,9 @@
             <small>Lists your containers and whether they're running. The socket must be mounted into this container. Leave blank to hide.</small></label>
           <label class="field wide"><span>Disks to show <em>one path per line</em></span><textarea name="paths" rows="3" placeholder="/mnt/user&#10;/mnt/cache" spellcheck="false"></textarea>
             <small>Paths as seen inside this container. The disk space your arrs report is shown too.</small></label>
+          <label class="field toggle wide"><input type="checkbox" name="mapEnabled"><span>Show the stream map</span></label>
+          <label class="field wide"><span>Home location for the map <em>optional · latitude, longitude</em></span><input name="mapHome" placeholder="Found automatically from your Plex server, or type e.g. 41.88, -87.63" spellcheck="false">
+            <small>Viewer locations are looked up city-level with Plex's own GeoIP service (the same one Tautulli uses), so IPs aren't sent anywhere else. The map is visible to anyone who can open the dashboard.</small></label>
           <div class="form-error" id="general-error" hidden></div>
           <div class="actions wide"><span class="saved" id="general-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
         </form>

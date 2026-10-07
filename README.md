@@ -4,6 +4,7 @@ A live dashboard for a Plex + *arr server. It shows:
 
 - **Services**: which apps are up or down, with version and response time, plus every Docker container on the box.
 - **Now playing**: who's streaming what, on which device, direct play vs. transcode (and whether it's hardware), bandwidth, LAN/WAN, and progress.
+- **Stream map**: a world map with a dot for every remote viewer, a line from your server to each one, and local viewers at the home pin. It zooms to fit your viewers, and hovering a dot shows who's watching what. Locations are city-level, from Plex's own GeoIP lookup (no third-party service, and IPs never reach the browser). Your server's location is found automatically from Plex, or you can set it under Settings → General.
 - **Errors & warnings**: one feed for the whole stack. It includes:
   - error/warning log lines from Sonarr, Radarr, Lidarr and Prowlarr
   - *arr health checks

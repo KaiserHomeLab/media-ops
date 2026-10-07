@@ -1,160 +1,203 @@
 # Media Ops
 
-A live dashboard for a Plex + *arr server. It shows:
+**One page that tells you how your Plex server is doing.**
 
-- **Services**: which apps are up or down, with version and response time, plus every Docker container on the box.
-- **Now playing**: who's streaming what, on which device, direct play vs. transcode (and whether it's hardware), bandwidth, LAN/WAN, and progress.
-- **Stream map**: a world map with a dot for every remote viewer, a line from your server to each one, and local viewers at the home pin. It zooms to fit your viewers, and hovering a dot shows who's watching what. Locations are city-level, from Plex's own GeoIP lookup (no third-party service, and IPs never reach the browser). Your server's location is found automatically from Plex, or you can set it under Settings → General.
-- **Errors & warnings**: rolls up to a slim bar when there's nothing to show (so do Downloads, Requests and the map). One feed for the whole stack. It includes:
-  - error/warning log lines from Sonarr, Radarr, Lidarr and Prowlarr
-  - *arr health checks
-  - queue items stuck on import
-  - SABnzbd failed downloads and warnings
-  - Seerr and Tautulli log errors
-  - Clonarr profile-sync failures
+Media Ops is a dashboard for a home media server running Plex and the *arr apps (Sonarr,
+Radarr, Prowlarr and friends). It shows you who's watching, what's downloading, what's
+broken, and how full your disks are, all in one place, without opening ten browser tabs.
 
-  Filter by app or show errors only. Click a row for the full exception.
-  - **Dismiss** (✕ on a row, or **Dismiss all**) hides entries on the dashboard only. Nothing is deleted in the app. Dismissals are saved and apply in every browser. A dismissed ongoing problem (health check, unreachable app, stuck download) shows up again if it clears and later comes back. **Show dismissed** / **Restore all** undo it.
-  - **Clear log** (select an app first) deletes the log inside the app, after a confirmation. For Sonarr/Radarr/Lidarr/Prowlarr it empties System → Logs; for SABnzbd it clears warnings and failed-download history. Seerr, Tautulli and Clonarr have no API for this, so use Dismiss. If a settings password is set, you need to be logged in.
-  - **Re-check** (↻) makes an arr re-run its health checks right away (same as its System → Status button) and refreshes. For other apps it polls them again.
-- **Notifications** (Settings → Notifications): Discord, ntfy, Pushover, Gotify or any JSON webhook. Choose per destination which events to send: app down or back up, new errors, new warnings, failed or stuck downloads, a disk over your threshold, someone starting to watch. An app has to fail two checks in a row before "down" is sent, errors that already existed at startup are never sent, and each check sends at most one batched message per destination.
-- **Uptime history**: every service tile shows a 24-hour bar (half-hour segments) and its uptime percentage. Hover the tile for the 7-day figure.
-- **Trends**: 24-hour charts of streams (with transcodes), stream bandwidth and download speed, plus today's peak.
-- **Disk forecast**: "Full in ~N weeks at +X GB/day", from a straight-line fit over the last 30 days. It starts after 3 days of data.
-- **Why it's transcoding**: each transcoding stream shows a likely reason (client can't play the codec, quality limit, subtitles being burned in, audio conversion), worked out from what Plex reports. 4K transcodes get a red badge.
-- **Unraid**: add it as an app (Settings → Add app → Unraid, with an API key from Unraid's **Settings → Management Access → API Keys**; a read-only *viewer* key is enough; needs Unraid 7.2+ or the Unraid Connect plugin). Shows array state, parity-check progress and history, and every disk's temperature, fill level, spin state and errors. Alerts for disabled or missing disks, hot disks (45/55 °C for hard drives, 60/70 °C for SSDs), disks past Unraid's critical fill level, read/write errors, and parity errors.
-- **TrueNAS**: add it as an app (Settings → Add app → TrueNAS; needs TrueNAS 25.04 or newer). Shows every pool's health, used space and scrub/resilver progress, every disk's temperature, your TrueNAS apps (running, stopped, crashed, updates available), and TrueNAS's own active alerts. Alerts for unhealthy pools, scrub errors, hot disks, crashed apps and TrueNAS warnings. It uses TrueNAS's WebSocket API (the REST API was removed in TrueNAS 26) and always connects over `wss://`, because TrueNAS revokes an API key that's ever sent over plain http. Setup:
-  1. TrueNAS → Credentials → Users → **Add** a user (e.g. `mediaops`) with the **Read-Only Administrator** role.
-  2. Your user menu (top right) → **API Keys** → **Add**, for that user. Copy the key.
-  3. In Media Ops, enter the TrueNAS address, the username and the key.
-- **Knows where it's running**: on Unraid or TrueNAS, Settings offers to add that server in one click (it reads the host's kernel name, which containers share).
-- **GPU and Plex load**: the Host panel shows Plex's own CPU use (from Plex's resource statistics) and your GPU: Intel iGPU and AMD read from the host drivers through `/sys`, Nvidia through `nvidia-smi` when the container uses the Nvidia runtime.
-- **Recently added**: the newest posters in Plex, and what Sonarr and Radarr imported in the last two days, with quality.
-- **Requests**: pending Seerr/Overseerr/Jellyseerr requests with **Approve** and **Decline** buttons.
-- **Upload headroom**: set your internet upload speed under Settings → General and the bandwidth tile shows how much of it remote streams use, with an alert at 85%.
-- **Quiet hours and daily digest** (Settings → Notifications): hold alerts overnight and get them as one message in the morning, optionally still sending "app down". The digest is one daily summary: plays, new episodes and movies, disk growth, downtime, errors, pending requests and array health. **Send one now** previews it.
-- **Backup and restore** (Settings): download everything as one file, or restore from one. The file includes your API keys, so keep it private.
-- **Dashboard login** (Settings → Security): optionally require the settings password to view the dashboard too, for sharing it outside your home.
-- **Admin actions** (behind the settings password, if one is set): **Stop** a stream with a message the viewer sees (needs Plex Pass), and for stuck downloads **Retry** the import or **Replace…** it (remove, blocklist, search for another).
-- **TV mode**: a full-screen, read-only glance view that fits on one screen with no scrolling. It shows the headline numbers, what's playing, the stream map, services, and errors, downloads and server health when there's something to show. Library, calendar, posters, requests and charts are left out. The mouse pointer hides when idle. Open `http://<server>:8484/?tv=1` on a wall tablet or TV browser to start straight in it.
-- **Add to home screen**: install it like an app on your phone, with an icon, full-screen view and shortcuts to TV mode and Settings.
-- **What's using space**: the biggest series, movies and artists; what was downloaded in the last 30 days; and, with Tautulli, the movies and shows nobody has watched for a year (adjustable under Settings → General), with how much space they take. It's only a list, nothing is deleted. Each title links to it in Sonarr/Radarr/Lidarr.
-- **Indexer limits**: for each Prowlarr indexer, API calls and grabs in Prowlarr's own rolling window (24 hours, or 1 hour) against the limits you set on it, with a warning at 90% and an error at 100%. Shows when Prowlarr has paused an indexer.
-- **Updates**: Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Plex, Tautulli and Seerr show a ⬆ badge when a newer version is out (checked every 6 hours), and the header says when a newer Media Ops image is available. Updates are also listed in the daily digest.
-- **How to fix**: errors with a well-known cause (database locked, indexer API limit, permissions, hardlinks, unreachable download client, hot disks and more) get a 💡 and a one-line fix when you open them.
-- **Library**: Plex library counts, and *arr totals (series, episodes, movies, missing, size on disk).
-- **Downloads, Coming up, Watch stats** (Tautulli), **Storage** and **Host**.
+It runs as a single Docker container on Unraid, TrueNAS or anything else that runs Docker.
+You set it up from a settings page in your browser; there are no files to edit.
 
-## Install on Unraid
+![The Media Ops dashboard](docs/screenshots/dashboard.png)
 
-The image is `ghcr.io/kaiserhomelab/media-ops:latest`.
+<sub>Screenshots use the built-in demo data.</sub>
 
-**Option A: Unraid template (Docker tab UI)**
-1. Save `unraid-template.xml` as `/boot/config/plugins/dockerMan/templates-user/my-media-ops.xml` on the Unraid flash drive.
-2. Docker → **Add Container** → Template → **media-ops** → Apply.
+## What it shows you
 
-**Option B: Docker Compose Manager plugin**: use `docker-compose.yml`.
+**Who's watching.** Every Plex stream with the viewer, device, quality and progress. When
+something is transcoding, it tells you why ("the TV can't play HEVC", "subtitles are being
+burned in"), and it flags 4K transcodes because those are the ones that slow your server down.
 
-Then open `http://<unraid-ip>:8484`, click **Settings**, and add your apps.
+**Where they're watching from.** A world map with a dot for each viewer and a line back to
+your server. It folds away when nobody's watching.
 
-## Install on TrueNAS
+![Stream map](docs/screenshots/stream-map.png)
 
-TrueNAS 24.10 and newer run apps with Docker:
+**What's broken, and how to fix it.** Errors and warnings from all your apps land in one list.
+Common problems come with a 💡 and a one-line fix, like "database is locked" (move the app's
+config folder to your cache drive) or an indexer hitting its daily limit. You can hide
+anything you've dealt with, clear an app's log, or re-run its health checks.
 
-1. Create a folder for the settings, e.g. a dataset `tank/apps/media-ops`. Give the `apps` user (568) write access.
-2. Apps → **Discover Apps** → ⋮ → **Install via YAML**, and paste `truenas-compose.yml`. Change `tank` to your pool's name.
-3. Open `http://<truenas-ip>:8484` → **Settings**. Under General, set the disk paths to your pool (e.g. `/mnt/tank`), then add your apps and **TrueNAS** itself.
+![Errors and warnings, with a how-to-fix tip](docs/screenshots/errors.png)
 
-## Adding apps
+**What's eating your disk space.** Your biggest shows and movies, what came in over the last
+month, and (with Tautulli) the shows and movies nobody has watched in a year. It only lists
+them; nothing is ever deleted.
 
-Settings → **Add app** → pick the app → enter its address and API key → **Test** → **Save**.
+![What's using space](docs/screenshots/space.png)
 
-- Use the server's IP (e.g. `http://192.168.1.10:8989`), not `localhost`. Inside a container, `localhost` refers to the container itself. The form pre-fills the IP of the last app you added.
-- Each form says where that app keeps its API key.
-- **Save** tests the connection first, like Prowlarr. If the test fails, the button becomes **Save anyway**.
-- To run two of the same app (e.g. Sonarr and Sonarr Anime), add Sonarr twice with different names.
-- Drag the cards to reorder the dashboard. Click a card to edit, disable or delete it.
-- Saved API keys are never sent back to the browser. To keep a key, leave the field blank when editing.
-- **Security**: set a password to lock the Settings page. **Do this first**: without one, anyone on your network can change your apps, stop streams or clear logs, and the dashboard shows a reminder until you do. Backups can only be downloaded once a password is set. The dashboard itself stays viewable without logging in unless you turn that on too.
-- Changing an app's address means entering its API key again: a saved key is only ever sent to the address it was saved for.
-- Docker container list: rather than mounting the Docker socket (root-level access to the host), you can run a read-only [socket proxy](https://github.com/Tecnativa/docker-socket-proxy) with `CONTAINERS=1` and enter its address under Settings → General.
+**Your server's health.** For Unraid: the array, parity checks, and every disk's temperature
+and fill level. For TrueNAS: pools, scrubs, disk temperatures, apps and alerts. Plus CPU,
+memory, GPU load and your Docker containers.
 
-### Forgot the settings password?
+![Unraid disks and parity check](docs/screenshots/unraid.png)
 
-You need access to the server itself. Use any one of these:
+**And a lot more:**
 
-1. **Forgot password?** on the Settings login screen → **Get a reset code**. The code is written to the container log (Unraid: Docker tab → media-ops icon → **Logs**) and to `password-reset.txt` in the appdata folder. Enter it with a new password, or leave the password blank to remove it. Codes expire after 15 minutes or 5 wrong tries.
-2. **Console:** Unraid Docker tab → media-ops icon → **Console**, then run `reset-password`. This removes the password. Locally, run `npm run reset-password`.
-3. **Edit the file:** set `"auth": null` in `config.json`. The app picks up the change without a restart.
+- Which apps are up, with a 24-hour uptime bar for each, and a badge when an update is out
+- Downloads in progress, what's coming up this week, and what was just added to Plex
+- Seerr requests you can approve or decline right from the dashboard
+- How close each indexer is to its daily API limit
+- Watch stats from Tautulli, and 24-hour charts of streams, bandwidth and download speed
+- A forecast of when each disk will be full
+- Buttons to stop a stream, retry a stuck download, or swap it for another release
 
-Settings are stored in `/config/config.json` (i.e. `/mnt/user/appdata/media-ops/config.json`). Back up that folder and you've backed up everything.
+## TV mode
 
-## The container
+A full-screen view for a spare tablet or TV. It sticks to what's worth seeing at a glance and
+always fits on one screen. Open `http://<your-server>:8484/?tv=1` to go straight to it.
 
-Built like a linuxserver.io image, on their `baseimage-alpine` with the s6-overlay process supervisor:
+![TV mode](docs/screenshots/tv-mode.png)
 
-- The app runs as the unprivileged `abc` user, set by `PUID`/`PGID`. On Unraid, use 99/100 (nobody:users) so files in appdata match your other containers.
-- On startup, `/config` is re-owned to that user, so permissions fix themselves.
-- If the Docker socket is mounted, `abc` is added to the socket's group automatically. The dashboard only reads from it (container list), but anything with socket access is effectively root on the host, so leave it out if you don't want the container panel.
-- Supports [Docker Mods](https://mods.linuxserver.io/) (`DOCKER_MODS=…`) and custom init scripts (`/custom-cont-init.d`), like any linuxserver.io image.
-- Logs: `docker logs media-ops`. Shell: `docker exec -it media-ops bash`.
+## On your phone
 
-| Variable | Default | |
-|---|---|---|
-| `PUID` / `PGID` | `911` | User/group the app runs as (Unraid: `99` / `100`, TrueNAS: `568` / `568`) |
-| `TZ` | `Etc/UTC` | Time zone, e.g. `America/Chicago` |
-| `UMASK` | `022` | File creation mask |
-| `HOST_NAME` | container ID | Name shown in the dashboard header |
-| `PORT` | `8484` | Web UI port inside the container |
-| `DEMO` | | `1` = show fake data |
+The dashboard works on a phone too, and you can add it to your home screen like an app.
 
-The s6 service files are in `root/etc/s6-overlay/s6-rc.d/`:
-- `init-media-ops-config`: permissions and Docker-socket group.
-- `svc-media-ops`: the app itself, with a readiness check.
+<img src="docs/screenshots/phone.png" alt="Media Ops on a phone" width="320">
 
-### History and notifications run in the background
+## Notifications
 
-The server keeps checking your apps every refresh interval (at least every 10 s) even with no browser open. Each check records uptime, the trend metrics and daily disk usage to `/config/history.json`, which is saved every few minutes and on shutdown, and sends any notifications. History is kept for 8 days (uptime), 24 hours (per-minute trends) and 180 days (disk usage), so the file stays small.
+Get a message on Discord, ntfy, Pushover, Gotify, or any webhook when something happens.
+For each destination you choose which events it gets:
 
-## How it works
+- an app goes down or comes back
+- a new error or warning
+- a download fails or gets stuck
+- a disk is filling up or running hot
+- someone starts watching
 
-`server.js` polls every enabled app in parallel, with a 15-second timeout each. Results are cached for a few seconds so several open tabs don't hammer your server. Slow-changing data is cached longer: library totals, calendars and Tautulli stats for 5 minutes, logs for 1 minute. Saving a setting clears the cache, so changes show on the next refresh without a restart.
+You can also hold messages overnight (quiet hours) and get one daily summary each morning.
+Media Ops waits for two failed checks in a row before saying an app is down, so a blip
+won't wake you up.
 
-- Collectors live in `lib/collectors.js`, one function per app.
-- The settings-form definition for each app is in `lib/kinds.js`.
-- The config store is `lib/config.js`. It writes atomically, with `0600` permissions.
-- Settings writes are rejected from other websites (Origin check), and the optional password is stored as a scrypt hash.
+## Install
 
-## Troubleshooting
+### Unraid
 
-**Settings → Diagnostics → Run diagnostics** checks every app live and shows each API call it made: address, status, timing and a sample of the reply. **Copy short report** gives you a report you can paste into a GitHub issue or chat; **Download full report** includes each app's replies. Keys, tokens, viewer IP addresses and usernames are removed from it.
+1. Save [`unraid-template.xml`](unraid-template.xml) to your flash drive as
+   `/boot/config/plugins/dockerMan/templates-user/my-media-ops.xml`.
+2. In Unraid, go to **Docker → Add Container**, pick **media-ops** from the template list,
+   and click **Apply**.
+3. Open `http://<your-unraid-ip>:8484`.
 
-## Development
+If you use the Docker Compose Manager plugin, [`docker-compose.yml`](docker-compose.yml)
+works too.
+
+### TrueNAS (24.10 or newer)
+
+1. Make a folder for Media Ops' settings, for example a dataset called `tank/apps/media-ops`.
+   Give the `apps` user (ID 568) permission to write to it.
+2. Go to **Apps → Discover Apps → ⋮ → Install via YAML** and paste in
+   [`truenas-compose.yml`](truenas-compose.yml). Change `tank` to your pool's name.
+3. Open `http://<your-truenas-ip>:8484`. Under **Settings → General**, set the disk path to
+   your pool (for example `/mnt/tank`).
+
+### Anything else with Docker
 
 ```bash
-npm run demo    # fake data on http://localhost:8484 (DEMO=truenas node server.js for TrueNAS)
+docker run -d --name media-ops -p 8484:8484 \
+  -e PUID=1000 -e PGID=1000 -e TZ=America/Chicago \
+  -v /path/to/media-ops:/config \
+  ghcr.io/kaiserhomelab/media-ops:latest
 ```
 
-## License
+## First steps
 
-Media Ops is released under the [MIT License](LICENSE).
+1. **Set a password.** Go to **Settings → Security**. Until you do, anyone on your network can
+   change your apps, stop streams or clear logs. The dashboard reminds you until it's done.
+2. **Add your apps.** Go to **Settings → Add app**, pick an app, and enter its address and API
+   key. Each form tells you where that app keeps its key. Click **Test**, then **Save**.
 
-The Docker image is built on the [linuxserver.io](https://www.linuxserver.io/) Alpine base
-image (GPL-3.0) with s6-overlay (ISC) and Node.js (MIT). Those components keep their own
-licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). It's not an official
-linuxserver.io image.
+![Adding an app in Settings](docs/screenshots/settings.png)
 
-## Acknowledgements
+A few tips:
 
-This dashboard only exists because of the projects it talks to: Sonarr, Radarr, Lidarr,
-Readarr, Prowlarr, Bazarr, Tautulli, Seerr/Overseerr/Jellyseerr, SABnzbd, qBittorrent,
-Clonarr and TRaSH Guides, Unraid and TrueNAS, plus Plex. Thanks also to linuxserver.io for the base image and
-container conventions. Media Ops uses only their public APIs and includes none of their code.
-Licenses and links are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- Use your server's IP address, like `http://192.168.1.10:8989`, not `localhost`. (Inside a
+  container, `localhost` means the container itself.)
+- Running two of the same app, like Sonarr and Sonarr Anime? Add it twice with different names.
+- Drag the app cards to change the order on the dashboard.
+- On Unraid or TrueNAS, Settings notices which one you're running and offers to add it.
 
-Plex and the other app names are trademarks of their respective owners. Media Ops is an
-independent project, not affiliated with or endorsed by any of them.
+### Setting up Unraid or TrueNAS
 
-## Security
+**Unraid (7.2 or newer):** In Unraid, go to **Settings → Management Access → API Keys** and
+create a key. A read-only "viewer" key is all Media Ops needs. Then add **Unraid** in Media Ops
+with your server's address and that key.
 
-See [SECURITY.md](SECURITY.md) for how secrets are stored and how to report a vulnerability.
+**TrueNAS (25.04 or newer):** In TrueNAS, add a user (for example `mediaops`) with the
+**Read-Only Administrator** role. Then open your user menu (top right) → **API Keys** → **Add**,
+and create a key for that user. In Media Ops, add **TrueNAS** with the address, the username
+and the key.
+
+## If something isn't working
+
+Go to **Settings → Diagnostics → Run diagnostics**. It checks every app and shows exactly what
+each one answered. **Copy short report** gives you something you can paste into a GitHub issue.
+Passwords, API keys, IP addresses and usernames are removed from it first.
+
+### Forgot your password?
+
+You'll need access to the server itself. Any of these works:
+
+- On the login screen, click **Forgot password?** → **Get a reset code**. The code shows up in
+  the container's log (on Unraid: Docker tab → media-ops icon → **Logs**) and in a file called
+  `password-reset.txt` in the settings folder. Codes expire after 15 minutes.
+- Open the container's console (on Unraid: Docker tab → media-ops icon → **Console**) and run
+  `reset-password`. This removes the password.
+- Edit `config.json` in the settings folder and set `"auth": null`.
+
+## Good to know
+
+- **Your settings** live in `config.json` in the folder you mapped to `/config`. Back up that
+  folder and you've backed up everything. You can also download a backup from Settings.
+- **Your API keys stay on the server.** They're never sent to your browser, and a saved key is
+  only ever sent to the address it was saved for.
+- **The dashboard is visible to anyone on your network** unless you turn on **Also require the
+  password to view the dashboard** under Settings → Security. Turn that on before you make it
+  reachable from outside your home, and put it behind a reverse proxy with https.
+- **The Docker container list** needs access to Docker. Mounting the Docker socket gives the
+  container full control of your server, so a safer way is to run a read-only
+  [socket proxy](https://github.com/Tecnativa/docker-socket-proxy) (with `CONTAINERS=1`) and
+  enter its address under Settings → General.
+- **Media Ops checks GitHub every 6 hours** to see if there's a newer version. Nothing about
+  your server is sent. You can turn this off under Settings → General.
+
+More details are in [SECURITY.md](SECURITY.md).
+
+### Container options
+
+Media Ops is built like a [linuxserver.io](https://www.linuxserver.io/) image, so the usual
+options work:
+
+| Variable | Default | What it does |
+|---|---|---|
+| `PUID` / `PGID` | `911` | The user the app runs as. Unraid: `99` / `100`. TrueNAS: `568` / `568`. |
+| `TZ` | `Etc/UTC` | Your time zone, like `America/Chicago`. Used for quiet hours and the daily summary. |
+| `UMASK` | `022` | File permissions for new files. |
+| `HOST_NAME` | container ID | The server name shown at the top of the dashboard. |
+| `PORT` | `8484` | The port inside the container. |
+| `DEMO` | | Set to `1` to see the dashboard with made-up data. |
+
+## License and thanks
+
+Media Ops is free and open source under the [MIT License](LICENSE).
+
+It's only possible because of the apps it talks to: Plex, Sonarr, Radarr, Lidarr, Readarr,
+Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, qBittorrent, Clonarr, TRaSH Guides, Unraid and
+TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
+APIs and doesn't include any of their code. Licenses and links are in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Plex and the other app names are trademarks of their owners. Media Ops is an independent
+project and isn't affiliated with or endorsed by any of them.

@@ -1,21 +1,21 @@
 {
- "page": 1,
- "pageSize": 30,
- "totalRecords": 1,
- "records": [
-  {
-   "eventType": "downloadFolderImported",
-   "date": "2026-10-06T23:24:17.882736Z",
-   "sourceTitle": "Sinners.2025.2160p",
-   "movie": {
-    "title": "Sinners",
-    "year": 2025
-   },
-   "quality": {
-    "quality": {
-     "name": "Remux-2160p"
+  "page": 1,
+  "pageSize": 30,
+  "totalRecords": 1,
+  "records": [
+    {
+      "eventType": "downloadFolderImported",
+      "date": "2026-10-06T23:24:17.882736Z",
+      "sourceTitle": "Sinners.2025.2160p",
+      "movie": {
+        "title": "Sinners",
+        "year": 2025
+      },
+      "quality": {
+        "quality": {
+          "name": "Remux-2160p"
+        }
+      }
     }
-   }
-  }
- ]
+  ]
 }

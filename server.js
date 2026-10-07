@@ -35,20 +35,38 @@ const PAGES = { '/': '/index.html', '/settings': '/settings.html' };
 
 // With "require login for the dashboard" on, only the login page (Settings) and what it needs
 // are reachable without a session.
-const ALWAYS_OPEN = new Set(['/healthz', '/settings', '/settings.html', '/settings.js', '/style.css', '/manifest.webmanifest', '/icon.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/fonts/InterVariable.woff2']);
+const ALWAYS_OPEN = new Set([
+  '/healthz',
+  '/settings',
+  '/settings.html',
+  '/settings.js',
+  '/style.css',
+  '/manifest.webmanifest',
+  '/icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/fonts/InterVariable.woff2',
+]);
 function dashboardLocked(req, pathname) {
   const cfg = config.load();
-  if (!cfg.dashboardAuth || !cfg.auth || ALWAYS_OPEN.has(pathname) || pathname.startsWith('/api/settings')) return false;
+  if (!cfg.dashboardAuth || !cfg.auth || ALWAYS_OPEN.has(pathname) || pathname.startsWith('/api/settings'))
+    return false;
   return !loggedIn(req);
 }
 
 const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   let url;
-  try { url = new URL(req.url, 'http://x'); } catch { return send(res, 400); }
+  try {
+    url = new URL(req.url, 'http://x');
+  } catch {
+    return send(res, 400);
+  }
   try {
     if (dashboardLocked(req, url.pathname)) {
-      if (url.pathname.startsWith('/api/')) return send(res, 401, { error: 'Log in to view the dashboard', needLogin: true });
+      if (url.pathname.startsWith('/api/'))
+        return send(res, 401, { error: 'Log in to view the dashboard', needLogin: true });
       res.writeHead(302, { Location: `/settings?next=${encodeURIComponent(url.pathname + url.search)}` });
       return res.end();
     }
@@ -78,7 +96,11 @@ server.requestTimeout = 30000; // ...and 30 s for the whole request (the biggest
 
 history.load();
 setInterval(history.save, 5 * 60e3).unref();
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { history.save(); process.exit(0); });
+for (const sig of ['SIGTERM', 'SIGINT'])
+  process.on(sig, () => {
+    history.save();
+    process.exit(0);
+  });
 setTimeout(monitorTick, 2000).unref();
 
 server.listen(PORT, () => {

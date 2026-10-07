@@ -2,7 +2,7 @@
 # Copyright (c) 2026 KaiserHomeLab
 #
 # CI for every pull request and every push to main:
-#   lint    ESLint
+#   lint    ESLint and Prettier (formatting)
 #   test    the unit and server tests, on the Node versions we support
 #   build   builds the image and smoke-tests it (starts it, checks it serves the dashboard);
 #           on main and on version tags it then publishes the multi-arch image to
@@ -38,6 +38,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run format:check
 
   test:
     name: test (node ${{ matrix.node }})

@@ -1,10 +1,10 @@
 {
- "total": 10,
- "movie": 6,
- "tv": 4,
- "pending": 2,
- "approved": 1,
- "declined": 1,
- "processing": 1,
- "available": 5
+  "total": 10,
+  "movie": 6,
+  "tv": 4,
+  "pending": 2,
+  "approved": 1,
+  "declined": 1,
+  "processing": 1,
+  "available": 5
 }

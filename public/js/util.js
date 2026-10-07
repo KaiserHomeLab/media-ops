@@ -8,7 +8,11 @@ import { render } from './main.js';
 export const store = { state: null, hist: null }; // latest /api/overview and /api/history
 
 export const $ = id => document.getElementById(id);
-export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export const esc = s =>
+  String(s ?? '').replace(
+    /[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 export const num = n => (n == null ? '—' : Number(n).toLocaleString());
 // Only http(s) links get an href: an address from settings or an app can never be javascript:.
 export const safeHref = u => (/^https?:\/\//i.test(String(u || '')) ? esc(u) : '#');
@@ -19,20 +23,33 @@ export function bytes(b, digits = 1) {
   if (b == null || isNaN(b)) return '—';
   const u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   let i = 0;
-  while (Math.abs(b) >= 1024 && i < u.length - 1) { b /= 1024; i++; }
+  while (Math.abs(b) >= 1024 && i < u.length - 1) {
+    b /= 1024;
+    i++;
+  }
   return `${b.toFixed(i < 2 ? 0 : digits)} ${u[i]}`;
 }
 export const rate = bps => `${bytes(bps)}/s`;
 export const mbps = kbps => (kbps ? `${(kbps / 1000).toFixed(1)} Mbps` : '—');
 export function clock(ms) {
-  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  const s = Math.floor(ms / 1000),
+    h = Math.floor(s / 3600),
+    m = Math.floor((s % 3600) / 60);
   return `${h ? h + ':' : ''}${String(m).padStart(h ? 2 : 1, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 export function uptime(sec) {
-  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  const d = Math.floor(sec / 86400),
+    h = Math.floor((sec % 86400) / 3600),
+    m = Math.floor((sec % 3600) / 60);
   return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
 }
-export const initials = s => esc((s || '?').replace(/^(the|a)\s+/i, '').slice(0, 2).toUpperCase());
+export const initials = s =>
+  esc(
+    (s || '?')
+      .replace(/^(the|a)\s+/i, '')
+      .slice(0, 2)
+      .toUpperCase(),
+  );
 
 // Only touch the DOM when a section actually changed (prevents image flicker / hover loss).
 export const lastHTML = new Map();
@@ -49,7 +66,6 @@ export function ago(t) {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
-
 
 export const timeOf = t => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 
@@ -78,7 +94,6 @@ document.addEventListener('click', e => {
   lastHTML.delete($('map')); // the map was drawn (or not) while hidden; redraw at the real width
   if (store.state) render(store.state);
 });
-
 
 export const tip = $('tooltip');
 export function placeTip(e) {

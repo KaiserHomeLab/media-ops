@@ -1,0 +1,9 @@
+# Generated, vendored or not ours to format
+node_modules/
+data/
+package-lock.json
+public/world-map.js
+# HTML: reformatting can change the whitespace between inline elements on the page.
+*.html
+# Markdown is hand-wrapped prose.
+*.md

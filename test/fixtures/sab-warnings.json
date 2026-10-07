@@ -1,9 +1,9 @@
 {
- "warnings": [
-  {
-   "text": "Server news.example.com will be ignored for 10 minutes",
-   "type": "WARNING",
-   "time": 1791346757
-  }
- ]
+  "warnings": [
+    {
+      "text": "Server news.example.com will be ignored for 10 minutes",
+      "type": "WARNING",
+      "time": 1791346757
+    }
+  ]
 }

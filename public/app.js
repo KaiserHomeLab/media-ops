@@ -308,24 +308,12 @@ let mapModel = { clusters: [], atHome: [], home: null };
 const place = g => [g.city, g.region && g.region !== g.city ? g.region : null, g.code || g.country].filter(Boolean).join(', ');
 const streamLine = s => `<b>${esc(s.user)}</b> · ${esc(s.title)}${s.subtitle && s.type !== 'movie' ? ` <span class="muted">${esc(s.subtitle.split(' · ')[0])}</span>` : ''}`;
 
-let mapPeek = false; // "Show map" pressed while nobody is watching
-
 function renderMap(plex) {
   const show = !!plex && plex.data.mapEnabled !== false && !!window.WORLD_MAP;
   $('map-card').hidden = !show;
   if (!show) return;
 
-  // Collapse to a slim bar while nobody is watching; open again as soon as someone starts.
-  const idle = !plex.data.streams.length;
-  if (!idle) mapPeek = false;
-  const collapsed = idle && !mapPeek;
-  $('map-card').classList.toggle('collapsed', collapsed);
-  $('map-wrap').hidden = collapsed;
-  const toggle = $('map-toggle');
-  toggle.hidden = !idle;
-  toggle.textContent = collapsed ? 'Show map' : 'Hide map';
-  toggle.setAttribute('aria-expanded', String(!collapsed));
-  if (collapsed) {
+  if (rollUp('map-card', !plex.data.streams.length)) {
     $('map-count').textContent = 'nobody watching';
     return;
   }
@@ -451,10 +439,31 @@ $('map').addEventListener('mousemove', e => {
   placeTip(e);
 });
 $('map').addEventListener('mouseleave', () => (tip.hidden = true));
-$('map-toggle').addEventListener('click', () => {
-  mapPeek = !mapPeek;
-  lastHTML.delete($('map')); // it was drawn (or not) while hidden; redraw at the real width
-  if (state) renderMap(state.services.find(s => s.kind === 'plex' && s.up));
+
+// --------------------------------------------------------------------- roll-up cards
+// Cards with nothing to show (map with no viewers, no errors, empty download queue, no
+// requests) shrink to a slim title bar and open again by themselves when something arrives.
+// "Show" opens one anyway until it has content again.
+const rollPeek = new Set();
+function rollUp(cardId, idle) {
+  const card = $(cardId);
+  if (!idle) rollPeek.delete(cardId);
+  const collapsed = idle && !rollPeek.has(cardId);
+  card.classList.toggle('collapsed', collapsed);
+  card.querySelector('.roll-body').hidden = collapsed;
+  const toggle = card.querySelector('.roll-toggle');
+  toggle.hidden = !idle;
+  toggle.textContent = collapsed ? 'Show' : 'Hide';
+  toggle.setAttribute('aria-expanded', String(!collapsed));
+  return collapsed;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-roll]');
+  if (!b) return;
+  const id = b.dataset.roll;
+  rollPeek.has(id) ? rollPeek.delete(id) : rollPeek.add(id);
+  lastHTML.delete($('map')); // the map was drawn (or not) while hidden; redraw at the real width
+  if (state) render(state);
 });
 
 // --------------------------------------------------------------------- errors & warnings feed
@@ -472,7 +481,9 @@ function renderEvents(d) {
   const active = d.events.filter(e => !e.dismissed);
   const dismissedN = d.events.length - active.length;
   const errs = active.filter(e => e.level === 'error').length;
-  $('ev-count').textContent = active.length ? `${errs} errors · ${active.length - errs} warnings` : '';
+  $('ev-count').textContent = active.length ? `${errs} errors · ${active.length - errs} warnings`
+    : `all clear${dismissedN ? ` · ${dismissedN} dismissed` : ''}`;
+  if (rollUp('events-card', !active.length)) return;
 
   const names = new Map(d.services.map(s => [s.id, s.name]));
   const bySvc = new Map();
@@ -619,6 +630,14 @@ function etaText(eta) {
 }
 
 function renderDownloads(clients, arrs) {
+  // Prefer the *arr queues (clean titles); fall back to raw client items when no arr is grabbing anything.
+  let items = arrs.flatMap(a => a.data.queue.map(q => ({ ...q, source: a.name })));
+  if (!items.length) items = clients.flatMap(c => c.data.items.map(q => ({ ...q, source: c.name })));
+  const today = clients.reduce((n, c) => n + (c.data.totals?.day || 0), 0);
+  $('downloads-count').textContent = items.length ? `${items.length} in queue`
+    : `queue empty${today ? ` · ${bytes(today)} today` : ''}`;
+  if (rollUp('downloads-card', !items.length)) return;
+
   setHTML($('clients'), clients.map(c => {
     const d = c.data;
     const x = c.kind === 'qbittorrent'
@@ -629,9 +648,6 @@ function renderDownloads(clients, arrs) {
       <div class="x">${x}</div></div>`;
   }).join(''));
 
-  // Prefer the *arr queues (clean titles); fall back to raw client items when no arr is grabbing anything.
-  let items = arrs.flatMap(a => a.data.queue.map(q => ({ ...q, source: a.name })));
-  if (!items.length) items = clients.flatMap(c => c.data.items.map(q => ({ ...q, source: c.name })));
   if (!items.length) return setHTML($('queue'), '<div class="empty">Queue is empty.</div>');
 
   setHTML($('queue'), items.slice(0, 15).map(q => {
@@ -889,7 +905,8 @@ function renderRecent(plex, arrs) {
 function renderRequests(seerrs) {
   const reqs = seerrs.flatMap(s => (s.data.requests || []).map(r => ({ ...r, svcId: s.id })));
   $('requests-card').hidden = !seerrs.length;
-  $('requests-count').textContent = reqs.length ? `${reqs.length} waiting` : '';
+  $('requests-count').textContent = reqs.length ? `${reqs.length} waiting` : 'none waiting';
+  if (rollUp('requests-card', !reqs.length)) return;
   setHTML($('requests'), reqs.map(r => `<li>
       <div class="rq-main"><b>${esc(r.title)}</b>${r.year ? ` <span class="muted">(${esc(r.year)})</span>` : ''}
         <span class="chip">${r.type === 'tv' ? `TV${r.seasons?.length ? ` · S${r.seasons.join(', S')}` : ''}` : 'Movie'}</span>${r.is4k ? '<span class="chip">4K</span>' : ''}

@@ -57,8 +57,8 @@
 
     <section class="card" id="map-card" hidden>
       <h2>Stream map <span class="count" id="map-count"></span>
-        <button class="linkish map-toggle" id="map-toggle" type="button" aria-controls="map-wrap" hidden></button></h2>
-      <div class="map-wrap" id="map-wrap">
+        <button class="linkish roll-toggle" type="button" data-roll="map-card" aria-controls="map-wrap" hidden></button></h2>
+      <div class="map-wrap roll-body" id="map-wrap">
         <div class="map" id="map"></div>
         <div class="map-side">
           <ul class="viewers" id="viewers"></ul>
@@ -68,10 +68,13 @@
     </section>
 
     <section class="card" id="events-card">
-      <h2>Errors &amp; warnings <span class="count" id="ev-count"></span></h2>
-      <div class="ev-filters" id="ev-filters" role="toolbar" aria-label="Filter errors"></div>
-      <div class="ev-actions" id="ev-actions"></div>
-      <div id="events" class="events"></div>
+      <h2>Errors &amp; warnings <span class="count" id="ev-count"></span>
+        <button class="linkish roll-toggle" type="button" data-roll="events-card" aria-controls="events-body" hidden></button></h2>
+      <div class="roll-body" id="events-body">
+        <div class="ev-filters" id="ev-filters" role="toolbar" aria-label="Filter errors"></div>
+        <div class="ev-actions" id="ev-actions"></div>
+        <div id="events" class="events"></div>
+      </div>
     </section>
 
     <section class="card">
@@ -81,10 +84,13 @@
     </section>
 
     <div class="grid two even">
-      <section class="card">
-        <h2>Downloads</h2>
-        <div id="clients" class="clients"></div>
-        <div id="queue" class="queue"></div>
+      <section class="card" id="downloads-card">
+        <h2>Downloads <span class="count" id="downloads-count"></span>
+          <button class="linkish roll-toggle" type="button" data-roll="downloads-card" aria-controls="downloads-body" hidden></button></h2>
+        <div class="roll-body" id="downloads-body">
+          <div id="clients" class="clients"></div>
+          <div id="queue" class="queue"></div>
+        </div>
       </section>
       <section class="card">
         <h2>Coming up</h2>
@@ -100,8 +106,9 @@
         <ul class="imports" id="imports"></ul>
       </section>
       <section class="card" id="requests-card" hidden>
-        <h2>Requests <span class="count" id="requests-count"></span></h2>
-        <ul class="requests" id="requests"></ul>
+        <h2>Requests <span class="count" id="requests-count"></span>
+          <button class="linkish roll-toggle" type="button" data-roll="requests-card" aria-controls="requests" hidden></button></h2>
+        <ul class="requests roll-body" id="requests"></ul>
       </section>
     </div>
 

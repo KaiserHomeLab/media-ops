@@ -145,7 +145,11 @@ h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight
 
 .card.collapsed { padding-top: 14px; padding-bottom: 14px; }
 .card.collapsed h2 { margin-bottom: 0; }
-.map-toggle { margin-left: auto; font-size: 12px; letter-spacing: 0; text-transform: none; }
+/* A rolled-up card in a side-by-side row: it becomes a full-width bar and its neighbour
+   takes the whole row, instead of leaving a tall empty box beside it. */
+.grid.two:has(> .card.collapsed) { grid-template-columns: minmax(0, 1fr); }
+.grid.two:has(> .card.collapsed) > .card.collapsed { order: 1; }
+.roll-toggle { margin-left: auto; font-size: 12px; letter-spacing: 0; text-transform: none; }
 
 /* ------------------------------------------------------------------ errors & warnings */
 .ev-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
@@ -263,12 +267,14 @@ h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight
 .svc.down .meta { color: var(--critical); }
 
 /* ------------------------------------------------------------------ library */
-.libs { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.libs { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
 .lib { padding: 12px 14px; border-radius: 10px; background: var(--surface-2); }
 .lib .n { font: 600 24px var(--mono); }
 .lib .k { color: var(--text-muted); font-size: 12px; }
 .lib .x { color: var(--text-secondary); font: 12px var(--mono); margin-top: 4px; }
-.arr-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.arr-stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.arr-stats > .arr { flex: 1 1 250px; min-width: 0; } /* a short last row stretches to the full width too */
+
 .arr { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); }
 .arr h3 { display: flex; justify-content: space-between; }
 .arr h3 span { font: 12px var(--mono); color: var(--text-muted); font-weight: 400; }
@@ -533,7 +539,7 @@ main.settings { max-width: 980px; }
 body.tv .tv-clock { display: inline; }
 body.tv .top { position: static; }
 body.tv .top a.btn[href="/settings"], body.tv .ev-actions, body.tv .ev-acts, body.tv .alert-acts,
-body.tv .mini-btn, body.tv .map-toggle, body.tv #plays-table-toggle { display: none !important; }
+body.tv .mini-btn, body.tv .roll-toggle, body.tv #plays-table-toggle { display: none !important; }
 body.tv #watch-card, body.tv main section.card:has(#libraries) { display: none !important; }
 body.tv main { max-width: none; }
 @media (min-width: 1200px) { body.tv main { zoom: 1.2; } }

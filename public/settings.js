@@ -7,10 +7,14 @@
 'use strict';
 
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const esc = s =>
+  String(s ?? '').replace(
+    /[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 
-let S = null;          // settings payload from the server
-let appStatus = {};    // service id -> { up, error, version }
+let S = null; // settings payload from the server
+let appStatus = {}; // service id -> { up, error, version }
 const modal = $('modal');
 
 async function api(path, { method = 'GET', body } = {}) {
@@ -20,7 +24,10 @@ async function api(path, { method = 'GET', body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => ({}));
-  if (r.status === 401 && data.needLogin) { showLogin(); throw new Error(data.error); }
+  if (r.status === 401 && data.needLogin) {
+    showLogin();
+    throw new Error(data.error);
+  }
   if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
   return data;
 }
@@ -39,7 +46,9 @@ function flash(el) {
 async function load() {
   try {
     S = await api('');
-  } catch { return; }
+  } catch {
+    return;
+  }
   $('login').hidden = true;
   $('settings-body').hidden = false;
   $('logout').hidden = !S.authEnabled;
@@ -60,7 +69,9 @@ async function loadStatus() {
     const o = await (await fetch('/api/overview')).json();
     appStatus = Object.fromEntries(o.services.map(s => [s.id, s]));
     renderApps();
-  } catch { /* the cards just show without a status dot */ }
+  } catch {
+    /* the cards just show without a status dot */
+  }
 }
 
 function showLogin() {
@@ -78,7 +89,9 @@ $('login-form').addEventListener('submit', async e => {
     const next = new URLSearchParams(location.search).get('next');
     if (next && next.startsWith('/') && !next.startsWith('//')) return (location.href = next);
     load();
-  } catch (err) { showError($('login-error'), err.message); }
+  } catch (err) {
+    showError($('login-error'), err.message);
+  }
 });
 // Forgot password: one-time code from the server's log / config folder.
 const showReset = on => {
@@ -98,7 +111,9 @@ $('send-code').addEventListener('click', async e => {
     $('reset-where').hidden = false;
     e.target.textContent = 'Send a new code';
     $('reset-form').code.focus();
-  } catch (err) { showError($('reset-error'), err.message); }
+  } catch (err) {
+    showError($('reset-error'), err.message);
+  }
   setTimeout(() => (e.target.disabled = false), 30000); // server allows one new code per 30 s
 });
 $('reset-form').addEventListener('submit', async e => {
@@ -110,20 +125,39 @@ $('reset-form').addEventListener('submit', async e => {
     f.reset();
     showReset(false);
     load();
-  } catch (err) { showError($('reset-error'), err.message); }
+  } catch (err) {
+    showError($('reset-error'), err.message);
+  }
 });
 
-$('logout').addEventListener('click', async () => { await api('/logout', { method: 'POST' }); location.reload(); });
+$('logout').addEventListener('click', async () => {
+  await api('/logout', { method: 'POST' });
+  location.reload();
+});
 
 // --------------------------------------------------------------------- apps grid
 const kindDef = kind => S.kinds.find(k => k.kind === kind) || S.kinds.find(k => k.kind === 'seerr');
-const abbrev = name => esc(name.replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?');
+const abbrev = name =>
+  esc(
+    name
+      .replace(/[^A-Za-z0-9 ]/g, '')
+      .split(/\s+/)
+      .map(w => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '?',
+  );
 
 function renderApps() {
   $('apps-count').textContent = S.services.length ? `${S.services.length} connected` : '';
   const cards = S.services.map(s => {
     const st = appStatus[s.id];
-    const dot = s.enabled === false ? '' : st ? `<span class="dot ${st.up ? 'up' : 'down'}" title="${esc(st.up ? 'Connected' : st.error)}"></span>` : '';
+    const dot =
+      s.enabled === false
+        ? ''
+        : st
+          ? `<span class="dot ${st.up ? 'up' : 'down'}" title="${esc(st.up ? 'Connected' : st.error)}"></span>`
+          : '';
     return `<button type="button" class="app-card${s.enabled === false ? ' off' : ''}" draggable="true" data-id="${esc(s.id)}">
       <span class="app-icon k-${esc(s.kind)}" aria-hidden="true">${abbrev(kindDef(s.kind).label)}</span>
       <span class="app-name">${esc(s.name)} ${dot}</span>
@@ -132,14 +166,18 @@ function renderApps() {
       ${st && !st.up && s.enabled !== false ? `<span class="app-err">✕ ${esc(st.error)}</span>` : ''}
     </button>`;
   });
-  cards.push(`<button type="button" class="app-card add" id="add-app"><span class="plus" aria-hidden="true">+</span><span>Add app</span></button>`);
+  cards.push(
+    `<button type="button" class="app-card add" id="add-app"><span class="plus" aria-hidden="true">+</span><span>Add app</span></button>`,
+  );
   $('apps').innerHTML = cards.join('');
 
   // Running on Unraid or TrueNAS and it isn't added yet: offer it.
   const os = S.hostOs && S.kinds.find(k => k.kind === S.hostOs);
   const offer = os && !S.services.some(s => s.kind === os.kind);
   $('detected').hidden = !offer;
-  if (offer) $('detected').innerHTML = `<span>Media Ops is running on <b>${esc(os.label)}</b>. Add it to see ${os.kind === 'truenas' ? 'pools, disks, apps and alerts' : 'the array, parity checks and disks'} on the dashboard.</span>
+  if (offer)
+    $('detected').innerHTML =
+      `<span>Media Ops is running on <b>${esc(os.label)}</b>. Add it to see ${os.kind === 'truenas' ? 'pools, disks, apps and alerts' : 'the array, parity checks and disks'} on the dashboard.</span>
     <button class="btn small primary" type="button" data-add-kind="${esc(os.kind)}">Add ${esc(os.label)}</button>`;
 }
 $('detected').addEventListener('click', e => {
@@ -194,14 +232,28 @@ modal.addEventListener('click', e => {
 
 function openPicker() {
   const groups = [...new Set(S.kinds.map(k => k.group))];
-  openModal('Add app', groups.map(g => `
+  openModal(
+    'Add app',
+    groups
+      .map(
+        g => `
     <h3 class="pick-group">${esc(g)}</h3>
-    <div class="pick-grid">${S.kinds.filter(k => k.group === g).map(k => `
+    <div class="pick-grid">${S.kinds
+      .filter(k => k.group === g)
+      .map(
+        k => `
       <button type="button" class="pick" data-kind="${esc(k.kind)}">
         <span class="app-icon k-${esc(k.kind)}" aria-hidden="true">${abbrev(k.label)}</span>${esc(k.label)}${k.kind === S.hostOs ? ' <span class="tag">this server</span>' : ''}
-      </button>`).join('')}
-    </div>`).join(''));
-  $('modal-body').querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => openForm(b.dataset.kind)));
+      </button>`,
+      )
+      .join('')}
+    </div>`,
+      )
+      .join(''),
+  );
+  $('modal-body')
+    .querySelectorAll('.pick')
+    .forEach(b => b.addEventListener('click', () => openForm(b.dataset.kind)));
 }
 
 // --------------------------------------------------------------------- modal: add / edit form
@@ -211,7 +263,10 @@ function suggestUrl(def) {
   // Most people run everything on one box, so reuse the host of an app already added (or this page's host).
   let host = location.hostname;
   const first = S.services[0];
-  if (first) try { host = new URL(first.url).hostname; } catch {}
+  if (first)
+    try {
+      host = new URL(first.url).hostname;
+    } catch {}
   // Opened as localhost: that address means the container itself. Docker Desktop has a name for
   // the computer it runs on; elsewhere leave it blank so the placeholder shows an IP to use.
   if (isLoopback(host)) {
@@ -247,8 +302,12 @@ function formActions(editing, ids, testLabel) {
       </div>`;
 }
 
-const setBusy = (btn, busy, label) => { btn.disabled = busy; btn.textContent = busy ? '…' : label; };
-const focusFirstEmpty = (form, fallback) => ([...form.querySelectorAll('input[required]')].find(i => !i.value) || fallback).focus();
+const setBusy = (btn, busy, label) => {
+  btn.disabled = busy;
+  btn.textContent = busy ? '…' : label;
+};
+const focusFirstEmpty = (form, fallback) =>
+  ([...form.querySelectorAll('input[required]')].find(i => !i.value) || fallback).focus();
 
 // Apps -----------------------------------------------------------------------------------------
 
@@ -305,7 +364,8 @@ async function deleteApp(svc) {
 function openForm(kind, svc = null) {
   const def = kindDef(kind);
   openModal(svc ? `Edit ${svc.name}` : `Add ${def.label}`, appFormHtml(def, svc));
-  const form = $('app-form'), result = $('test-result');
+  const form = $('app-form'),
+    result = $('test-result');
 
   const values = () => {
     const v = Object.fromEntries(new FormData(form));
@@ -349,7 +409,12 @@ function openForm(kind, svc = null) {
       setBusy($('save'), false, 'Save');
     }
   });
-  form.addEventListener('input', () => { if (forceSave) { forceSave = false; $('save').textContent = 'Save'; } });
+  form.addEventListener('input', () => {
+    if (forceSave) {
+      forceSave = false;
+      $('save').textContent = 'Save';
+    }
+  });
 
   $('back')?.addEventListener('click', openPicker);
   $('del')?.addEventListener('click', () => deleteApp(svc));
@@ -358,27 +423,39 @@ function openForm(kind, svc = null) {
 
 // --------------------------------------------------------------------- notifications
 const NOTIF_ICON = { discord: 'Di', ntfy: 'nt', pushover: 'Po', gotify: 'Go', webhook: '{}' };
-const sinceText = t => { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+const sinceText = t => {
+  const m = Math.round((Date.now() - t) / 60e3);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
 
 function renderNotifs() {
   const list = S.notifications.targets;
   $('notif-count').textContent = list.length ? `${list.length} set up` : '';
-  const o = $('notif-options'), n = S.notifications;
+  const o = $('notif-options'),
+    n = S.notifications;
   o.diskThreshold.value = n.diskThreshold;
-  o.quietEnabled.checked = n.quiet.enabled; o.quietFrom.value = n.quiet.from; o.quietTo.value = n.quiet.to; o.quietAllowDown.checked = n.quiet.allowDown;
-  o.digestEnabled.checked = n.digest.enabled; o.digestTime.value = n.digest.time;
+  o.quietEnabled.checked = n.quiet.enabled;
+  o.quietFrom.value = n.quiet.from;
+  o.quietTo.value = n.quiet.to;
+  o.quietAllowDown.checked = n.quiet.allowDown;
+  o.digestEnabled.checked = n.digest.enabled;
+  o.digestTime.value = n.digest.time;
   const type = t => S.notifyTypes.find(x => x.type === t);
-  $('notifs').innerHTML = list.map(t => {
-    const evs = S.notifyEvents.filter(e => t.events?.[e.key]).length;
-    const last = t.last ? (t.last.ok ? `✓ last sent ${sinceText(t.last.at)}` : `✕ ${t.last.error}`) : '';
-    return `<button type="button" class="app-card${t.enabled === false ? ' off' : ''}" data-notif="${esc(t.id)}">
+  $('notifs').innerHTML =
+    list
+      .map(t => {
+        const evs = S.notifyEvents.filter(e => t.events?.[e.key]).length;
+        const last = t.last ? (t.last.ok ? `✓ last sent ${sinceText(t.last.at)}` : `✕ ${t.last.error}`) : '';
+        return `<button type="button" class="app-card${t.enabled === false ? ' off' : ''}" data-notif="${esc(t.id)}">
       <span class="app-icon n-${esc(t.type)}" aria-hidden="true">${esc(NOTIF_ICON[t.type] || '?')}</span>
       <span class="app-name">${esc(t.name)}</span>
       <span class="app-kind">${esc(type(t.type)?.label || t.type)}${t.enabled === false ? ' · disabled' : ''}</span>
       <span class="app-url">${evs} event type${evs === 1 ? '' : 's'}</span>
       ${last ? `<span class="${t.last.ok ? 'app-ok' : 'app-err'}">${esc(last)}</span>` : ''}
     </button>`;
-  }).join('') + `<button type="button" class="app-card add" id="add-notif"><span class="plus" aria-hidden="true">+</span><span>Add notification</span></button>`;
+      })
+      .join('') +
+    `<button type="button" class="app-card add" id="add-notif"><span class="plus" aria-hidden="true">+</span><span>Add notification</span></button>`;
 }
 
 $('notifs').addEventListener('click', e => {
@@ -390,15 +467,29 @@ $('notifs').addEventListener('click', e => {
 });
 
 function openNotifPicker() {
-  openModal('Add notification', `<div class="pick-grid">${S.notifyTypes.map(t => `
-    <button type="button" class="pick" data-type="${esc(t.type)}"><span class="app-icon n-${esc(t.type)}" aria-hidden="true">${esc(NOTIF_ICON[t.type])}</span>${esc(t.label)}</button>`).join('')}</div>`);
-  $('modal-body').querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => openNotifForm(b.dataset.type)));
+  openModal(
+    'Add notification',
+    `<div class="pick-grid">${S.notifyTypes
+      .map(
+        t => `
+    <button type="button" class="pick" data-type="${esc(t.type)}"><span class="app-icon n-${esc(t.type)}" aria-hidden="true">${esc(NOTIF_ICON[t.type])}</span>${esc(t.label)}</button>`,
+      )
+      .join('')}</div>`,
+  );
+  $('modal-body')
+    .querySelectorAll('.pick')
+    .forEach(b => b.addEventListener('click', () => openNotifForm(b.dataset.type)));
 }
 
 function notifFormHtml(def, target) {
   // The ntfy server defaults to ntfy.sh when left blank, so it's never required.
   const fields = def.fields.map(f => fieldHtml(f, target, !f.optional && f.key !== 'server')).join('');
-  const events = S.notifyEvents.map(e => `<label class="check"><input type="checkbox" name="ev-${esc(e.key)}" ${(target ? target.events?.[e.key] : e.def) ? 'checked' : ''}><span>${esc(e.label)}</span></label>`).join('');
+  const events = S.notifyEvents
+    .map(
+      e =>
+        `<label class="check"><input type="checkbox" name="ev-${esc(e.key)}" ${(target ? target.events?.[e.key] : e.def) ? 'checked' : ''}><span>${esc(e.label)}</span></label>`,
+    )
+    .join('');
   return `
     <form class="form grid-form" id="notif-form" novalidate>
       <label class="field"><span>Name</span><input name="name" required value="${esc(target?.name || def.label)}"></label>
@@ -425,7 +516,9 @@ async function saveNotif(target, body) {
     ? await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'PUT', body })
     : await api('/notifications', { method: 'POST', body });
   // Keep the "last sent" line: the server's reply doesn't carry it.
-  S.notifications.targets = target ? S.notifications.targets.map(t => (t.id === saved.id ? { ...saved, last: t.last } : t)) : [...S.notifications.targets, saved];
+  S.notifications.targets = target
+    ? S.notifications.targets.map(t => (t.id === saved.id ? { ...saved, last: t.last } : t))
+    : [...S.notifications.targets, saved];
   modal.close();
   renderNotifs();
 }
@@ -441,9 +534,14 @@ async function deleteNotif(target) {
 function openNotifForm(type, target = null) {
   const def = S.notifyTypes.find(t => t.type === type);
   openModal(target ? `Edit ${target.name}` : `Add ${def.label}`, notifFormHtml(def, target));
-  const form = $('notif-form'), result = $('notif-result');
+  const form = $('notif-form'),
+    result = $('notif-result');
   const values = () => notifValues(form, def, target);
-  const show = (ok, msg) => { result.hidden = false; result.className = `test-result wide ${ok ? 'ok' : 'bad'}`; result.textContent = msg; };
+  const show = (ok, msg) => {
+    result.hidden = false;
+    result.className = `test-result wide ${ok ? 'ok' : 'bad'}`;
+    result.textContent = msg;
+  };
 
   $('ntest').addEventListener('click', async () => {
     if (!form.reportValidity()) return;
@@ -451,7 +549,9 @@ function openNotifForm(type, target = null) {
     try {
       const r = await api('/notifications/test', { method: 'POST', body: values() });
       show(r.ok, r.ok ? '✓ Test sent. Check your phone or channel.' : `✕ ${r.error}`);
-    } catch (err) { show(false, `✕ ${err.message}`); }
+    } catch (err) {
+      show(false, `✕ ${err.message}`);
+    }
     $('ntest').disabled = false;
   });
   form.addEventListener('submit', async e => {
@@ -459,7 +559,9 @@ function openNotifForm(type, target = null) {
     if (!form.reportValidity()) return;
     try {
       await saveNotif(target, values());
-    } catch (err) { show(false, `✕ ${err.message}`); }
+    } catch (err) {
+      show(false, `✕ ${err.message}`);
+    }
   });
   $('nback')?.addEventListener('click', openNotifPicker);
   $('ndel')?.addEventListener('click', () => deleteNotif(target));
@@ -473,13 +575,24 @@ $('notif-options').addEventListener('submit', async e => {
     const o = e.target;
     const body = {
       diskThreshold: o.diskThreshold.value,
-      quiet: { enabled: o.quietEnabled.checked, from: o.quietFrom.value, to: o.quietTo.value, allowDown: o.quietAllowDown.checked },
+      quiet: {
+        enabled: o.quietEnabled.checked,
+        from: o.quietFrom.value,
+        to: o.quietTo.value,
+        allowDown: o.quietAllowDown.checked,
+      },
       digest: { enabled: o.digestEnabled.checked, time: o.digestTime.value },
     };
     await api('/notification-options', { method: 'PUT', body });
-    Object.assign(S.notifications, { diskThreshold: Number(body.diskThreshold), quiet: body.quiet, digest: body.digest });
+    Object.assign(S.notifications, {
+      diskThreshold: Number(body.diskThreshold),
+      quiet: body.quiet,
+      digest: body.digest,
+    });
     flash($('notif-saved'));
-  } catch (err) { showError($('notif-error'), err.message); }
+  } catch (err) {
+    showError($('notif-error'), err.message);
+  }
 });
 
 $('digest-now').addEventListener('click', async e => {
@@ -489,7 +602,9 @@ $('digest-now').addEventListener('click', async e => {
     const pre = $('digest-preview');
     pre.hidden = false;
     pre.textContent = `${r.preview.title}\n\n${r.preview.lines.join('\n')}\n\n${r.sent ? `✓ Sent to ${r.sent} destination${r.sent === 1 ? '' : 's'}.` : 'Not sent: no destination has “Daily digest” ticked. (This is a preview.)'}`;
-  } catch (err) { showError($('notif-error'), err.message); }
+  } catch (err) {
+    showError($('notif-error'), err.message);
+  }
   e.target.disabled = false;
 });
 
@@ -500,23 +615,35 @@ $('restore-file').addEventListener('change', async e => {
   if (!file) return;
   showError($('restore-error'), '');
   let data;
-  try { data = JSON.parse(await file.text()); } catch { return showError($('restore-error'), "That file isn't valid JSON."); }
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    return showError($('restore-error'), "That file isn't valid JSON.");
+  }
   const cfg = data?.config || data;
   const n = cfg?.services?.length ?? 0;
-  if (!confirm(`Restore ${n} app${n === 1 ? '' : 's'} and their settings from ${file.name}?\n\nThis replaces everything currently set up here.`)) return;
+  if (
+    !confirm(
+      `Restore ${n} app${n === 1 ? '' : 's'} and their settings from ${file.name}?\n\nThis replaces everything currently set up here.`,
+    )
+  )
+    return;
   try {
     const r = await api('/restore', { method: 'POST', body: data });
     $('restore-saved').textContent = `✓ Restored ${r.apps} apps`;
     flash($('restore-saved'));
     load();
-  } catch (err) { showError($('restore-error'), err.message); }
+  } catch (err) {
+    showError($('restore-error'), err.message);
+  }
 });
 
 // --------------------------------------------------------------------- diagnostics
 let diagReport = null;
 $('diag-run').addEventListener('click', async e => {
   const btn = e.target;
-  btn.disabled = true; btn.textContent = 'Checking every app…';
+  btn.disabled = true;
+  btn.textContent = 'Checking every app…';
   try {
     diagReport = await api('/diagnostics');
     renderDiag(diagReport);
@@ -524,22 +651,34 @@ $('diag-run').addEventListener('click', async e => {
   } catch (err) {
     $('diag-results').innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
   }
-  btn.disabled = false; btn.textContent = 'Run again';
+  btn.disabled = false;
+  btn.textContent = 'Run again';
 });
 
 function renderDiag(r) {
   const ok = r.apps.filter(a => a.ok).length;
-  $('diag-results').innerHTML = `<p class="muted small-note">Media Ops ${esc(r.mediaOps)} · Node ${esc(r.node)} · ${esc(r.platform)} · ${ok}/${r.apps.length} apps OK</p>` +
-    r.apps.map(a => `<details class="diag-app"${a.ok ? '' : ' open'}>
+  $('diag-results').innerHTML =
+    `<p class="muted small-note">Media Ops ${esc(r.mediaOps)} · Node ${esc(r.node)} · ${esc(r.platform)} · ${ok}/${r.apps.length} apps OK</p>` +
+    r.apps
+      .map(
+        a => `<details class="diag-app"${a.ok ? '' : ' open'}>
       <summary><span class="dot ${a.ok ? 'up' : 'down'}"></span><b>${esc(a.name)}</b>
         <span class="muted">${esc(a.kind)}${a.version ? ` · v${esc(String(a.version).replace(/^v/, ''))}` : ''} · ${a.ms} ms · ${a.calls.length} call${a.calls.length === 1 ? '' : 's'}</span>
         ${a.error ? `<span class="diag-err">✕ ${esc(a.error)}</span>` : ''}${a.note ? `<span class="muted"> · ${esc(a.note)}</span>` : ''}</summary>
-      ${a.calls.map(c => `<details class="diag-call"><summary>
+      ${a.calls
+        .map(
+          c => `<details class="diag-call"><summary>
           <span class="mono">${esc(c.method)}</span> <span class="mono url">${esc(c.url)}</span>
-          <span class="mono ${c.error || (c.status >= 400) ? 'diag-err' : 'muted'}">${c.status ?? '—'} · ${c.ms ?? '—'} ms${c.bytes != null ? ` · ${c.bytes.toLocaleString()} B` : ''}${c.error ? ` · ${esc(c.error)}` : ''}</span>
-        </summary>${c.sample ? `<pre>${esc(c.sample)}</pre>` : ''}</details>`).join('')}
-    </details>`).join('') +
-    (r.recentLog.length ? `<details class="diag-app"><summary><b>Recent server warnings</b> <span class="muted">${r.recentLog.length}</span></summary><pre>${esc(r.recentLog.map(l => `${l.at} ${l.level.toUpperCase()} ${l.text}`).join('\n'))}</pre></details>` : '');
+          <span class="mono ${c.error || c.status >= 400 ? 'diag-err' : 'muted'}">${c.status ?? '—'} · ${c.ms ?? '—'} ms${c.bytes != null ? ` · ${c.bytes.toLocaleString()} B` : ''}${c.error ? ` · ${esc(c.error)}` : ''}</span>
+        </summary>${c.sample ? `<pre>${esc(c.sample)}</pre>` : ''}</details>`,
+        )
+        .join('')}
+    </details>`,
+      )
+      .join('') +
+    (r.recentLog.length
+      ? `<details class="diag-app"><summary><b>Recent server warnings</b> <span class="muted">${r.recentLog.length}</span></summary><pre>${esc(r.recentLog.map(l => `${l.at} ${l.level.toUpperCase()} ${l.text}`).join('\n'))}</pre></details>`
+      : '');
 }
 
 // The copied report is the short one, sized to paste into a chat or issue: every call's status
@@ -548,7 +687,9 @@ const compactReport = r => ({
   ...r,
   apps: r.apps.map(a => ({
     ...a,
-    calls: a.calls.map(({ sample, ...c }) => (c.error || c.status >= 400 ? { ...c, sample: sample?.slice(0, 1200) } : c)),
+    calls: a.calls.map(({ sample, ...c }) =>
+      c.error || c.status >= 400 ? { ...c, sample: sample?.slice(0, 1200) } : c,
+    ),
   })),
 });
 const reportText = () => `Media Ops debug report\n\`\`\`json\n${JSON.stringify(compactReport(diagReport))}\n\`\`\`\n`;
@@ -559,7 +700,10 @@ $('diag-copy').addEventListener('click', async () => {
   } catch {
     const ta = Object.assign(document.createElement('textarea'), { value: text });
     ta.style.cssText = 'position:fixed;opacity:0';
-    document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    document.body.append(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
   }
   flash($('diag-copied'));
 });
@@ -575,13 +719,34 @@ $('diag-download').addEventListener('click', () => {
 // --------------------------------------------------------------------- general
 // Disk path examples for the platform Media Ops runs on (lib/platform.js). Static text only.
 const PATH_TIPS = {
-  unraid: { example: ['/mnt/user', '/mnt/cache'], text: 'Map <code>/mnt/user</code> (and <code>/mnt/cache</code>) into the container read-only, then list them here.' },
-  truenas: { example: ['/mnt/tank'], text: 'Map your pool, for example <code>/mnt/tank</code>, into the container read-only, then list it here.' },
-  synology: { example: ['/volume1'], text: 'Map <code>/volume1</code> into the container read-only, then list it here.' },
-  qnap: { example: ['/share/CACHEDEV1_DATA'], text: 'Map your data volume, for example <code>/share/CACHEDEV1_DATA</code>, into the container read-only, then list it here.' },
-  windows: { example: ['/mnt/media'], text: 'Map a folder on each drive into the container first, for example <code>-v D:\\Media:/mnt/media:ro</code>, then enter <code>/mnt/media</code>. It shows the whole drive\'s free space.' },
-  mac: { example: ['/mnt/media'], text: 'Map each drive into the container first, for example <code>-v /Volumes/Media:/mnt/media:ro</code>, then enter <code>/mnt/media</code>.' },
-  linux: { example: ['/mnt/media'], text: 'Map each disk into the container read-only, for example <code>-v /mnt/media:/mnt/media:ro</code>, then list it here.' },
+  unraid: {
+    example: ['/mnt/user', '/mnt/cache'],
+    text: 'Map <code>/mnt/user</code> (and <code>/mnt/cache</code>) into the container read-only, then list them here.',
+  },
+  truenas: {
+    example: ['/mnt/tank'],
+    text: 'Map your pool, for example <code>/mnt/tank</code>, into the container read-only, then list it here.',
+  },
+  synology: {
+    example: ['/volume1'],
+    text: 'Map <code>/volume1</code> into the container read-only, then list it here.',
+  },
+  qnap: {
+    example: ['/share/CACHEDEV1_DATA'],
+    text: 'Map your data volume, for example <code>/share/CACHEDEV1_DATA</code>, into the container read-only, then list it here.',
+  },
+  windows: {
+    example: ['/mnt/media'],
+    text: "Map a folder on each drive into the container first, for example <code>-v D:\\Media:/mnt/media:ro</code>, then enter <code>/mnt/media</code>. It shows the whole drive's free space.",
+  },
+  mac: {
+    example: ['/mnt/media'],
+    text: 'Map each drive into the container first, for example <code>-v /Volumes/Media:/mnt/media:ro</code>, then enter <code>/mnt/media</code>.',
+  },
+  linux: {
+    example: ['/mnt/media'],
+    text: 'Map each disk into the container read-only, for example <code>-v /mnt/media:/mnt/media:ro</code>, then list it here.',
+  },
 };
 PATH_TIPS['docker-desktop'] = PATH_TIPS.mac;
 PATH_TIPS.proxmox = PATH_TIPS.linux;
@@ -593,7 +758,8 @@ function renderGeneral() {
   f.paths.value = S.general.paths.join('\n');
   const tip = PATH_TIPS[S.platform?.id] || PATH_TIPS.linux;
   f.paths.placeholder = tip.example.join('\n');
-  $('paths-tip').innerHTML = `Paths as seen inside this container. ${tip.text} The disk space your arrs report is shown too.`;
+  $('paths-tip').innerHTML =
+    `Paths as seen inside this container. ${tip.text} The disk space your arrs report is shown too.`;
   f.uploadMbps.value = S.general.uploadMbps ?? '';
   f.mapEnabled.checked = S.general.mapEnabled;
   f.mapHome.value = S.general.mapHome;
@@ -605,13 +771,23 @@ $('general-form').addEventListener('submit', async e => {
   const f = e.target;
   showError($('general-error'), '');
   try {
-    await api('/general', { method: 'PUT', body: {
-      refreshSeconds: f.refreshSeconds.value, dockerSocket: f.dockerSocket.value, paths: f.paths.value,
-      mapEnabled: f.mapEnabled.checked, mapHome: f.mapHome.value, uploadMbps: f.uploadMbps.value,
-      cleanupDays: f.cleanupDays.value, checkUpdates: f.checkUpdates.checked,
-    } });
+    await api('/general', {
+      method: 'PUT',
+      body: {
+        refreshSeconds: f.refreshSeconds.value,
+        dockerSocket: f.dockerSocket.value,
+        paths: f.paths.value,
+        mapEnabled: f.mapEnabled.checked,
+        mapHome: f.mapHome.value,
+        uploadMbps: f.uploadMbps.value,
+        cleanupDays: f.cleanupDays.value,
+        checkUpdates: f.checkUpdates.checked,
+      },
+    });
     flash($('general-saved'));
-  } catch (err) { showError($('general-error'), err.message); }
+  } catch (err) {
+    showError($('general-error'), err.message);
+  }
 });
 
 // --------------------------------------------------------------------- security
@@ -639,7 +815,9 @@ async function setPassword(next) {
     renderSecurity();
     $('logout').hidden = !S.authEnabled;
     flash($('pw-saved'));
-  } catch (err) { showError($('pw-error'), err.message); }
+  } catch (err) {
+    showError($('pw-error'), err.message);
+  }
 }
 $('pw-form').addEventListener('submit', e => {
   e.preventDefault();
@@ -653,7 +831,10 @@ $('dash-lock').addEventListener('change', async e => {
     await api('/security', { method: 'PUT', body: { dashboardAuth: e.target.checked } });
     S.dashboardAuth = e.target.checked;
     flash($('pw-saved'));
-  } catch (err) { e.target.checked = !e.target.checked; showError($('pw-error'), err.message); }
+  } catch (err) {
+    e.target.checked = !e.target.checked;
+    showError($('pw-error'), err.message);
+  }
 });
 $('pw-remove').addEventListener('click', () => {
   if (confirm('Remove the settings password? Anyone on your network will be able to change settings.')) setPassword('');

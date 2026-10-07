@@ -6,6 +6,7 @@
 'use strict';
 const js = require('@eslint/js');
 const globals = require('globals');
+const prettier = require('eslint-config-prettier'); // formatting is Prettier's job
 
 const rules = {
   eqeqeq: ['error', 'always', { null: 'ignore' }], // `x == null` (null or undefined) is fine
@@ -29,6 +30,7 @@ const rules = {
 
 module.exports = [
   { ignores: ['node_modules/**', 'data/**', 'public/world-map.js'] },
+  { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   js.configs.recommended,
   {
     // Server: Node.js, CommonJS
@@ -39,7 +41,11 @@ module.exports = [
   {
     // Dashboard: native ES modules in the browser
     files: ['public/js/**/*.js'],
-    languageOptions: { ecmaVersion: 2024, sourceType: 'module', globals: { ...globals.browser, MapProjection: 'readonly', WORLD_MAP: 'readonly' } },
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: { ...globals.browser, MapProjection: 'readonly', WORLD_MAP: 'readonly' },
+    },
     rules,
   },
   {
@@ -54,4 +60,5 @@ module.exports = [
     languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.browser, ...globals.node } },
     rules,
   },
+  prettier,
 ];

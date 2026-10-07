@@ -24,7 +24,10 @@ export async function refresh() {
   clearTimeout(timer);
   try {
     const r = await fetch('/api/overview', { cache: 'no-store' });
-    if (r.status === 401) { location.href = `/settings?next=${encodeURIComponent(location.pathname + location.search)}`; return; }
+    if (r.status === 401) {
+      location.href = `/settings?next=${encodeURIComponent(location.pathname + location.search)}`;
+      return;
+    }
     if (!r.ok) throw new Error(r.status);
     store.state = await r.json();
     lastOk = Date.now();
@@ -38,9 +41,19 @@ export async function refresh() {
 
 // "Settings aren't password-protected" can be hidden for 30 days (per browser).
 const NUDGE_KEY = 'mo-lock-nudge-hidden';
-const nudgeHidden = () => { try { return Date.now() - Number(localStorage.getItem(NUDGE_KEY) || 0) < 30 * 864e5; } catch { return false; } };
+const nudgeHidden = () => {
+  try {
+    return Date.now() - Number(localStorage.getItem(NUDGE_KEY) || 0) < 30 * 864e5;
+  } catch {
+    return false;
+  }
+};
 $('lock-nudge-close').addEventListener('click', () => {
-  try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch { /* private mode: hide for now only */ }
+  try {
+    localStorage.setItem(NUDGE_KEY, String(Date.now()));
+  } catch {
+    /* private mode: hide for now only */
+  }
   $('lock-nudge').hidden = true;
 });
 
@@ -49,7 +62,9 @@ async function loadHistory() {
   try {
     store.hist = await (await fetch('/api/history', { cache: 'no-store' })).json();
     if (store.state) render(store.state);
-  } catch { /* keep the last copy */ }
+  } catch {
+    /* keep the last copy */
+  }
   setTimeout(loadHistory, 60e3);
 }
 
@@ -60,7 +75,9 @@ setInterval(() => {
   $('live').classList.toggle('stale', ago > (store.state?.refreshSeconds || 10) * 3);
 }, 1000);
 
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refresh();
+});
 
 // --------------------------------------------------------------------- render
 export function render(d) {
@@ -76,7 +93,8 @@ export function render(d) {
   $('self-update').hidden = !d.latestVersion;
   if (d.latestVersion) {
     $('self-update').textContent = `⬆ Media Ops ${d.latestVersion}`;
-    $('self-update').title = `You have ${d.version}. Update the container: Unraid Docker tab → Check for Updates, or TrueNAS Apps → Update.`;
+    $('self-update').title =
+      `You have ${d.version}. Update the container: Unraid Docker tab → Check for Updates, or TrueNAS Apps → Update.`;
   }
   const firstRun = !d.demo && !d.configured;
   $('welcome').hidden = !firstRun;
@@ -107,28 +125,44 @@ export function render(d) {
 }
 
 function renderAlerts(d) {
-  const items = d.events.filter(e => e.live && !e.dismissed && e.source !== 'Queue').map(e => ({
-    cls: e.level === 'error' ? 'error' : '',
-    html: `<b>${esc(e.svc)}</b> ${esc(e.source === 'Connection' ? `is unreachable — ${e.message.replace(/^Unreachable — /, '')}` : e.message)}`,
-    key: e.key, svcId: e.svcId,
-  }));
+  const items = d.events
+    .filter(e => e.live && !e.dismissed && e.source !== 'Queue')
+    .map(e => ({
+      cls: e.level === 'error' ? 'error' : '',
+      html: `<b>${esc(e.svc)}</b> ${esc(e.source === 'Connection' ? `is unreachable — ${e.message.replace(/^Unreachable — /, '')}` : e.message)}`,
+      key: e.key,
+      svcId: e.svcId,
+    }));
   if (Array.isArray(d.docker))
     for (const c of d.docker.filter(x => x.health === 'unhealthy'))
       items.push({ cls: 'error', html: `<b>${esc(c.name)}</b> container is unhealthy` });
 
   const el = $('alerts');
   el.hidden = !items.length;
-  setHTML(el, items.map(a =>
-    `<div class="alert ${a.cls}"><span aria-hidden="true">${a.cls === 'error' ? '✕' : '⚠'}</span><div>${a.html}</div>${a.key ? `
-      <span class="alert-acts"><button class="icon-btn" type="button" data-recheck="${esc(a.svcId)}" title="Re-check" aria-label="Re-check">↻</button><button class="icon-btn" type="button" data-dismiss="${esc(a.key)}" title="Dismiss" aria-label="Dismiss">✕</button></span>` : ''}</div>`
-  ).join(''));
+  setHTML(
+    el,
+    items
+      .map(
+        a =>
+          `<div class="alert ${a.cls}"><span aria-hidden="true">${a.cls === 'error' ? '✕' : '⚠'}</span><div>${a.html}</div>${
+            a.key
+              ? `
+      <span class="alert-acts"><button class="icon-btn" type="button" data-recheck="${esc(a.svcId)}" title="Re-check" aria-label="Re-check">↻</button><button class="icon-btn" type="button" data-dismiss="${esc(a.key)}" title="Dismiss" aria-label="Dismiss">✕</button></span>`
+              : ''
+          }</div>`,
+      )
+      .join(''),
+  );
 }
 
-
-addEventListener('resize', () => { lastHTML.delete($('plays-chart')); lastHTML.delete($('map')); if (store.state) renderMap(store.state.services.find(s => s.kind === 'plex' && s.up)); if (store.state) renderWatch(store.state.services.find(s => s.kind === 'tautulli' && s.up)); });
+addEventListener('resize', () => {
+  lastHTML.delete($('plays-chart'));
+  lastHTML.delete($('map'));
+  if (store.state) renderMap(store.state.services.find(s => s.kind === 'plex' && s.up));
+  if (store.state) renderWatch(store.state.services.find(s => s.kind === 'tautulli' && s.up));
+});
 
 if (new URLSearchParams(location.search).get('tv') === '1') setTvMode(true);
-
 
 refresh();
 loadHistory();

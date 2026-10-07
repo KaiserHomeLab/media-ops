@@ -12,12 +12,12 @@ services:
     container_name: media-ops
     restart: unless-stopped
     environment:
-      - PUID=1000          # run `id` on Linux to see yours. Unraid: 99. Synology: your user's uid.
-      - PGID=1000          # Unraid: 100. Synology: 100 (users). Windows and Mac: leave as is.
+      - PUID=1000 # run `id` on Linux to see yours. Unraid: 99. Synology: your user's uid.
+      - PGID=1000 # Unraid: 100. Synology: 100 (users). Windows and Mac: leave as is.
       - TZ=America/Chicago # your time zone
-      - HOST_NAME=media-server   # the name shown at the top of the dashboard
+      - HOST_NAME=media-server # the name shown at the top of the dashboard
     ports:
-      - "8484:8484"
+      - '8484:8484'
     volumes:
       # Settings folder. "./config" is created next to this file and works on every OS.
       # Unraid: /mnt/user/appdata/media-ops   Synology: /volume1/docker/media-ops

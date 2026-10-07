@@ -7,11 +7,14 @@
 (function (root) {
   'use strict';
   const SCALE = 150;
-  const LAT_TOP = 84, LAT_BOTTOM = -57; // crop the polar regions nobody streams from
+  const LAT_TOP = 84,
+    LAT_BOTTOM = -57; // crop the polar regions nobody streams from
 
   function raw(lon, lat) {
-    const l = (lon * Math.PI) / 180, p = (lat * Math.PI) / 180;
-    const p2 = p * p, p4 = p2 * p2;
+    const l = (lon * Math.PI) / 180,
+      p = (lat * Math.PI) / 180;
+    const p2 = p * p,
+      p4 = p2 * p2;
     return [
       l * (0.8707 - 0.131979 * p2 + p4 * (-0.013791 + p4 * (0.003971 * p2 - 0.001529 * p4))),
       p * (1.007226 + p2 * (0.015085 + p4 * (-0.044475 + 0.028874 * p2 - 0.005916 * p4))),
@@ -19,7 +22,8 @@
   }
 
   const [xMax] = raw(180, 0);
-  const yTop = raw(0, LAT_TOP)[1], yBottom = raw(0, LAT_BOTTOM)[1];
+  const yTop = raw(0, LAT_TOP)[1],
+    yBottom = raw(0, LAT_BOTTOM)[1];
   const WIDTH = Math.round(2 * xMax * SCALE);
   const HEIGHT = Math.round((yTop - yBottom) * SCALE);
 

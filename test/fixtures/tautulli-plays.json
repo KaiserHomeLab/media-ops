@@ -1,29 +1,17 @@
 {
- "categories": [
-  "2026-10-05",
-  "2026-10-06"
- ],
- "series": [
-  {
-   "name": "TV",
-   "data": [
-    3,
-    5
-   ]
-  },
-  {
-   "name": "Movies",
-   "data": [
-    1,
-    0
-   ]
-  },
-  {
-   "name": "Music",
-   "data": [
-    0,
-    2
-   ]
-  }
- ]
+  "categories": ["2026-10-05", "2026-10-06"],
+  "series": [
+    {
+      "name": "TV",
+      "data": [3, 5]
+    },
+    {
+      "name": "Movies",
+      "data": [1, 0]
+    },
+    {
+      "name": "Music",
+      "data": [0, 2]
+    }
+  ]
 }

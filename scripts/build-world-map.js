@@ -22,9 +22,13 @@ if (!input) {
 const topo = JSON.parse(fs.readFileSync(input, 'utf8'));
 
 // TopoJSON arcs are delta-encoded integers; undo the quantization to get [lon, lat].
-const { scale: [kx, ky], translate: [dx, dy] } = topo.transform;
+const {
+  scale: [kx, ky],
+  translate: [dx, dy],
+} = topo.transform;
 const arcs = topo.arcs.map(arc => {
-  let x = 0, y = 0;
+  let x = 0,
+    y = 0;
   return arc.map(([ax, ay]) => [(x += ax) * kx + dx, (y += ay) * ky + dy]);
 });
 // An arc index < 0 means "arc ~i, reversed" (TopoJSON spec).
@@ -52,7 +56,8 @@ function splitAtAntimeridian(pts) {
 
 // Drop points that land on the same tenth of a unit as the previous one.
 function toPath(pts) {
-  let last = '', seg = '';
+  let last = '',
+    seg = '';
   for (const [x, y] of pts) {
     const p = `${x.toFixed(1)} ${y.toFixed(1)}`;
     if (p === last) continue;
@@ -60,7 +65,7 @@ function toPath(pts) {
     last = p;
     points++;
   }
-  return `${seg  }Z`;
+  return `${seg}Z`;
 }
 
 let d = '';
@@ -81,4 +86,6 @@ window.WORLD_MAP = { width: ${WIDTH}, height: ${HEIGHT}, land: ${JSON.stringify(
 `;
 const dest = path.join(__dirname, '..', 'public', 'world-map.js');
 fs.writeFileSync(dest, out);
-console.log(`Wrote ${dest}: ${polygons.length} polygons, ${points} points, ${(out.length / 1024).toFixed(1)} KB (${WIDTH}×${HEIGHT})`);
+console.log(
+  `Wrote ${dest}: ${polygons.length} polygons, ${points} points, ${(out.length / 1024).toFixed(1)} KB (${WIDTH}×${HEIGHT})`,
+);

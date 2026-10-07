@@ -25,6 +25,10 @@ test('plex: streams, transcode reason, local/remote, libraries', async t => {
     '/library/sections/1/all': { MediaContainer: { size: 0, totalSize: 2184 } },
     '/library/sections/2/all': (req, url) => ({ MediaContainer: { size: 0, totalSize: url.searchParams.get('type') === '4' ? 18733 : 412 } }),
     '/library/sections/3/all': (req, url) => ({ MediaContainer: { size: 0, totalSize: { 9: 4210, 10: 51288 }[url.searchParams.get('type')] ?? 1307 } }),
+    '/library/recentlyAdded': { MediaContainer: { Metadata: [
+      { ratingKey: '1', type: 'movie', title: 'M*A*S*H', year: 1970, addedAt: 4039401600 }, // corrupt: year 2098
+      { ratingKey: '2', type: 'movie', title: 'Dune', year: 2021, addedAt: Math.floor(Date.now() / 1000) - 3600 },
+    ] } },
   });
   t.after(() => srv.close());
   clearCache();
@@ -47,6 +51,7 @@ test('plex: streams, transcode reason, local/remote, libraries', async t => {
   const tv = r.data.libraries.find(l => l.type === 'show');
   assert.deepEqual([tv.count, tv.episodes], [412, 18733]);
   assert.equal(srv.calls[0].headers['x-plex-token'], 'tok', 'token goes in a header, not the URL');
+  assert.deepEqual(r.data.recentlyAdded.map(m => m.title), ['Dune'], 'future-dated items skipped');
 });
 
 test('sonarr: stats, queue warning becomes an event, logs filtered to warn+', async t => {
@@ -69,6 +74,9 @@ test('sonarr: stats, queue warning becomes an event, logs filtered to warn+', as
   assert.deepEqual(logLevels, ['error', 'warn'], 'info lines are dropped');
   assert.equal(r.data.upcoming[0].sub, 'S02E10 · Who Are You?');
   assert.equal(srv.calls[0].headers['x-api-key'], 'k');
+  const before = srv.calls.filter(x => x.path === '/api/v3/series').length;
+  await c.sonarr({ url: srv.url, apiKey: 'k' });
+  assert.equal(srv.calls.filter(x => x.path === '/api/v3/series').length, before, 'full series list cached between polls');
 });
 
 test('radarr: missing counts only monitored + available', async t => {

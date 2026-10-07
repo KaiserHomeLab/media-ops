@@ -495,7 +495,16 @@ function renderDiag(r) {
     (r.recentLog.length ? `<details class="diag-app"><summary><b>Recent server warnings</b> <span class="muted">${r.recentLog.length}</span></summary><pre>${esc(r.recentLog.map(l => `${l.at} ${l.level.toUpperCase()} ${l.text}`).join('\n'))}</pre></details>` : '');
 }
 
-const reportText = () => `Media Ops debug report\n\`\`\`json\n${JSON.stringify(diagReport, null, 2)}\n\`\`\`\n`;
+// The copied report is the short one, sized to paste into a chat or issue: every call's status
+// and timing, but reply samples only where something went wrong. Download keeps everything.
+const compactReport = r => ({
+  ...r,
+  apps: r.apps.map(a => ({
+    ...a,
+    calls: a.calls.map(({ sample, ...c }) => (c.error || c.status >= 400 ? { ...c, sample: sample?.slice(0, 1200) } : c)),
+  })),
+});
+const reportText = () => `Media Ops debug report\n\`\`\`json\n${JSON.stringify(compactReport(diagReport))}\n\`\`\`\n`;
 $('diag-copy').addEventListener('click', async () => {
   const text = reportText();
   try {

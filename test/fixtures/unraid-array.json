@@ -1,0 +1,88 @@
+{
+ "data": {
+  "vars": {
+   "version": "7.2.1",
+   "name": "Tower"
+  },
+  "array": {
+   "state": "STARTED",
+   "capacity": {
+    "kilobytes": {
+     "free": "9663676416",
+     "used": "33285996544",
+     "total": "42949672960"
+    }
+   },
+   "parityCheckStatus": {
+    "status": "COMPLETED",
+    "progress": 100,
+    "errors": 0,
+    "running": false,
+    "paused": false,
+    "speed": null,
+    "date": "2026-10-01T03:00:00Z",
+    "duration": 61200,
+    "correcting": true
+   },
+   "parities": [
+    {
+     "name": "parity",
+     "status": "DISK_OK",
+     "temp": 36,
+     "numErrors": 0,
+     "warning": null,
+     "critical": null,
+     "isSpinning": true,
+     "size": 19327352832,
+     "rotational": true
+    }
+   ],
+   "disks": [
+    {
+     "name": "disk1",
+     "status": "DISK_OK",
+     "temp": 47,
+     "numErrors": 0,
+     "warning": 70,
+     "critical": 90,
+     "isSpinning": true,
+     "size": 12884901888,
+     "fsSize": 12884901888,
+     "fsUsed": 12025908428,
+     "fsFree": 858993459,
+     "rotational": true
+    },
+    {
+     "name": "disk2",
+     "status": "DISK_DSBL",
+     "temp": null,
+     "numErrors": 14,
+     "warning": 70,
+     "critical": 90,
+     "isSpinning": false,
+     "size": 12884901888,
+     "fsSize": 12884901888,
+     "fsUsed": 6442450944,
+     "fsFree": 6442450944,
+     "rotational": true
+    }
+   ],
+   "caches": [
+    {
+     "name": "cache",
+     "status": "DISK_OK",
+     "temp": 58,
+     "numErrors": 0,
+     "warning": 70,
+     "critical": 90,
+     "isSpinning": true,
+     "size": 2147483648,
+     "fsSize": 2147483648,
+     "fsUsed": 1073741824,
+     "fsFree": 1073741824,
+     "rotational": false
+    }
+   ]
+  }
+ }
+}

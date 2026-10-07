@@ -1,0 +1,25 @@
+{
+ "page": 1,
+ "pageSize": 30,
+ "totalRecords": 1,
+ "records": [
+  {
+   "eventType": "downloadFolderImported",
+   "date": "2026-10-07T01:24:17.882736Z",
+   "sourceTitle": "Andor.S02E08.1080p.WEB",
+   "series": {
+    "title": "Andor"
+   },
+   "episode": {
+    "seasonNumber": 2,
+    "episodeNumber": 8,
+    "title": "Sweet Vitriol"
+   },
+   "quality": {
+    "quality": {
+     "name": "WEBDL-1080p"
+    }
+   }
+  }
+ ]
+}

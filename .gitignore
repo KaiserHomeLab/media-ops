@@ -2,7 +2,5 @@ node_modules
 data/
 config.json
 
-# Local only: tests, the map generator and Claude Code notes stay on the dev machine.
-test/
-scripts/
+# Claude Code notes stay on the dev machine.
 CLAUDE.md

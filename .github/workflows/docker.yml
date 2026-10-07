@@ -1,35 +1,68 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 KaiserHomeLab
-# Builds the image on every push to main (and on version tags), checks that it starts and
-# serves the dashboard, then publishes it to GitHub Container Registry as
-# ghcr.io/<your-user>/media-ops.
-name: Docker image
+#
+# CI for every pull request and every push to main:
+#   lint    ESLint
+#   test    the unit and server tests, on the Node versions we support
+#   build   builds the image and smoke-tests it (starts it, checks it serves the dashboard);
+#           on main and on version tags it then publishes the multi-arch image to
+#           ghcr.io/<owner>/media-ops. Only runs when lint and test passed.
+name: CI
 
 on:
   push:
     branches: [main]
     tags: ['v*']
-  pull_request:   # builds without publishing
+  pull_request:
   workflow_dispatch:
 
-# Actions are pinned to exact commits, so a moved tag can't change what runs with the
-# package-publishing token.
+# A newer push to the same branch or PR makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least privilege by default; only the build job can publish packages. Actions are pinned to
+# exact commits, so a moved tag can't change what runs with the publishing token.
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  build:
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      # Lint first: ESLint is a development tool only (devDependencies), never in the image.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run lint
+
+  test:
+    name: test (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      # The app has no runtime dependencies, so the tests need no install step.
+      - run: npm test
+
+  build:
+    name: build
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -64,6 +97,7 @@ jobs:
           for i in $(seq 1 30); do curl -fsS http://localhost:8484/healthz && break; sleep 2; done
           curl -fsS http://localhost:8484/healthz
           curl -fsS http://localhost:8484/ | grep -q '<title>'
+          curl -fsS -o /dev/null -w '%{content_type}' http://localhost:8484/js/main.js | grep -q javascript
           curl -fsS http://localhost:8484/api/overview | jq -e '(.services | length) > 0 and .version != null'
           curl -fsS http://localhost:8484/settings | grep -q 'Settings'
       - name: Container log

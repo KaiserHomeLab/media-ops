@@ -1,0 +1,22 @@
+{
+ "MediaContainer": {
+  "StatisticsResources": [
+   {
+    "at": 1791347045,
+    "hostCpuUtilization": 20.5,
+    "processCpuUtilization": 12.25,
+    "hostMemoryUtilization": 41.0,
+    "processMemoryUtilization": 3.5,
+    "timespan": 6
+   },
+   {
+    "at": 1791347051,
+    "hostCpuUtilization": 35.0,
+    "processCpuUtilization": 28.0,
+    "hostMemoryUtilization": 42.0,
+    "processMemoryUtilization": 3.6,
+    "timespan": 6
+   }
+  ]
+ }
+}

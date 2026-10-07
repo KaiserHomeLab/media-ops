@@ -6,13 +6,14 @@
   "private": true,
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "start": "node server.js",
     "demo": "DEMO=1 node server.js",
     "reset-password": "node bin/reset-password.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test test/*.test.js"
   },
   "repository": {
     "type": "git",

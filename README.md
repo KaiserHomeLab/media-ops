@@ -38,6 +38,10 @@ A live dashboard for a Plex + *arr server. It shows:
 - **Admin actions** (behind the settings password, if one is set): **Stop** a stream with a message the viewer sees (needs Plex Pass), and for stuck downloads **Retry** the import or **Replace…** it (remove, blocklist, search for another).
 - **TV mode**: a full-screen, read-only glance view that fits on one screen with no scrolling. It shows the headline numbers, what's playing, the stream map, services, and errors, downloads and server health when there's something to show. Library, calendar, posters, requests and charts are left out. The mouse pointer hides when idle. Open `http://<server>:8484/?tv=1` on a wall tablet or TV browser to start straight in it.
 - **Add to home screen**: install it like an app on your phone, with an icon, full-screen view and shortcuts to TV mode and Settings.
+- **What's using space**: the biggest series, movies and artists; what was downloaded in the last 30 days; and, with Tautulli, the movies and shows nobody has watched for a year (adjustable under Settings → General), with how much space they take. It's only a list, nothing is deleted. Each title links to it in Sonarr/Radarr/Lidarr.
+- **Indexer limits**: for each Prowlarr indexer, API calls and grabs in Prowlarr's own rolling window (24 hours, or 1 hour) against the limits you set on it, with a warning at 90% and an error at 100%. Shows when Prowlarr has paused an indexer.
+- **Updates**: Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Plex, Tautulli and Seerr show a ⬆ badge when a newer version is out (checked every 6 hours), and the header says when a newer Media Ops image is available. Updates are also listed in the daily digest.
+- **How to fix**: errors with a well-known cause (database locked, indexer API limit, permissions, hardlinks, unreachable download client, hot disks and more) get a 💡 and a one-line fix when you open them.
 - **Library**: Plex library counts, and *arr totals (series, episodes, movies, missing, size on disk).
 - **Downloads, Coming up, Watch stats** (Tautulli), **Storage** and **Host**.
 

@@ -25,6 +25,7 @@
     </div>
     <div class="top-right">
       <span class="badge demo" id="demo-badge" hidden>DEMO DATA</span>
+      <a class="badge upd" id="self-update" hidden target="_blank" rel="noopener" href="https://github.com/KaiserHomeLab/media-ops#install-on-unraid"></a>
       <span class="live" id="live"><span class="pulse"></span><span id="updated">—</span></span>
       <span class="tv-clock num" id="tv-clock" aria-hidden="true"></span>
       <button class="btn small" type="button" id="tv-toggle" title="Full-screen view for a wall display or TV">⛶ <span class="hide-sm">TV mode</span></button>
@@ -98,6 +99,12 @@
       </section>
     </div>
 
+    <section class="card" id="indexers-card" data-tv-hide hidden>
+      <h2>Indexer limits <span class="count" id="indexers-sub"></span></h2>
+      <div id="indexers" class="indexers"></div>
+      <p class="muted small-note" id="indexers-note" hidden>Set each indexer's limits in Prowlarr (Indexers → edit → Show Advanced → Query Limit / Grab Limit) to get a bar and a warning before it runs out.</p>
+    </section>
+
     <div class="grid two even" data-tv-hide>
       <section class="card" id="recent-card" hidden>
         <h2>Recently added</h2>
@@ -111,6 +118,17 @@
         <ul class="requests roll-body" id="requests"></ul>
       </section>
     </div>
+
+    <section class="card" id="space-card" data-tv-hide hidden>
+      <h2>What's using space <span class="count" id="space-sub"></span></h2>
+      <div class="seg" id="space-tabs" role="tablist" aria-label="Space views">
+        <button type="button" role="tab" data-space="biggest">Biggest</button>
+        <button type="button" role="tab" data-space="downloaded">Downloaded · 30 days</button>
+        <button type="button" role="tab" data-space="cleanup">Nobody watches</button>
+      </div>
+      <p class="muted small-note" id="space-note"></p>
+      <ol class="space-list" id="space-list"></ol>
+    </section>
 
     <section class="card" id="unraid-card" hidden>
       <h2>Unraid <span class="count" id="unraid-sub"></span></h2>

@@ -33,6 +33,8 @@ const notify = require('./lib/notify');
 const diagnostics = require('./lib/diagnostics');
 const digest = require('./lib/digest');
 const gpu = require('./lib/gpu');
+const space = require('./lib/space');
+const selfupdate = require('./lib/selfupdate');
 const pkg = require('./package.json');
 
 const PUBLIC = path.join(__dirname, 'public');
@@ -160,9 +162,11 @@ async function polled() {
       gpu.read().catch(() => []),
     ]);
     await geo.enrich(results, cfg);
+    const spaceInfo = space.build(results, cfg);
+    space.stripPrivate(results);
     const value = {
       generatedAt: Date.now(), demo: false, refreshSeconds: cfg.refreshSeconds,
-      configured: cfg.services.length > 0, host: hostStats(), services: results, docker, disks, gpus,
+      configured: cfg.services.length > 0, host: hostStats(), services: results, docker, disks, gpus, space: spaceInfo,
     };
     if (gen === cache.gen) cache = { ...cache, at: Date.now(), value, pending: null };
     return value;
@@ -178,7 +182,8 @@ async function overview() {
   const { events, changed } = feed.apply(feed.collect(raw.services), raw.services, config.load().dismissed);
   if (changed) config.update(c => ({ ...c, dismissed: changed }));
   const services = raw.services.map(s => ({ ...s, actions: actions.capabilities(s.kind, s.name) }));
-  return { ...raw, services, events, uploadMbps: Number(config.load().uploadMbps) || null, version: pkg.version };
+  const cfg = config.load();
+  return { ...raw, services, events, uploadMbps: Number(cfg.uploadMbps) || null, version: pkg.version, latestVersion: DEMO ? null : selfupdate.latest(cfg) };
 }
 
 // ------------------------------------------------------------- background monitor
@@ -191,7 +196,7 @@ async function monitorTick() {
     const { events } = feed.apply(feed.collect(raw.services), raw.services, cfg.dismissed);
     history.record(raw);
     await notify.handle(raw, events, history.diskList(raw), cfg);
-    await digest.maybeSend(cfg, raw, events, notify.sendDigest);
+    await digest.maybeSend(cfg, { ...raw, latestVersion: DEMO ? null : selfupdate.latest(cfg) }, events, notify.sendDigest);
   } catch (e) {
     console.error(`Monitor: ${e.message}`);
   }
@@ -322,7 +327,7 @@ function settingsPayload(req) {
     general: {
       refreshSeconds: cfg.refreshSeconds, paths: cfg.paths, dockerSocket: cfg.docker?.socket || '',
       mapEnabled: cfg.map?.enabled !== false, mapHome: cfg.map?.home || '',
-      uploadMbps: cfg.uploadMbps || '',
+      uploadMbps: cfg.uploadMbps || '', cleanupDays: cfg.cleanupDays || 365, checkUpdates: cfg.checkUpdates !== false,
     },
     services: cfg.services.map(config.publicService),
     kinds: KINDS,
@@ -529,10 +534,12 @@ async function settingsApi(req, res, route) {
     if (mapHome && !geo.parseLatLon(mapHome)) return send(res, 400, { error: 'Home location must look like "41.88, -87.63" (latitude, longitude)' });
     const upload = g.uploadMbps === '' || g.uploadMbps == null ? null : Number(g.uploadMbps);
     if (upload != null && !(upload > 0 && upload < 100000)) return send(res, 400, { error: 'Upload speed should be in Mbps, e.g. 40' });
+    const cleanupDays = Math.round(Number(g.cleanupDays || 365));
+    if (!(cleanupDays >= 30 && cleanupDays <= 3650)) return send(res, 400, { error: 'Cleanup period should be between 30 and 3650 days' });
     config.update(c => ({
       ...c, refreshSeconds: refresh, paths, docker: { socket: String(g.dockerSocket || '').trim() },
       map: { enabled: g.mapEnabled !== false, home: mapHome },
-      uploadMbps: upload,
+      uploadMbps: upload, cleanupDays, checkUpdates: g.checkUpdates !== false,
     }));
     invalidate();
     return send(res, 200, { ok: true });

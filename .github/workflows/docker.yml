@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 KaiserHomeLab
-# Builds the image on every push to main (and on version tags) and publishes it to
-# GitHub Container Registry as ghcr.io/<your-user>/media-ops.
+# Builds the image on every push to main (and on version tags), checks that it starts and
+# serves the dashboard, then publishes it to GitHub Container Registry as
+# ghcr.io/<your-user>/media-ops.
 name: Docker image
 
 on:
@@ -40,6 +41,25 @@ jobs:
         run: |
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
           echo "version=$(jq -r .version package.json)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      # Smoke test: build the image for this machine, start it, and check it answers and serves
+      # a dashboard before anything is published. Uses the demo data, so no apps are needed.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: media-ops:smoke
+          cache-from: type=gha
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 8484:8484 -e DEMO=1 media-ops:smoke
+          for i in $(seq 1 30); do curl -fsS http://localhost:8484/healthz && break; sleep 2; done
+          curl -fsS http://localhost:8484/healthz
+          curl -fsS http://localhost:8484/ | grep -q '<title>'
+          curl -fsS http://localhost:8484/api/overview | jq -e '(.services | length) > 0 and .version != null'
+          curl -fsS http://localhost:8484/settings | grep -q 'Settings'
+      - name: Container log
+        if: always()
+        run: docker logs smoke || true
       - uses: docker/build-push-action@v6
         with:
           context: .

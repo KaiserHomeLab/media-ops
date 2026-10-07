@@ -546,6 +546,8 @@ function renderGeneral() {
   f.uploadMbps.value = S.general.uploadMbps ?? '';
   f.mapEnabled.checked = S.general.mapEnabled;
   f.mapHome.value = S.general.mapHome;
+  f.cleanupDays.value = S.general.cleanupDays;
+  f.checkUpdates.checked = S.general.checkUpdates;
 }
 $('general-form').addEventListener('submit', async e => {
   e.preventDefault();
@@ -555,6 +557,7 @@ $('general-form').addEventListener('submit', async e => {
     await api('/general', { method: 'PUT', body: {
       refreshSeconds: f.refreshSeconds.value, dockerSocket: f.dockerSocket.value, paths: f.paths.value,
       mapEnabled: f.mapEnabled.checked, mapHome: f.mapHome.value, uploadMbps: f.uploadMbps.value,
+      cleanupDays: f.cleanupDays.value, checkUpdates: f.checkUpdates.checked,
     } });
     flash($('general-saved'));
   } catch (err) { showError($('general-error'), err.message); }

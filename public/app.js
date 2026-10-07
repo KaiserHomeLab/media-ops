@@ -89,6 +89,11 @@ function render(d) {
   const clients = all(['sabnzbd', 'qbittorrent']);
 
   $('demo-badge').hidden = !d.demo;
+  $('self-update').hidden = !d.latestVersion;
+  if (d.latestVersion) {
+    $('self-update').textContent = `⬆ Media Ops ${d.latestVersion}`;
+    $('self-update').title = `You have ${d.version}. Update the container: Unraid Docker tab → Check for Updates, or TrueNAS Apps → Update.`;
+  }
   const firstRun = !d.demo && !d.configured;
   $('welcome').hidden = !firstRun;
   $('dash').hidden = firstRun;
@@ -102,6 +107,8 @@ function render(d) {
   renderEvents(d);
   renderLibrary(plex, d.services);
   renderDownloads(clients, arrs);
+  renderIndexers(up('prowlarr'));
+  renderSpace(d.space);
   renderUpcoming(arrs);
   renderWatch(up('tautulli')[0]);
   renderTrends();
@@ -226,7 +233,8 @@ function renderStreams(streams, demo, plexId) {
 
 function renderServices(services) {
   const up = services.filter(s => s.up).length;
-  $('svc-count').textContent = `${up}/${services.length} up`;
+  const updates = services.filter(s => s.up && s.data?.update).length;
+  $('svc-count').textContent = `${up}/${services.length} up${updates ? ` · ${updates} update${updates === 1 ? '' : 's'}` : ''}`;
   setHTML($('services'), services.map(s => {
     const meta = s.up
       ? [s.version && `v${String(s.version).replace(/^v/, '')}`, s.latency != null && `${s.latency}ms`].filter(Boolean).join(' · ')
@@ -244,6 +252,7 @@ function renderServices(services) {
       <span class="dot ${!s.up ? 'down' : slow ? 'warn' : 'up'}" aria-label="${s.up ? 'up' : 'down'}"></span>
       <span class="name">${esc(s.name)}</span>
       <span class="meta">${s.up ? '' : '✕ '}${meta}</span>
+      ${s.up && s.data?.update ? `<span class="upd-badge" title="${esc(s.data.update.version ? `Version ${s.data.update.version} is available` : 'A newer version is available')}">⬆ update</span>` : ''}
       ${bar}
     </a>`;
   }).join(''));
@@ -542,12 +551,13 @@ function renderEvents(d) {
          <button class="icon-btn" type="button" data-dismiss="${esc(e.key)}" title="Dismiss" aria-label="Dismiss">✕</button>`;
     const cells = `<span class="lvl ${e.level}">${e.level === 'error' ? 'error' : 'warn'}</span>
       <span class="svc-n">${esc(e.svc)}</span>
-      <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}</span>
+      <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}${e.hint ? '<span class="hint-mark" title="Has a how-to-fix tip: click to open"> 💡</span>' : ''}</span>
       <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>
       <span class="ev-acts">${acts}</span>`;
     const cls = `ev${e.dismissed ? ' is-dismissed' : ''}`;
-    return e.detail
-      ? `<details class="${cls}" data-key="${esc(e.key)}"${open.has(e.key) ? ' open' : ''}><summary>${cells}</summary><pre>${esc(e.detail)}</pre></details>`
+    const body = `${e.hint ? `<p class="ev-hint"><b>How to fix:</b> ${esc(e.hint)}</p>` : ''}${e.detail ? `<pre>${esc(e.detail)}</pre>` : ''}`;
+    return body
+      ? `<details class="${cls}" data-key="${esc(e.key)}"${open.has(e.key) ? ' open' : ''}><summary>${cells}</summary>${body}</details>`
       : `<div class="${cls}"><div class="row">${cells}</div></div>`;
   }).join(''));
 }
@@ -885,6 +895,81 @@ function renderUnraid(u) {
     </div>`;
   }).join(''));
 }
+
+// --------------------------------------------------------------------- indexer limits (Prowlarr)
+// One row per enabled indexer: queries and grabs in Prowlarr's own rolling window, against the
+// limits set on the indexer. Bars only where a limit is set; the numbers are always shown.
+function renderIndexers(prowlarrs) {
+  const rows = prowlarrs.flatMap(p => p.data.limits || []);
+  $('indexers-card').hidden = !rows.length;
+  if (!rows.length) return;
+  const limited = rows.filter(l => l.queryLimit || l.grabLimit).length;
+  $('indexers-sub').textContent = `${rows.length} indexer${rows.length === 1 ? '' : 's'}${limited ? ` · ${limited} with limits` : ''}`;
+  $('indexers-note').hidden = limited === rows.length;
+  const meter = (label, used, max) => {
+    if (!max) return `<div class="meter none"><div class="m-top"><span>${label}</span><span class="num">${num(used)}</span></div><div class="m-sub">no limit set</div></div>`;
+    const pct = used / max;
+    const cls = pct >= 1 ? 'crit' : pct >= 0.9 ? 'warn' : '';
+    return `<div class="meter ${cls}"><div class="m-top"><span>${label}</span><span class="num">${cls ? '⚠ ' : ''}${num(used)} / ${num(max)}</span></div>
+      <div class="bar" role="img" aria-label="${label}: ${used} of ${max}"><i style="width:${Math.min(100, pct * 100).toFixed(1)}%"></i></div></div>`;
+  };
+  setHTML($('indexers'), rows.map(l => `<div class="idx">
+      <div class="idx-name"><b>${esc(l.name)}</b><span class="muted">last ${l.unit === 'hour' ? 'hour' : '24 h'}</span>
+        ${l.pausedUntil ? `<span class="chip bad" title="Prowlarr paused it after failures">paused until ${esc(timeOf(l.pausedUntil))}</span>` : ''}</div>
+      ${meter('API calls', l.queries, l.queryLimit)}${meter('Grabs', l.grabs, l.grabLimit)}
+    </div>`).join(''));
+}
+
+// --------------------------------------------------------------------- what's using space
+let spaceTab = 'biggest';
+const daysText = d => {
+  if (d >= 365) { const y = Math.round(d / 365 * 10) / 10; return `${d >= 730 ? Math.round(y) : y} year${y === 1 ? '' : 's'}`; }
+  return d >= 60 ? `${Math.round(d / 30)} months` : `${d} day${d === 1 ? '' : 's'}`;
+};
+const span = t => daysText(Math.floor((Date.now() - t) / 864e5));
+function renderSpace(sp) {
+  const show = !!sp && (sp.biggest.length || sp.downloaded.items.length);
+  $('space-card').hidden = !show;
+  if (!show) return;
+  $('space-tabs').querySelectorAll('button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.space === spaceTab)));
+  const c = sp.cleanup;
+  $('space-sub').textContent = c?.count ? `${bytes(c.total)} in ${c.count} title${c.count === 1 ? '' : 's'} nobody watched in ${daysText(c.days)}` : '';
+
+  let list = [], note = '', sizeOf = x => x.size, extra = () => '';
+  if (spaceTab === 'biggest') {
+    list = sp.biggest;
+    note = 'The largest series, movies and artists, from Sonarr, Radarr and Lidarr.';
+  } else if (spaceTab === 'downloaded') {
+    list = sp.downloaded.items;
+    sizeOf = x => x.bytes;
+    extra = x => `${x.count} import${x.count === 1 ? '' : 's'}`;
+    note = list.length ? `${bytes(sp.downloaded.total)} imported in the last 30 days (upgrades included, so it isn't all new space).` : 'Nothing imported in the last 30 days.';
+  } else if (!c) {
+    note = sp.tautulli ? 'Collecting watch history from Tautulli…' : 'Add Tautulli (Settings → Add app) to see which movies and shows nobody watches.';
+  } else {
+    list = c.items;
+    extra = x => (x.lastPlayed ? `last watched ${span(x.lastPlayed)} ago` : 'never watched') + (x.added ? ` · added ${span(x.added)} ago` : '');
+    note = `${c.count ? `${bytes(c.total)} in ${c.count} titles` : 'Nothing'} not watched in ${daysText(c.days)}. Only a list: nothing is deleted.`
+      + (c.historyDays != null && c.historyDays < c.days ? ` Tautulli's history only goes back ${c.historyDays} days, so earlier plays aren't counted.` : '');
+  }
+  $('space-note').textContent = note;
+  const max = Math.max(1, ...list.map(sizeOf));
+  setHTML($('space-list'), list.map(x => {
+    const title = `${esc(x.title)}${x.year ? ` <span class="muted">(${x.year})</span>` : ''}`;
+    return `<li class="sp-row">
+      <span class="sp-t">${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${title}</a>` : title}
+        <span class="sp-meta">${esc(x.app)}${extra(x) ? ` · ${esc(extra(x))}` : ''}</span></span>
+      <span class="sp-bar" aria-hidden="true"><i style="width:${(sizeOf(x) / max * 100).toFixed(1)}%"></i></span>
+      <span class="num">${bytes(sizeOf(x))}</span>
+    </li>`;
+  }).join(''));
+}
+$('space-tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-space]');
+  if (!b) return;
+  spaceTab = b.dataset.space;
+  if (state) renderSpace(state.space);
+});
 
 // --------------------------------------------------------------------- TrueNAS
 const udiskTile = k => {

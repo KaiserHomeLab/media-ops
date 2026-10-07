@@ -1,0 +1,39 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The quickest way to a fix is a debug report:
+        **Settings → Diagnostics → Run diagnostics → Copy short report**.
+        API keys, passwords, IP addresses and usernames are removed from it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we see it?
+      description: Steps to make it happen, if you know them.
+  - type: textarea
+    id: report
+    attributes:
+      label: Debug report
+      description: Paste the short report from Settings → Diagnostics.
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: Media Ops version
+      description: Shown at the bottom of Settings, and in the debug report.
+      placeholder: 1.14.2
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where does it run?
+      options: [Unraid, TrueNAS, Synology, QNAP, Linux, Windows, macOS, Other]

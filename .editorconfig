@@ -1,0 +1,17 @@
+# Basic whitespace rules for every editor. Prettier formats the code itself; this covers
+# the files it doesn't (HTML, Markdown, shell scripts) and editors without Prettier.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[root/etc/s6-overlay/**]
+indent_size = 4

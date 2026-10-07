@@ -25,7 +25,10 @@ function fakeServer(routes) {
       const url = new URL(req.url, 'http://x');
       calls.push({ method: req.method, path: url.pathname, query: url.searchParams, headers: req.headers, body });
       const route = routes[`${req.method} ${url.pathname}`] ?? routes[url.pathname];
-      if (route === undefined) { res.statusCode = 404; return res.end('{}'); }
+      if (route === undefined) {
+        res.statusCode = 404;
+        return res.end('{}');
+      }
       const out = typeof route === 'function' ? route(req, url, body) : route;
       if (out && out.status) {
         for (const [k, v] of Object.entries(out.headers || {})) res.setHeader(k, v);
@@ -36,9 +39,11 @@ function fakeServer(routes) {
       res.end(typeof out === 'string' ? out : JSON.stringify(out));
     });
   });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => {
-    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, close: () => server.close() });
-  }));
+  return new Promise(resolve =>
+    server.listen(0, '127.0.0.1', () => {
+      resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, close: () => server.close() });
+    }),
+  );
 }
 
 // A fake TrueNAS: JSON-RPC 2.0 over wss:// with a self-signed certificate, like the real one.
@@ -55,28 +60,57 @@ function fakeTrueNAS(methods) {
     state.connections++;
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
-    if (req.url !== '/api/current') { socket.end('HTTP/1.1 404 Not Found\r\n\r\n'); return; }
-    const accept = crypto.createHash('sha1').update(`${req.headers['sec-websocket-key']  }258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
-    socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    if (req.url !== '/api/current') {
+      socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
+      return;
+    }
+    const accept = crypto
+      .createHash('sha1')
+      .update(`${req.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
+      .digest('base64');
+    socket.write(
+      `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
+    );
     const send = obj => {
       const data = Buffer.from(JSON.stringify(obj));
       const len = data.length;
-      const head = len < 126 ? Buffer.from([0x81, len]) : len < 65536 ? Buffer.from([0x81, 126, len >> 8, len & 255])
-        : (() => { const h = Buffer.alloc(10); h[0] = 0x81; h[1] = 127; h.writeBigUInt64BE(BigInt(len), 2); return h; })();
+      const head =
+        len < 126
+          ? Buffer.from([0x81, len])
+          : len < 65536
+            ? Buffer.from([0x81, 126, len >> 8, len & 255])
+            : (() => {
+                const h = Buffer.alloc(10);
+                h[0] = 0x81;
+                h[1] = 127;
+                h.writeBigUInt64BE(BigInt(len), 2);
+                return h;
+              })();
       socket.write(Buffer.concat([head, data]));
     };
-    let buf = Buffer.alloc(0), authed = false;
+    let buf = Buffer.alloc(0),
+      authed = false;
     socket.on('data', d => {
       buf = Buffer.concat([buf, d]);
       while (buf.length >= 6) {
-        let len = buf[1] & 0x7f, off = 2;
-        if (len === 126) { len = buf.readUInt16BE(2); off = 4; } else if (len === 127) { len = Number(buf.readBigUInt64BE(2)); off = 10; }
+        let len = buf[1] & 0x7f,
+          off = 2;
+        if (len === 126) {
+          len = buf.readUInt16BE(2);
+          off = 4;
+        } else if (len === 127) {
+          len = Number(buf.readBigUInt64BE(2));
+          off = 10;
+        }
         if (buf.length < off + 4 + len) return;
         const opcode = buf[0] & 0x0f;
         const mask = buf.subarray(off, off + 4);
         const payload = Buffer.from(buf.subarray(off + 4, off + 4 + len)).map((b, i) => b ^ mask[i & 3]);
         buf = buf.subarray(off + 4 + len);
-        if (opcode === 0x8) { socket.end(); return; }
+        if (opcode === 0x8) {
+          socket.end();
+          return;
+        }
         if (opcode !== 0x1) continue;
         const msg = JSON.parse(Buffer.from(payload).toString());
         state.calls.push(msg.method);
@@ -87,23 +121,40 @@ function fakeTrueNAS(methods) {
           send({ jsonrpc: '2.0', id: msg.id, result: { response_type: authed ? 'SUCCESS' : 'AUTH_ERR' } });
           continue;
         }
-        if (!authed) { send({ jsonrpc: '2.0', id: msg.id, error: { code: -32001, message: 'Not authenticated' } }); continue; }
+        if (!authed) {
+          send({ jsonrpc: '2.0', id: msg.id, error: { code: -32001, message: 'Not authenticated' } });
+          continue;
+        }
         const m = methods[msg.method];
-        if (m === undefined) { send({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Method not found' } }); continue; }
+        if (m === undefined) {
+          send({ jsonrpc: '2.0', id: msg.id, error: { code: -32601, message: 'Method not found' } });
+          continue;
+        }
         try {
           send({ jsonrpc: '2.0', id: msg.id, result: typeof m === 'function' ? m(msg.params) : m });
         } catch (e) {
-          send({ jsonrpc: '2.0', id: msg.id, error: { code: -32000, message: 'Method call error', data: { reason: e.message } } });
+          send({
+            jsonrpc: '2.0',
+            id: msg.id,
+            error: { code: -32000, message: 'Method call error', data: { reason: e.message } },
+          });
         }
       }
     });
   });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({
-    url: `https://127.0.0.1:${server.address().port}`,
-    state,
-    dropConnections: () => sockets.forEach(s => s.destroy()),
-    close: () => { sockets.forEach(s => s.destroy()); server.close(); },
-  })));
+  return new Promise(resolve =>
+    server.listen(0, '127.0.0.1', () =>
+      resolve({
+        url: `https://127.0.0.1:${server.address().port}`,
+        state,
+        dropConnections: () => sockets.forEach(s => s.destroy()),
+        close: () => {
+          sockets.forEach(s => s.destroy());
+          server.close();
+        },
+      }),
+    ),
+  );
 }
 
 module.exports = { dir, fixture, fakeServer, fakeTrueNAS };

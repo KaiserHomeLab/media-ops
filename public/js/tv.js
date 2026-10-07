@@ -9,7 +9,9 @@ import { $, lastHTML, store } from './util.js';
 // Big, read-only, full-screen view. /?tv=1 opens straight into it (e.g. for a kiosk browser).
 export function setTvMode(on) {
   document.body.classList.toggle('tv', on);
-  $('tv-toggle').innerHTML = on ? '✕ <span class="hide-sm">Exit TV mode</span>' : '⛶ <span class="hide-sm">TV mode</span>';
+  $('tv-toggle').innerHTML = on
+    ? '✕ <span class="hide-sm">Exit TV mode</span>'
+    : '⛶ <span class="hide-sm">TV mode</span>';
   const url = new URL(location.href);
   on ? url.searchParams.set('tv', '1') : url.searchParams.delete('tv');
   history.replaceState(null, '', url);
@@ -34,13 +36,17 @@ function tvLayout(on) {
     cols.id = 'tv-cols';
     cols.innerHTML = '<div class="tv-col" id="tv-left"></div><div class="tv-col" id="tv-right"></div>';
     $('kpis').after(cols);
-    for (const [ids, col] of [[TV_LEFT, 'tv-left'], [TV_RIGHT, 'tv-right']]) for (const id of ids) {
-      const el = $(id);
-      const home = document.createComment(id);
-      el.before(home);
-      tvHomes.push([home, el]);
-      $(col).append(el);
-    }
+    for (const [ids, col] of [
+      [TV_LEFT, 'tv-left'],
+      [TV_RIGHT, 'tv-right'],
+    ])
+      for (const id of ids) {
+        const el = $(id);
+        const home = document.createComment(id);
+        el.before(home);
+        tvHomes.push([home, el]);
+        $(col).append(el);
+      }
   } else if (!on && tvHomes.length) {
     for (const [home, el] of tvHomes.splice(0)) home.replaceWith(el);
     $('tv-cols')?.remove();
@@ -52,10 +58,16 @@ $('tv-toggle').addEventListener('click', async () => {
   try {
     if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen();
     if (!on && document.fullscreenElement) await document.exitFullscreen();
-  } catch { /* full screen not allowed (e.g. iOS); TV mode still works */ }
+  } catch {
+    /* full screen not allowed (e.g. iOS); TV mode still works */
+  }
 });
-document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('tv')) setTvMode(false); });
-setInterval(() => { $('tv-clock').textContent = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }, 1000);
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && document.body.classList.contains('tv')) setTvMode(false);
+});
+setInterval(() => {
+  $('tv-clock').textContent = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}, 1000);
 // Hide the mouse pointer after a few idle seconds in TV mode.
 let idleTimer;
 addEventListener('mousemove', () => {

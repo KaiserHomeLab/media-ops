@@ -1,53 +1,50 @@
 {
- "page": 1,
- "pageSize": 100,
- "totalRecords": 2,
- "records": [
-  {
-   "id": 812,
-   "title": "Andor.S02E09.2160p.WEB",
-   "size": 4000000000,
-   "sizeleft": 1000000000,
-   "status": "downloading",
-   "trackedDownloadState": "downloading",
-   "trackedDownloadStatus": "ok",
-   "timeleft": "00:04:12",
-   "protocol": "usenet",
-   "downloadClient": "SABnzbd",
-   "series": {
-    "title": "Andor"
-   },
-   "episode": {
-    "seasonNumber": 2,
-    "episodeNumber": 9
-   }
-  },
-  {
-   "id": 813,
-   "title": "Severance.S02E08.1080p",
-   "size": 2000000000,
-   "sizeleft": 0,
-   "status": "completed",
-   "trackedDownloadState": "importPending",
-   "trackedDownloadStatus": "warning",
-   "statusMessages": [
+  "page": 1,
+  "pageSize": 100,
+  "totalRecords": 2,
+  "records": [
     {
-     "title": "Severance.S02E08.1080p",
-     "messages": [
-      "No files found are eligible for import",
-      "Sample"
-     ]
+      "id": 812,
+      "title": "Andor.S02E09.2160p.WEB",
+      "size": 4000000000,
+      "sizeleft": 1000000000,
+      "status": "downloading",
+      "trackedDownloadState": "downloading",
+      "trackedDownloadStatus": "ok",
+      "timeleft": "00:04:12",
+      "protocol": "usenet",
+      "downloadClient": "SABnzbd",
+      "series": {
+        "title": "Andor"
+      },
+      "episode": {
+        "seasonNumber": 2,
+        "episodeNumber": 9
+      }
+    },
+    {
+      "id": 813,
+      "title": "Severance.S02E08.1080p",
+      "size": 2000000000,
+      "sizeleft": 0,
+      "status": "completed",
+      "trackedDownloadState": "importPending",
+      "trackedDownloadStatus": "warning",
+      "statusMessages": [
+        {
+          "title": "Severance.S02E08.1080p",
+          "messages": ["No files found are eligible for import", "Sample"]
+        }
+      ],
+      "protocol": "torrent",
+      "downloadClient": "qBittorrent",
+      "series": {
+        "title": "Severance"
+      },
+      "episode": {
+        "seasonNumber": 2,
+        "episodeNumber": 8
+      }
     }
-   ],
-   "protocol": "torrent",
-   "downloadClient": "qBittorrent",
-   "series": {
-    "title": "Severance"
-   },
-   "episode": {
-    "seasonNumber": 2,
-    "episodeNumber": 8
-   }
-  }
- ]
+  ]
 }

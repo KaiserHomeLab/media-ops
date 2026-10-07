@@ -1,95 +1,95 @@
 {
- "MediaContainer": {
-  "size": 2,
-  "Metadata": [
-   {
-    "sessionKey": "12",
-    "type": "episode",
-    "grandparentTitle": "Andor",
-    "title": "Rix Road",
-    "parentIndex": 1,
-    "index": 12,
-    "grandparentThumb": "/library/metadata/101/thumb/1700000000",
-    "viewOffset": 600000,
-    "duration": 3000000,
-    "User": {
-     "id": "1",
-     "title": "viewer-a"
-    },
-    "Player": {
-     "title": "Living Room",
-     "product": "Plex for LG",
-     "platform": "webOS",
-     "state": "playing",
-     "local": false,
-     "address": "198.51.100.7",
-     "remotePublicAddress": "198.51.100.7"
-    },
-    "Session": {
-     "id": "sess-12",
-     "bandwidth": 8000,
-     "location": "wan"
-    },
-    "Media": [
-     {
-      "selected": true,
-      "videoResolution": "4k",
-      "videoCodec": "hevc",
-      "audioCodec": "truehd",
-      "container": "mkv",
-      "bitrate": 58000
-     }
-    ],
-    "TranscodeSession": {
-     "videoDecision": "transcode",
-     "audioDecision": "transcode",
-     "subtitleDecision": "burn",
-     "sourceVideoCodec": "hevc",
-     "videoCodec": "h264",
-     "height": 1080,
-     "sourceAudioCodec": "truehd",
-     "audioCodec": "aac",
-     "container": "mpegts",
-     "transcodeHwRequested": true,
-     "transcodeHwEncodingTitle": "Intel (QuickSync)",
-     "speed": 2.1
-    }
-   },
-   {
-    "sessionKey": "13",
-    "type": "track",
-    "grandparentTitle": "Radiohead",
-    "parentTitle": "In Rainbows",
-    "title": "Reckoner",
-    "parentThumb": "/library/metadata/202/thumb/1",
-    "viewOffset": 1000,
-    "duration": 290000,
-    "User": {
-     "id": "2",
-     "title": "viewer-b"
-    },
-    "Player": {
-     "title": "Office",
-     "product": "Plexamp",
-     "platform": "macOS",
-     "state": "paused",
-     "local": true,
-     "address": "192.168.1.20"
-    },
-    "Session": {
-     "id": "sess-13",
-     "bandwidth": 1100,
-     "location": "lan"
-    },
-    "Media": [
-     {
-      "selected": true,
-      "audioCodec": "flac",
-      "container": "flac",
-      "bitrate": 1011
-     }
+  "MediaContainer": {
+    "size": 2,
+    "Metadata": [
+      {
+        "sessionKey": "12",
+        "type": "episode",
+        "grandparentTitle": "Andor",
+        "title": "Rix Road",
+        "parentIndex": 1,
+        "index": 12,
+        "grandparentThumb": "/library/metadata/101/thumb/1700000000",
+        "viewOffset": 600000,
+        "duration": 3000000,
+        "User": {
+          "id": "1",
+          "title": "viewer-a"
+        },
+        "Player": {
+          "title": "Living Room",
+          "product": "Plex for LG",
+          "platform": "webOS",
+          "state": "playing",
+          "local": false,
+          "address": "198.51.100.7",
+          "remotePublicAddress": "198.51.100.7"
+        },
+        "Session": {
+          "id": "sess-12",
+          "bandwidth": 8000,
+          "location": "wan"
+        },
+        "Media": [
+          {
+            "selected": true,
+            "videoResolution": "4k",
+            "videoCodec": "hevc",
+            "audioCodec": "truehd",
+            "container": "mkv",
+            "bitrate": 58000
+          }
+        ],
+        "TranscodeSession": {
+          "videoDecision": "transcode",
+          "audioDecision": "transcode",
+          "subtitleDecision": "burn",
+          "sourceVideoCodec": "hevc",
+          "videoCodec": "h264",
+          "height": 1080,
+          "sourceAudioCodec": "truehd",
+          "audioCodec": "aac",
+          "container": "mpegts",
+          "transcodeHwRequested": true,
+          "transcodeHwEncodingTitle": "Intel (QuickSync)",
+          "speed": 2.1
+        }
+      },
+      {
+        "sessionKey": "13",
+        "type": "track",
+        "grandparentTitle": "Radiohead",
+        "parentTitle": "In Rainbows",
+        "title": "Reckoner",
+        "parentThumb": "/library/metadata/202/thumb/1",
+        "viewOffset": 1000,
+        "duration": 290000,
+        "User": {
+          "id": "2",
+          "title": "viewer-b"
+        },
+        "Player": {
+          "title": "Office",
+          "product": "Plexamp",
+          "platform": "macOS",
+          "state": "paused",
+          "local": true,
+          "address": "192.168.1.20"
+        },
+        "Session": {
+          "id": "sess-13",
+          "bandwidth": 1100,
+          "location": "lan"
+        },
+        "Media": [
+          {
+            "selected": true,
+            "audioCodec": "flac",
+            "container": "flac",
+            "bitrate": 1011
+          }
+        ]
+      }
     ]
-   }
-  ]
- }
+  }
 }

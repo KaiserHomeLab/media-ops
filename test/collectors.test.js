@@ -23,12 +23,20 @@ test('plex: streams, transcode reason, local/remote, libraries', async t => {
     '/status/sessions': fixture('plex-sessions'),
     '/library/sections': fixture('plex-sections'),
     '/library/sections/1/all': { MediaContainer: { size: 0, totalSize: 2184 } },
-    '/library/sections/2/all': (req, url) => ({ MediaContainer: { size: 0, totalSize: url.searchParams.get('type') === '4' ? 18733 : 412 } }),
-    '/library/sections/3/all': (req, url) => ({ MediaContainer: { size: 0, totalSize: { 9: 4210, 10: 51288 }[url.searchParams.get('type')] ?? 1307 } }),
-    '/library/recentlyAdded': { MediaContainer: { Metadata: [
-      { ratingKey: '1', type: 'movie', title: 'M*A*S*H', year: 1970, addedAt: 4039401600 }, // corrupt: year 2098
-      { ratingKey: '2', type: 'movie', title: 'Dune', year: 2021, addedAt: Math.floor(Date.now() / 1000) - 3600 },
-    ] } },
+    '/library/sections/2/all': (req, url) => ({
+      MediaContainer: { size: 0, totalSize: url.searchParams.get('type') === '4' ? 18733 : 412 },
+    }),
+    '/library/sections/3/all': (req, url) => ({
+      MediaContainer: { size: 0, totalSize: { 9: 4210, 10: 51288 }[url.searchParams.get('type')] ?? 1307 },
+    }),
+    '/library/recentlyAdded': {
+      MediaContainer: {
+        Metadata: [
+          { ratingKey: '1', type: 'movie', title: 'M*A*S*H', year: 1970, addedAt: 4039401600 }, // corrupt: year 2098
+          { ratingKey: '2', type: 'movie', title: 'Dune', year: 2021, addedAt: Math.floor(Date.now() / 1000) - 3600 },
+        ],
+      },
+    },
   });
   t.after(() => srv.close());
   clearCache();
@@ -51,20 +59,33 @@ test('plex: streams, transcode reason, local/remote, libraries', async t => {
   const tv = r.data.libraries.find(l => l.type === 'show');
   assert.deepEqual([tv.count, tv.episodes], [412, 18733]);
   assert.equal(srv.calls[0].headers['x-plex-token'], 'tok', 'token goes in a header, not the URL');
-  assert.deepEqual(r.data.recentlyAdded.map(m => m.title), ['Dune'], 'future-dated items skipped');
+  assert.deepEqual(
+    r.data.recentlyAdded.map(m => m.title),
+    ['Dune'],
+    'future-dated items skipped',
+  );
 });
 
 test('sonarr: stats, queue warning becomes an event, logs filtered to warn+', async t => {
-  const srv = await fakeServer(arrRoutes('/api/v3', {
-    '/api/v3/series': fixture('sonarr-series'),
-    '/api/v3/queue': fixture('sonarr-queue'),
-    '/api/v3/wanted/missing': { totalRecords: 7 },
-    '/api/v3/calendar': fixture('sonarr-calendar'),
-  }));
+  const srv = await fakeServer(
+    arrRoutes('/api/v3', {
+      '/api/v3/series': fixture('sonarr-series'),
+      '/api/v3/queue': fixture('sonarr-queue'),
+      '/api/v3/wanted/missing': { totalRecords: 7 },
+      '/api/v3/calendar': fixture('sonarr-calendar'),
+    }),
+  );
   t.after(() => srv.close());
   clearCache();
   const r = await c.sonarr({ url: srv.url, apiKey: 'k' });
-  assert.deepEqual(r.data.stats, { series: 3, monitored: 2, continuing: 2, episodes: 48, missing: 7, size: 150_000_000_000 });
+  assert.deepEqual(r.data.stats, {
+    series: 3,
+    monitored: 2,
+    continuing: 2,
+    episodes: 48,
+    missing: 7,
+    size: 150_000_000_000,
+  });
   assert.equal(r.data.queue[0].title, 'Andor S02E09');
   assert.equal(r.data.queue[0].progress, 0.75);
   const stuck = r.data.events.find(e => e.source === 'Queue');
@@ -76,15 +97,21 @@ test('sonarr: stats, queue warning becomes an event, logs filtered to warn+', as
   assert.equal(srv.calls[0].headers['x-api-key'], 'k');
   const before = srv.calls.filter(x => x.path === '/api/v3/series').length;
   await c.sonarr({ url: srv.url, apiKey: 'k' });
-  assert.equal(srv.calls.filter(x => x.path === '/api/v3/series').length, before, 'full series list cached between polls');
+  assert.equal(
+    srv.calls.filter(x => x.path === '/api/v3/series').length,
+    before,
+    'full series list cached between polls',
+  );
 });
 
 test('radarr: missing counts only monitored + available', async t => {
-  const srv = await fakeServer(arrRoutes('/api/v3', {
-    '/api/v3/movie': fixture('radarr-movies'),
-    '/api/v3/queue': { records: [] },
-    '/api/v3/calendar': [],
-  }));
+  const srv = await fakeServer(
+    arrRoutes('/api/v3', {
+      '/api/v3/movie': fixture('radarr-movies'),
+      '/api/v3/queue': { records: [] },
+      '/api/v3/calendar': [],
+    }),
+  );
   t.after(() => srv.close());
   clearCache();
   const r = await c.radarr({ url: srv.url, apiKey: 'k' });
@@ -93,7 +120,13 @@ test('radarr: missing counts only monitored + available', async t => {
 
 test('sabnzbd: speed, queue, failed history and warnings as events', async t => {
   const srv = await fakeServer({
-    '/api': (req, url) => ({ queue: fixture('sab-queue'), server_stats: fixture('sab-stats'), warnings: fixture('sab-warnings'), history: fixture('sab-history-failed') })[url.searchParams.get('mode')],
+    '/api': (req, url) =>
+      ({
+        queue: fixture('sab-queue'),
+        server_stats: fixture('sab-stats'),
+        warnings: fixture('sab-warnings'),
+        history: fixture('sab-history-failed'),
+      })[url.searchParams.get('mode')],
   });
   t.after(() => srv.close());
   clearCache();
@@ -101,11 +134,18 @@ test('sabnzbd: speed, queue, failed history and warnings as events', async t => 
   assert.equal(r.version, '4.5.1');
   assert.equal(r.data.downBps, 2048 * 1024);
   assert.equal(r.data.items[0].progress, 0.74);
-  assert.deepEqual(r.data.events.map(e => [e.source, e.level]), [['Warnings', 'warn'], ['Failed download', 'error']]);
+  assert.deepEqual(
+    r.data.events.map(e => [e.source, e.level]),
+    [
+      ['Warnings', 'warn'],
+      ['Failed download', 'error'],
+    ],
+  );
 });
 
 test('qbittorrent: logs in, reuses the session, renews it on 403', async t => {
-  let logins = 0, sid = 'one';
+  let logins = 0,
+    sid = 'one';
   const srv = await fakeServer({
     'POST /api/v2/auth/login': (req, url, body) => {
       logins++;
@@ -130,7 +170,17 @@ test('qbittorrent: logs in, reuses the session, renews it on 403', async t => {
 
 test('tautulli: home stats and plays by date', async t => {
   const srv = await fakeServer({
-    '/api/v2': (req, url) => ({ response: { result: 'success', data: { get_tautulli_info: { tautulli_version: 'v2.15.3' }, get_home_stats: fixture('tautulli-home'), get_plays_by_date: fixture('tautulli-plays'), get_logs: [] }[url.searchParams.get('cmd')] } }),
+    '/api/v2': (req, url) => ({
+      response: {
+        result: 'success',
+        data: {
+          get_tautulli_info: { tautulli_version: 'v2.15.3' },
+          get_home_stats: fixture('tautulli-home'),
+          get_plays_by_date: fixture('tautulli-plays'),
+          get_logs: [],
+        }[url.searchParams.get('cmd')],
+      },
+    }),
   });
   t.after(() => srv.close());
   clearCache();
@@ -142,7 +192,9 @@ test('tautulli: home stats and plays by date', async t => {
 });
 
 test('clonarr: widget summary, and graceful fallback when the endpoint is missing', async t => {
-  const full = await fakeServer({ '/api/widget/summary': req => (req.headers['x-api-key'] === 'ck' ? fixture('clonarr-summary') : { status: 401 }) });
+  const full = await fakeServer({
+    '/api/widget/summary': req => (req.headers['x-api-key'] === 'ck' ? fixture('clonarr-summary') : { status: 401 }),
+  });
   t.after(() => full.close());
   const r = await c.clonarr({ url: full.url, apiKey: 'ck' });
   assert.equal(r.data.stats.withErrors, 1);
@@ -166,17 +218,31 @@ test('truenas: logs in over wss with the key, reuses the connection, maps pools,
     __users: { mediaops: 'tn-key' },
     'system.info': { version: 'TrueNAS-SCALE-25.10.1', hostname: 'nas', padding: big },
     'pool.query': [
-      { name: 'tank', status: 'DEGRADED', healthy: false, size: 100, allocated: 85, free: 15, scan: { function: 'SCRUB', state: 'FINISHED', percentage: 100, errors: 3, end_time: { $date: 1790000000000 } } },
+      {
+        name: 'tank',
+        status: 'DEGRADED',
+        healthy: false,
+        size: 100,
+        allocated: 85,
+        free: 15,
+        scan: { function: 'SCRUB', state: 'FINISHED', percentage: 100, errors: 3, end_time: { $date: 1790000000000 } },
+      },
       { name: 'apps', status: 'ONLINE', healthy: true, size: 10, allocated: 1, free: 9, scan: null },
     ],
-    'disk.query': [{ name: 'sda', type: 'HDD', size: 18e12, pool: 'tank', serial: 'SECRET123' }, { name: 'nvme0n1', type: 'SSD', size: 2e12, pool: 'apps' }],
+    'disk.query': [
+      { name: 'sda', type: 'HDD', size: 18e12, pool: 'tank', serial: 'SECRET123' },
+      { name: 'nvme0n1', type: 'SSD', size: 2e12, pool: 'apps' },
+    ],
     'disk.temperatures': ([names]) => Object.fromEntries(names.map(n => [n, n === 'sda' ? 56 : 41])),
     'alert.list': [
       { level: 'CRITICAL', klass: 'VolumeStatus', formatted: 'Pool tank state is <b>DEGRADED</b>', dismissed: false },
       { level: 'WARNING', klass: 'Update', text: 'Update available', dismissed: true },
       { level: 'INFO', klass: 'Info', text: 'fyi', dismissed: false },
     ],
-    'app.query': [{ name: 'plex', state: 'RUNNING', upgrade_available: true }, { name: 'bazarr', state: 'CRASHED' }],
+    'app.query': [
+      { name: 'plex', state: 'RUNNING', upgrade_available: true },
+      { name: 'bazarr', state: 'CRASHED' },
+    ],
   });
   t.after(() => nas.close());
   const cfg = { url: nas.url, username: 'mediaops', apiKey: 'tn-key' };
@@ -190,7 +256,7 @@ test('truenas: logs in over wss with the key, reuses the connection, maps pools,
   assert.equal(r.data.disks.find(d => d.name === 'nvme0n1').tempWarn, 60, 'SSD limits');
   const msgs = r.data.events.map(e => `${e.level} ${e.source} ${e.message}`);
   assert.ok(msgs.includes('error TrueNAS Pool tank state is DEGRADED'), 'alert HTML stripped');
-  assert.ok(!msgs.some(m => /Pool tank is degraded/.test(m)), "no duplicate when TrueNAS already alerts on the pool");
+  assert.ok(!msgs.some(m => /Pool tank is degraded/.test(m)), 'no duplicate when TrueNAS already alerts on the pool');
   assert.ok(msgs.includes('warn Pool Last scrub of tank found 3 errors'));
   assert.ok(msgs.includes('error Pool Disk sda is critically hot'));
   assert.ok(msgs.includes('error Apps App bazarr has crashed'));
@@ -220,7 +286,12 @@ test('truenas: wrong key gives a clear error', async t => {
 
 test('truenas: a changed certificate is refused before the key is sent; Test/Save trusts the new one', async t => {
   const pins = require('../lib/pins');
-  const nas = await fakeTrueNAS({ __users: { u: 'k' }, 'system.info': { version: '25.10', hostname: 'nas' }, 'pool.query': [], 'disk.query': [] });
+  const nas = await fakeTrueNAS({
+    __users: { u: 'k' },
+    'system.info': { version: '25.10', hostname: 'nas' },
+    'pool.query': [],
+    'disk.query': [],
+  });
   t.after(() => nas.close());
   const cfg = { url: nas.url, username: 'u', apiKey: 'k2' }; // own key = own connection
   nas.state.calls.length = 0;

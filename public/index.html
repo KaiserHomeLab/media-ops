@@ -6,6 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Media Ops</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23e5a00d'/><path d='M12 9l11 7-11 7z' fill='%231a1a19'/></svg>">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#121211">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Media Ops">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,6 +26,8 @@
     <div class="top-right">
       <span class="badge demo" id="demo-badge" hidden>DEMO DATA</span>
       <span class="live" id="live"><span class="pulse"></span><span id="updated">—</span></span>
+      <span class="tv-clock num" id="tv-clock" aria-hidden="true"></span>
+      <button class="btn small" type="button" id="tv-toggle" title="Full-screen view for a wall display or TV">⛶ <span class="hide-sm">TV mode</span></button>
       <a class="btn small" href="/settings" title="Settings">⚙ <span class="hide-sm">Settings</span></a>
     </div>
   </header>
@@ -83,6 +91,11 @@
         <div id="upcoming" class="upcoming"></div>
       </section>
     </div>
+
+    <section class="card" id="trends-card">
+      <h2>Trends <span class="count" id="trends-sub">last 24 hours</span></h2>
+      <div class="trends" id="trends"></div>
+    </section>
 
     <section class="card" id="watch-card" hidden>
       <h2>Watch stats <span class="count">last 30 days · Tautulli</span></h2>

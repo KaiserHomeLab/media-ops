@@ -28,6 +28,8 @@ const feed = require('./lib/events');
 const actions = require('./lib/actions');
 const recovery = require('./lib/recovery');
 const geo = require('./lib/geo');
+const history = require('./lib/history');
+const notify = require('./lib/notify');
 
 const PUBLIC = path.join(__dirname, 'public');
 const DEMO = process.env.DEMO === '1';
@@ -165,6 +167,32 @@ async function overview() {
   return { ...raw, services, events };
 }
 
+// ------------------------------------------------------------- background monitor
+// Polls on its own schedule, even with no browser open, to record history and send
+// notifications. Shares the poll cache with page requests, so apps aren't polled twice.
+async function monitorTick() {
+  const cfg = config.load();
+  try {
+    const raw = DEMO ? demo.overview(hostStats()) : await polled();
+    const { events } = feed.apply(feed.collect(raw.services), raw.services, cfg.dismissed);
+    history.record(raw);
+    await notify.handle(raw, events, history.diskList(raw), cfg);
+  } catch (e) {
+    console.error(`Monitor: ${e.message}`);
+  }
+  setTimeout(monitorTick, Math.max(10, cfg.refreshSeconds || 10) * 1000).unref();
+}
+
+function historyPayload() {
+  if (DEMO) return demo.history();
+  const ids = config.load().services.map(s => s.id);
+  return {
+    uptime: Object.fromEntries(ids.map(id => [id, history.uptime(id)])),
+    trends: history.trends(),
+    forecasts: Object.fromEntries(history.diskPaths().map(p => [p, history.forecast(p)])),
+  };
+}
+
 // ------------------------------------------------------------- dashboard actions: dismiss / clear / re-check
 async function eventsApi(req, res, route) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
@@ -180,16 +208,25 @@ async function eventsApi(req, res, route) {
     return send(res, 200, { ok: true });
   }
 
-  const m = /^\/services\/([\w-]+)\/(clear|recheck)$/.exec(route);
+  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove)
+  const m = /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove)$/.exec(route);
   if (!m) return send(res, 404, { error: 'Not found' });
   const [, id, action] = m;
-  // Clearing deletes data inside the app, so it's behind the settings password when one is set.
-  if (action === 'clear' && !loggedIn(req)) return send(res, 401, { error: 'Log in under Settings to clear app logs', needLogin: true });
+  // Anything that changes or deletes something inside an app is behind the settings password
+  // when one is set. Re-check only reads, so it's open.
+  if (action !== 'recheck' && !loggedIn(req)) return send(res, 401, { error: 'Log in under Settings to do this', needLogin: true });
   if (DEMO) return send(res, 200, { ok: true, message: 'Demo mode — nothing was changed' });
   const svc = config.load().services.find(s => s.id === id);
   if (!svc) return send(res, 404, { error: 'App not found' });
   try {
-    const message = await actions[action](svc);
+    const run = {
+      clear: () => actions.clear(svc),
+      recheck: () => actions.recheck(svc),
+      stop: () => actions.stopStream(svc, body.sessionId, body.reason),
+      'queue-retry': () => actions.queueRetry(svc),
+      'queue-remove': () => actions.queueRemove(svc, body.queueId),
+    }[action];
+    const message = await run();
     invalidate(); // re-fetch logs/health right away
     return send(res, 200, { ok: true, message });
   } catch (e) {
@@ -269,6 +306,12 @@ function settingsPayload(req) {
     },
     services: cfg.services.map(config.publicService),
     kinds: KINDS,
+    notifications: {
+      diskThreshold: cfg.notifications?.diskThreshold ?? 90,
+      targets: (cfg.notifications?.targets || []).map(t => ({ ...notify.publicTarget(t), last: notify.lastResult(t.id) })),
+    },
+    notifyTypes: notify.TYPES,
+    notifyEvents: notify.EVENTS,
   };
 }
 
@@ -353,6 +396,46 @@ async function settingsApi(req, res, route) {
     return send(res, 200, { ok: true });
   }
 
+  // Notification destinations
+  const nMatch = /^\/notifications\/([\w-]+)$/.exec(route);
+  const targets = () => config.load().notifications?.targets || [];
+  const saveTargets = fn => config.update(c => ({ ...c, notifications: { ...(c.notifications || {}), targets: fn(c.notifications?.targets || []) } }));
+  if (method === 'POST' && route === '/notifications/test') {
+    const input = await readJson(req);
+    try {
+      const t = notify.mergeTarget(targets().find(x => x.id === input.id), input);
+      await notify.test(t);
+      return send(res, 200, { ok: true });
+    } catch (e) {
+      return send(res, 200, { ok: false, error: describeError(e) });
+    }
+  }
+  if (method === 'POST' && route === '/notifications') {
+    let t;
+    try { t = notify.mergeTarget(null, await readJson(req)); } catch (e) { return send(res, 400, { error: e.message }); }
+    saveTargets(list => [...list, t]);
+    return send(res, 201, notify.publicTarget(t));
+  }
+  if (nMatch && method === 'PUT') {
+    const existing = targets().find(x => x.id === nMatch[1]);
+    if (!existing) return send(res, 404, { error: 'Not found' });
+    let t;
+    try { t = notify.mergeTarget(existing, await readJson(req)); } catch (e) { return send(res, 400, { error: e.message }); }
+    saveTargets(list => list.map(x => (x.id === t.id ? t : x)));
+    return send(res, 200, notify.publicTarget(t));
+  }
+  if (nMatch && method === 'DELETE') {
+    saveTargets(list => list.filter(x => x.id !== nMatch[1]));
+    return send(res, 200, { ok: true });
+  }
+  if (method === 'PUT' && route === '/notification-options') {
+    const { diskThreshold } = await readJson(req);
+    const n = Math.round(Number(diskThreshold));
+    if (!(n >= 50 && n <= 99)) return send(res, 400, { error: 'Disk threshold must be between 50 and 99%' });
+    config.update(c => ({ ...c, notifications: { ...(c.notifications || {}), diskThreshold: n } }));
+    return send(res, 200, { ok: true });
+  }
+
   if (method === 'PUT' && route === '/order') {
     const { ids } = await readJson(req);
     config.update(c => {
@@ -395,13 +478,14 @@ async function settingsApi(req, res, route) {
 }
 
 // ------------------------------------------------------------- http
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const PAGES = { '/': '/index.html', '/settings': '/settings.html' };
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (url.pathname === '/api/overview') return send(res, 200, await overview());
+    if (url.pathname === '/api/history') return send(res, 200, historyPayload());
     if (url.pathname === '/api/plex/thumb') return plexThumb(res, url.searchParams.get('p'));
     if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
     if (url.pathname.startsWith('/api/events/')) {
@@ -425,6 +509,11 @@ const server = http.createServer(async (req, res) => {
     send(res, 500, { error: 'Server error' });
   }
 });
+
+history.load();
+setInterval(history.save, 5 * 60e3).unref();
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { history.save(); process.exit(0); });
+setTimeout(monitorTick, 2000).unref();
 
 server.listen(PORT, () => {
   const cfg = config.load();

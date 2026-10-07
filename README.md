@@ -17,6 +17,14 @@ A live dashboard for a Plex + *arr server. It shows:
   - **Dismiss** (✕ on a row, or **Dismiss all**) hides entries on the dashboard only. Nothing is deleted in the app. Dismissals are saved and apply in every browser. A dismissed ongoing problem (health check, unreachable app, stuck download) shows up again if it clears and later comes back. **Show dismissed** / **Restore all** undo it.
   - **Clear log** (select an app first) deletes the log inside the app, after a confirmation. For Sonarr/Radarr/Lidarr/Prowlarr it empties System → Logs; for SABnzbd it clears warnings and failed-download history. Seerr, Tautulli and Clonarr have no API for this, so use Dismiss. If a settings password is set, you need to be logged in.
   - **Re-check** (↻) makes an arr re-run its health checks right away (same as its System → Status button) and refreshes. For other apps it polls them again.
+- **Notifications** (Settings → Notifications): Discord, ntfy, Pushover, Gotify or any JSON webhook. Choose per destination which events to send: app down or back up, new errors, new warnings, failed or stuck downloads, a disk over your threshold, someone starting to watch. An app has to fail two checks in a row before "down" is sent, errors that already existed at startup are never sent, and each check sends at most one batched message per destination.
+- **Uptime history**: every service tile shows a 24-hour bar (half-hour segments) and its uptime percentage. Hover the tile for the 7-day figure.
+- **Trends**: 24-hour charts of streams (with transcodes), stream bandwidth and download speed, plus today's peak.
+- **Disk forecast**: "Full in ~N weeks at +X GB/day", from a straight-line fit over the last 30 days. It starts after 3 days of data.
+- **Why it's transcoding**: each transcoding stream shows a likely reason (client can't play the codec, quality limit, subtitles being burned in, audio conversion), worked out from what Plex reports. 4K transcodes get a red badge.
+- **Admin actions** (behind the settings password, if one is set): **Stop** a stream with a message the viewer sees (needs Plex Pass), and for stuck downloads **Retry** the import or **Replace…** it (remove, blocklist, search for another).
+- **TV mode**: a full-screen, larger, read-only view with a clock. Edit buttons are hidden and the mouse pointer hides when idle. Open `http://<server>:8484/?tv=1` on a wall tablet or TV browser to start straight in it.
+- **Add to home screen**: install it like an app on your phone, with an icon, full-screen view and shortcuts to TV mode and Settings.
 - **Library**: Plex library counts, and *arr totals (series, episodes, movies, missing, size on disk).
 - **Downloads, Coming up, Watch stats** (Tautulli), **Storage** and **Host**.
 
@@ -97,6 +105,10 @@ Built like a linuxserver.io image, on their `baseimage-alpine` with the s6-overl
 The s6 service files are in `root/etc/s6-overlay/s6-rc.d/`:
 - `init-media-ops-config`: permissions and Docker-socket group.
 - `svc-media-ops`: the app itself, with a readiness check.
+
+### History and notifications run in the background
+
+The server keeps checking your apps every refresh interval (at least every 10 s) even with no browser open. Each check records uptime, the trend metrics and daily disk usage to `/config/history.json`, which is saved every few minutes and on shutdown, and sends any notifications. History is kept for 8 days (uptime), 24 hours (per-minute trends) and 180 days (disk usage), so the file stays small.
 
 ## How it works
 

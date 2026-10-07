@@ -59,6 +59,16 @@ async function refresh() {
   timer = setTimeout(refresh, (state?.refreshSeconds || 10) * 1000);
 }
 
+// History (uptime, trends, forecasts) changes slowly, so it's fetched once a minute.
+let hist = null;
+async function loadHistory() {
+  try {
+    hist = await (await fetch('/api/history', { cache: 'no-store' })).json();
+    if (state) render(state);
+  } catch { /* keep the last copy */ }
+  setTimeout(loadHistory, 60e3);
+}
+
 setInterval(() => {
   if (!lastOk) return;
   const ago = Math.round((Date.now() - lastOk) / 1000);
@@ -85,7 +95,7 @@ function render(d) {
 
   renderAlerts(d);
   renderKpis(d, { streams, arrs, clients });
-  renderStreams(streams, d.demo);
+  renderStreams(streams, d.demo, plex?.id);
   renderServices(d.services);
   renderMap(plex);
   renderEvents(d);
@@ -93,6 +103,7 @@ function render(d) {
   renderDownloads(clients, arrs);
   renderUpcoming(arrs);
   renderWatch(up('tautulli')[0]);
+  renderTrends();
   renderDisks(d, arrs);
   renderHost(d.host, d.docker);
 }
@@ -162,7 +173,7 @@ function renderKpis(d, { streams, arrs, clients }) {
   ].join(''));
 }
 
-function renderStreams(streams, demo) {
+function renderStreams(streams, demo, plexId) {
   $('np-count').textContent = streams.length ? `${streams.length} active` : '';
   if (!streams.length) return setHTML($('streams'), '<div class="empty">Nothing playing. The server is resting.</div>');
 
@@ -172,7 +183,8 @@ function renderStreams(streams, demo) {
       : `<div class="poster" aria-hidden="true">${initials(s.title)}</div>`;
     const dc = s.decision.startsWith('Transcode') ? 'tc' : s.decision === 'Direct Play' ? 'dp' : 'ds';
     const chips = [
-      `<span class="chip ${dc}">${esc(s.decision)}${s.hw && dc === 'tc' ? ' (HW)' : ''}${s.transcodeSpeed ? ` ${s.transcodeSpeed}×` : ''}</span>`,
+      `<span class="chip ${dc}"${s.hwName ? ` title="Hardware: ${esc(s.hwName)}"` : ''}>${esc(s.decision)}${s.hw && dc === 'tc' ? ' (HW)' : ''}${s.transcodeSpeed ? ` ${s.transcodeSpeed}×` : ''}</span>`,
+      s.fourKTranscode && '<span class="chip k4" title="4K transcodes are the heaviest load on the server">4K transcode</span>',
       s.resolution && `<span class="chip">${esc(/^\d+$/.test(s.resolution) ? s.resolution + 'p' : s.resolution.toUpperCase())}</span>`,
       s.videoCodec && `<span class="chip">${esc(s.videoCodec.toUpperCase())}</span>`,
       s.audioCodec && `<span class="chip">${esc(s.audioCodec.toUpperCase())}</span>`,
@@ -183,10 +195,11 @@ function renderStreams(streams, demo) {
     return `<article class="stream ${esc(s.type)}">
       ${poster}
       <div style="min-width:0">
-        <div class="row1"><div class="title">${esc(s.title)}</div><span class="state">${s.state === 'paused' ? '❚❚ paused' : s.state === 'buffering' ? '◌ buffering' : '▶ playing'}</span></div>
+        <div class="row1"><div class="title">${esc(s.title)}</div><span class="state">${s.state === 'paused' ? '❚❚ paused' : s.state === 'buffering' ? '◌ buffering' : '▶ playing'}${s.sessionId && plexId ? `<button class="mini-btn" type="button" data-stop="${esc(s.sessionId)}" data-svc="${esc(plexId)}" data-user="${esc(s.user)}" title="Stop this stream">■ Stop</button>` : ''}</span></div>
         <div class="subtitle">${esc(s.subtitle)}</div>
         <div class="who"><b>${esc(s.user)}</b> on ${esc(s.player || s.product)} · ${esc(s.product)}${s.platform ? ` (${esc(s.platform)})` : ''}</div>
         <div class="chips">${chips}</div>
+        ${s.reason ? `<div class="why"><span>Likely reason:</span> ${esc(s.reason)}</div>` : ''}
         <div class="progress"><div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div><span class="t">${clock(s.offset)} / ${clock(s.duration)}</span></div>
       </div>
     </article>`;
@@ -209,10 +222,19 @@ function renderServices(services) {
       ? [s.version && `v${String(s.version).replace(/^v/, '')}`, s.latency != null && `${s.latency}ms`].filter(Boolean).join(' · ')
       : esc(s.error);
     const slow = s.up && s.latency > 1500;
-    return `<a class="svc ${s.up ? '' : 'down'}" href="${esc(s.link)}" target="_blank" rel="noopener" title="${esc(s.up ? s.name + ' is up' : s.error)}">
+    const u = hist?.uptime?.[s.id];
+    const pct = v => (v == null ? '—' : `${(v * 100).toFixed(v >= 0.9995 ? 0 : 1)}%`);
+    // 24 h in half-hour cells; the % next to it carries the meaning, color only reinforces it.
+    const bar = u && u.cells.some(c => c != null)
+      ? `<span class="uprow"><span class="upbar" aria-hidden="true">${u.cells.map(c =>
+          `<i class="${c == null ? 'none' : c >= 0.999 ? 'ok' : c > 0 ? 'part' : 'bad'}"></i>`).join('')}</span><span class="uppct" aria-label="Uptime ${pct(u.day)} over 24 hours">${pct(u.day)}</span></span>`
+      : '';
+    const title = `${s.up ? `${s.name} is up` : s.error}${u ? ` · uptime ${pct(u.day)} (24 h), ${pct(u.week)} (7 days)` : ''}`;
+    return `<a class="svc ${s.up ? '' : 'down'}" href="${esc(s.link)}" target="_blank" rel="noopener" title="${esc(title)}">
       <span class="dot ${!s.up ? 'down' : slow ? 'warn' : 'up'}" aria-label="${s.up ? 'up' : 'down'}"></span>
       <span class="name">${esc(s.name)}</span>
       <span class="meta">${s.up ? '' : '✕ '}${meta}</span>
+      ${bar}
     </a>`;
   }).join(''));
 }
@@ -486,9 +508,13 @@ function renderEvents(d) {
   const open = new Set([...el.querySelectorAll('details[open]')].map(x => x.dataset.key));
   setHTML(el, shown.map(e => {
     const svc = d.services.find(s => s.id === e.svcId);
+    const queueActs = !e.dismissed && e.source === 'Queue' && e.queueId != null
+      ? `<button class="mini-btn" type="button" data-qretry="${esc(e.svcId)}" title="Ask ${esc(svc?.name || '')} to re-check its downloads and try the import again">Retry</button>
+         <button class="mini-btn" type="button" data-qremove="${esc(e.svcId)}" data-qid="${esc(e.queueId)}" title="Remove from the downloader, blocklist this release and search for another">Replace…</button>`
+      : '';
     const acts = e.dismissed
       ? '<span class="tag">dismissed</span>'
-      : `${e.live && (e.healthCheck || e.source === 'Connection') ? `<button class="icon-btn" type="button" data-recheck="${esc(e.svcId)}" title="Re-check ${esc(svc?.name || '')}" aria-label="Re-check ${esc(svc?.name || '')}">↻</button>` : ''}
+      : `${queueActs}${e.live && (e.healthCheck || e.source === 'Connection') ? `<button class="icon-btn" type="button" data-recheck="${esc(e.svcId)}" title="Re-check ${esc(svc?.name || '')}" aria-label="Re-check ${esc(svc?.name || '')}">↻</button>` : ''}
          <button class="icon-btn" type="button" data-dismiss="${esc(e.key)}" title="Dismiss" aria-label="Dismiss">✕</button>`;
     const cells = `<span class="lvl ${e.level}">${e.level === 'error' ? 'error' : 'warn'}</span>
       <span class="svc-n">${esc(e.svc)}</span>
@@ -545,7 +571,7 @@ async function runAction(btn, fn) {
 }
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed]');
+  const b = e.target.closest('[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed],[data-stop],[data-qretry],[data-qremove]');
   if (!b) return;
   e.preventDefault(); // buttons inside <summary> must not toggle the row
   e.stopPropagation();
@@ -555,6 +581,16 @@ document.addEventListener('click', e => {
   if ('restore' in b.dataset) return runAction(b, () => post('/restore'));
   if ('recheck' in b.dataset) return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.recheck)}/recheck`));
   if ('toggleDismissed' in b.dataset) { evFilter.showDismissed = !evFilter.showDismissed; return renderEvents(state); }
+  if ('stop' in b.dataset) {
+    const reason = prompt(`Stop ${b.dataset.user}'s stream?\n\nMessage shown on their screen:`, 'The server is going down for maintenance. Sorry!');
+    if (reason === null) return;
+    return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.svc)}/stop`, { sessionId: b.dataset.stop, reason }));
+  }
+  if ('qretry' in b.dataset) return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.qretry)}/queue-retry`));
+  if ('qremove' in b.dataset) {
+    if (!confirm(`Remove this download, blocklist the release, and have ${name(b.dataset.qremove)} search for another?`)) return;
+    return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.qremove)}/queue-remove`, { queueId: Number(b.dataset.qid) }));
+  }
   if ('clear' in b.dataset) {
     const svc = state.services.find(s => s.id === b.dataset.clear);
     if (!confirm(`Clear ${name(svc.id)}'s log?\n\n${svc.actions.clear}`)) return;
@@ -736,6 +772,8 @@ addEventListener('resize', () => { lastHTML.delete($('plays-chart')); lastHTML.d
 // --------------------------------------------------------------------- storage / host
 // Disks come from two places: what each *arr reports via its API, and the paths configured
 // under Settings (statfs inside this container). Merged by path.
+const duration = days => days < 14 ? `${Math.max(1, Math.round(days))} days` : days < 120 ? `${Math.round(days / 7)} weeks` : days < 730 ? `${Math.round(days / 30)} months` : `${(days / 365).toFixed(1)} years`;
+
 function renderDisks(d, arrs) {
   const map = new Map();
   for (const a of arrs) for (const k of a.data.disks || [])
@@ -754,10 +792,17 @@ function renderDisks(d, arrs) {
   setHTML($('disks'), disks.map(k => {
     const used = k.total - k.free, pct = (used / k.total) * 100;
     const cls = pct > 95 ? 'crit' : pct > 85 ? 'warn' : '';
+    const fc = hist?.forecasts?.[k.path];
+    const soon = fc?.status === 'growing' && fc.daysToFull < 30;
+    const fcText = !fc ? ''
+      : fc.status === 'growing' ? `${soon ? '⚠ ' : ''}Full in ~${duration(fc.daysToFull)} at +${bytes(fc.perDay)}/day`
+        : fc.status === 'flat' ? 'Not growing'
+          : `Forecast after 3 days of data (day ${fc.days})`;
     return `<div class="disk ${cls}">
       <div class="row1"><span class="p">${cls ? '⚠ ' : ''}${esc(k.path)}${k.label && k.label !== k.path ? ` <span class="muted">${esc(k.label)}</span>` : ''}</span>
       <span class="m">${bytes(used)} / ${bytes(k.total)} · ${bytes(k.free)} free · ${pct.toFixed(0)}%</span></div>
-      <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div></div>`;
+      <div class="bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      ${fcText ? `<div class="fc${soon ? ' soon' : ''}">${fcText}</div>` : ''}</div>`;
   }).join(''));
 }
 
@@ -780,4 +825,122 @@ function renderHost(h, docker) {
   }).join(''));
 }
 
+// --------------------------------------------------------------------- trends (last 24 h)
+// Small multiples, one measure each (never two y-scales on one chart). Gaps = no data.
+const TREND_CHARTS = [
+  { key: 'streams', title: 'Streams', series: [{ name: 'Streams', col: 'streams', cls: 's1', area: true }, { name: 'Transcodes', col: 'transcodes', cls: 's2' }], fmt: v => String(Math.round(v)) },
+  { key: 'kbps', title: 'Stream bandwidth', series: [{ name: 'Bandwidth', col: 'kbps', cls: 's1', area: true }], fmt: v => `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} Mbps` },
+  { key: 'down', title: 'Download speed', series: [{ name: 'Download', col: 'downBps', cls: 's1', area: true }], fmt: v => rate(v) },
+];
+const timeOf = t => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+function trendChart(c, t) {
+  const W = 360, H = 130, m = { l: 44, r: 6, t: 8, b: 20 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const n = t[c.series[0].col].length;
+  const max = niceMax(Math.max(1, ...c.series.flatMap(s => t[s.col].filter(v => v != null))));
+  const x = i => m.l + (i / Math.max(1, n - 1)) * pw;
+  const y = v => m.t + ph - (v / max) * ph;
+  const f = v => v.toFixed(1);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.title)} over the last 24 hours">`;
+  for (let k = 0; k <= 2; k++) {
+    const v = (max / 2) * k;
+    svg += `<line class="grid-line" x1="${m.l}" x2="${W - m.r}" y1="${f(y(v))}" y2="${f(y(v))}"/><text class="axis" x="${m.l - 6}" y="${f(y(v) + 3)}" text-anchor="end">${esc(c.fmt(v))}</text>`;
+  }
+  // x labels every 6 hours on the hour
+  for (let i = 0; i < n; i++) {
+    const d = new Date(t.start + i * t.step);
+    if (d.getMinutes() < t.step / 60e3 && d.getHours() % 6 === 0)
+      svg += `<text class="axis" x="${f(x(i))}" y="${H - 5}" text-anchor="middle">${d.toLocaleTimeString(undefined, { hour: 'numeric' })}</text>`;
+  }
+  for (const s of c.series) {
+    const data = t[s.col];
+    let line = '', area = '', run = [];
+    const flush = () => {
+      if (run.length) {
+        line += 'M' + run.map(i => `${f(x(i))} ${f(y(data[i]))}`).join('L');
+        if (s.area) area += `M${f(x(run[0]))} ${f(y(0))}L` + run.map(i => `${f(x(i))} ${f(y(data[i]))}`).join('L') + `L${f(x(run[run.length - 1]))} ${f(y(0))}Z`;
+      }
+      run = [];
+    };
+    data.forEach((v, i) => (v == null ? flush() : run.push(i)));
+    flush();
+    if (area) svg += `<path class="t-area ${s.cls}" d="${area}"/>`;
+    svg += `<path class="t-line ${s.cls}" d="${line}"/>`;
+  }
+  svg += `<line class="t-cross" x1="0" x2="0" y1="${m.t}" y2="${m.t + ph}" visibility="hidden"/>`;
+  svg += `<rect class="t-hit" data-chart="${c.key}" x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" data-l="${m.l}" data-w="${pw}" data-n="${n}" data-vw="${W}"/></svg>`;
+  const legend = c.series.length > 1
+    ? `<span class="t-legend">${c.series.map(s => `<span><i class="${s.cls}"></i>${esc(s.name)}</span>`).join('')}</span>` : '';
+  return `<div class="trend"><div class="t-head"><h3>${esc(c.title)}</h3>${legend}</div>${svg}</div>`;
+}
+
+function renderTrends() {
+  const t = hist?.trends;
+  const card = $('trends-card');
+  if (!t || !t.streams.some(v => v != null)) {
+    card.hidden = false;
+    return setHTML($('trends'), '<div class="empty">Collecting data — trends appear after the first few minutes.</div>');
+  }
+  card.hidden = false;
+  const partial = t.since && Date.now() - t.since < 23 * 3600e3;
+  $('trends-sub').textContent = `last 24 hours${partial ? ` · recording since ${timeOf(t.since)}` : ''}`;
+  const peak = t.today && t.today.streams
+    ? `<p class="peak">Peak today: <b class="num">${t.today.streams}</b> stream${t.today.streams === 1 ? '' : 's'} at ${timeOf(t.today.streamsAt)} · bandwidth high <b class="num">${mbps(t.today.kbps)}</b> at ${timeOf(t.today.kbpsAt)}</p>` : '';
+  setHTML($('trends'), peak + `<div class="trend-grid">${TREND_CHARTS.map(c => trendChart(c, t)).join('')}</div>`);
+}
+
+$('trends').addEventListener('mousemove', e => {
+  const hit = e.target.closest('.t-hit');
+  const svg = e.target.closest('svg');
+  $('trends').querySelectorAll('.t-cross').forEach(l => l.setAttribute('visibility', 'hidden'));
+  if (!hit || !hist?.trends) { tip.hidden = true; return; }
+  const t = hist.trends, c = TREND_CHARTS.find(x => x.key === hit.dataset.chart);
+  const box = svg.getBoundingClientRect(), scale = Number(hit.dataset.vw) / box.width;
+  const l = Number(hit.dataset.l), w = Number(hit.dataset.w), n = Number(hit.dataset.n);
+  const i = Math.max(0, Math.min(n - 1, Math.round((((e.clientX - box.left) * scale - l) / w) * (n - 1))));
+  const cross = svg.querySelector('.t-cross'), cx = l + (i / Math.max(1, n - 1)) * w;
+  cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('visibility', 'visible');
+  tip.innerHTML = `<div style="margin-bottom:4px;color:var(--text-secondary)">${timeOf(t.start + i * t.step)}</div>` +
+    c.series.map(s => `<div class="r"><span><i class="sw-${s.cls}"></i>${esc(s.name)}</span><b>${t[s.col][i] == null ? 'no data' : esc(c.fmt(t[s.col][i]))}</b></div>`).join('');
+  placeTip(e);
+});
+$('trends').addEventListener('mouseleave', () => {
+  tip.hidden = true;
+  $('trends').querySelectorAll('.t-cross').forEach(l => l.setAttribute('visibility', 'hidden'));
+});
+
+// --------------------------------------------------------------------- TV mode (wall display)
+// Big, read-only, full-screen view. /?tv=1 opens straight into it (e.g. for a kiosk browser).
+function setTvMode(on) {
+  document.body.classList.toggle('tv', on);
+  $('tv-toggle').innerHTML = on ? '✕ <span class="hide-sm">Exit TV mode</span>' : '⛶ <span class="hide-sm">TV mode</span>';
+  const url = new URL(location.href);
+  on ? url.searchParams.set('tv', '1') : url.searchParams.delete('tv');
+  history.replaceState(null, '', url);
+  lastHTML.clear();
+  if (state) render(state);
+}
+$('tv-toggle').addEventListener('click', async () => {
+  const on = !document.body.classList.contains('tv');
+  setTvMode(on);
+  try {
+    if (on && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+    if (!on && document.fullscreenElement) await document.exitFullscreen();
+  } catch { /* full screen not allowed (e.g. iOS); TV mode still works */ }
+});
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && document.body.classList.contains('tv')) setTvMode(false); });
+setInterval(() => { $('tv-clock').textContent = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }, 1000);
+// Hide the mouse pointer after a few idle seconds in TV mode.
+let idleTimer;
+addEventListener('mousemove', () => {
+  document.body.classList.remove('idle');
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => document.body.classList.add('idle'), 3000);
+});
+if (new URLSearchParams(location.search).get('tv') === '1') setTvMode(true);
+
+
 refresh();
+loadHistory();

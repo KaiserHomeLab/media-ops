@@ -15,6 +15,10 @@ there as soon as I can.
 - Password reset needs a one-time code written to the container log and the config folder,
   so only someone with access to the server can reset it.
 - Requests that change anything are rejected if they come from another website (Origin check).
+- Actions that change something inside an app (clear its log, stop a stream, retry or replace
+  a download) need the settings login when a password is set. Re-check only reads, so it's open.
+- Notification secrets (webhook URLs, tokens, keys) are stored like API keys: in `config.json`,
+  never sent back to the browser. Messages go only to the destinations you add.
 - The stream map looks up remote viewers' IP addresses with Plex's own GeoIP service
   (plex.tv, authenticated with your Plex token; the same service Tautulli uses). No other
   third party receives them. Only city-level locations reach the browser, never the IPs.

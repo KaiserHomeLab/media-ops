@@ -46,6 +46,7 @@ async function load() {
   $('demo-banner').hidden = !S.demo;
   $('config-file').textContent = S.configFile;
   renderApps();
+  renderNotifs();
   renderGeneral();
   renderSecurity();
   loadStatus();
@@ -306,6 +307,122 @@ function openForm(kind, svc = null) {
 
   ([...form.querySelectorAll('input[required]')].find(i => !i.value) || form.url).focus();
 }
+
+// --------------------------------------------------------------------- notifications
+const NOTIF_ICON = { discord: 'Di', ntfy: 'nt', pushover: 'Po', gotify: 'Go', webhook: '{}' };
+const sinceText = t => { const m = Math.round((Date.now() - t) / 60e3); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+
+function renderNotifs() {
+  const list = S.notifications.targets;
+  $('notif-count').textContent = list.length ? `${list.length} set up` : '';
+  $('notif-options').diskThreshold.value = S.notifications.diskThreshold;
+  const type = t => S.notifyTypes.find(x => x.type === t);
+  $('notifs').innerHTML = list.map(t => {
+    const evs = S.notifyEvents.filter(e => t.events?.[e.key]).length;
+    const last = t.last ? (t.last.ok ? `✓ last sent ${sinceText(t.last.at)}` : `✕ ${t.last.error}`) : '';
+    return `<button type="button" class="app-card${t.enabled === false ? ' off' : ''}" data-notif="${esc(t.id)}">
+      <span class="app-icon n-${esc(t.type)}" aria-hidden="true">${esc(NOTIF_ICON[t.type] || '?')}</span>
+      <span class="app-name">${esc(t.name)}</span>
+      <span class="app-kind">${esc(type(t.type)?.label || t.type)}${t.enabled === false ? ' · disabled' : ''}</span>
+      <span class="app-url">${evs} event type${evs === 1 ? '' : 's'}</span>
+      ${last ? `<span class="${t.last.ok ? 'app-ok' : 'app-err'}">${esc(last)}</span>` : ''}
+    </button>`;
+  }).join('') + `<button type="button" class="app-card add" id="add-notif"><span class="plus" aria-hidden="true">+</span><span>Add notification</span></button>`;
+}
+
+$('notifs').addEventListener('click', e => {
+  const card = e.target.closest('.app-card');
+  if (!card) return;
+  if (card.id === 'add-notif') return openNotifPicker();
+  const t = S.notifications.targets.find(x => x.id === card.dataset.notif);
+  if (t) openNotifForm(t.type, t);
+});
+
+function openNotifPicker() {
+  openModal('Add notification', `<div class="pick-grid">${S.notifyTypes.map(t => `
+    <button type="button" class="pick" data-type="${esc(t.type)}"><span class="app-icon n-${esc(t.type)}" aria-hidden="true">${esc(NOTIF_ICON[t.type])}</span>${esc(t.label)}</button>`).join('')}</div>`);
+  $('modal-body').querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => openNotifForm(b.dataset.type)));
+}
+
+function openNotifForm(type, target = null) {
+  const def = S.notifyTypes.find(t => t.type === type);
+  const fields = def.fields.map(f => {
+    const saved = target?.[`${f.key}Saved`];
+    const ph = f.type === 'secret' && saved ? '•••••••••••• saved — leave blank to keep' : f.placeholder || '';
+    return `<label class="field wide"><span>${esc(f.label)}${f.optional ? ' <em>optional</em>' : ''}</span>
+      <input name="${esc(f.key)}" type="${f.type === 'secret' ? 'password' : 'text'}" autocomplete="off" spellcheck="false"
+        placeholder="${esc(ph)}" value="${f.type === 'secret' ? '' : esc(target?.[f.key] || '')}" ${!f.optional && !saved && f.key !== 'server' ? 'required' : ''}>
+      ${f.help ? `<small>${esc(f.help)}</small>` : ''}</label>`;
+  }).join('');
+  const events = S.notifyEvents.map(e => `<label class="check"><input type="checkbox" name="ev-${esc(e.key)}" ${(target ? target.events?.[e.key] : e.def) ? 'checked' : ''}><span>${esc(e.label)}</span></label>`).join('');
+
+  openModal(target ? `Edit ${target.name}` : `Add ${def.label}`, `
+    <form class="form grid-form" id="notif-form" novalidate>
+      <label class="field"><span>Name</span><input name="name" required value="${esc(target?.name || def.label)}"></label>
+      <label class="field toggle"><input type="checkbox" name="enabled" ${target?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
+      ${fields}
+      <fieldset class="field wide events"><legend>Send me</legend>${events}</fieldset>
+      <div class="test-result wide" id="notif-result" hidden></div>
+      <div class="actions wide">
+        ${target ? '<button class="btn danger ghost" type="button" id="ndel">Delete</button>' : '<button class="btn ghost" type="button" id="nback">← Back</button>'}
+        <span class="spacer"></span>
+        <button class="btn" type="button" id="ntest">Send test</button>
+        <button class="btn primary" type="submit" id="nsave">Save</button>
+      </div>
+    </form>`);
+
+  const form = $('notif-form'), result = $('notif-result');
+  const values = () => {
+    const v = Object.fromEntries(new FormData(form));
+    const out = { type, name: v.name, enabled: form.enabled.checked, events: {} };
+    for (const f of def.fields) out[f.key] = v[f.key];
+    for (const e of S.notifyEvents) out.events[e.key] = form[`ev-${e.key}`].checked;
+    if (target) out.id = target.id;
+    return out;
+  };
+  const show = (ok, msg) => { result.hidden = false; result.className = `test-result wide ${ok ? 'ok' : 'bad'}`; result.textContent = msg; };
+
+  $('ntest').addEventListener('click', async () => {
+    if (!form.reportValidity()) return;
+    $('ntest').disabled = true;
+    try {
+      const r = await api('/notifications/test', { method: 'POST', body: values() });
+      show(r.ok, r.ok ? '✓ Test sent. Check your phone or channel.' : `✕ ${r.error}`);
+    } catch (err) { show(false, `✕ ${err.message}`); }
+    $('ntest').disabled = false;
+  });
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    try {
+      const saved = target
+        ? await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'PUT', body: values() })
+        : await api('/notifications', { method: 'POST', body: values() });
+      S.notifications.targets = target ? S.notifications.targets.map(t => (t.id === saved.id ? { ...saved, last: t.last } : t)) : [...S.notifications.targets, saved];
+      modal.close();
+      renderNotifs();
+    } catch (err) { show(false, `✕ ${err.message}`); }
+  });
+  $('nback')?.addEventListener('click', openNotifPicker);
+  $('ndel')?.addEventListener('click', async () => {
+    if (!confirm(`Delete ${target.name}?`)) return;
+    await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
+    S.notifications.targets = S.notifications.targets.filter(t => t.id !== target.id);
+    modal.close();
+    renderNotifs();
+  });
+  ([...form.querySelectorAll('input[required]')].find(i => !i.value) || form.name).focus();
+}
+
+$('notif-options').addEventListener('submit', async e => {
+  e.preventDefault();
+  showError($('notif-error'), '');
+  try {
+    await api('/notification-options', { method: 'PUT', body: { diskThreshold: e.target.diskThreshold.value } });
+    S.notifications.diskThreshold = Number(e.target.diskThreshold.value);
+    flash($('notif-saved'));
+  } catch (err) { showError($('notif-error'), err.message); }
+});
 
 // --------------------------------------------------------------------- general
 function renderGeneral() {

@@ -6,6 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Media Ops Settings</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23e5a00d'/><path d='M12 9l11 7-11 7z' fill='%231a1a19'/></svg>">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#121211">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Media Ops">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -62,6 +68,18 @@
         <h2>Apps <span class="count" id="apps-count"></span></h2>
         <p class="hint">Add each app with its address and API key. Drag the cards to change the order they appear on the dashboard.</p>
         <div class="app-grid" id="apps"></div>
+      </section>
+
+      <section class="card">
+        <h2>Notifications <span class="count" id="notif-count"></span></h2>
+        <p class="hint">Get a message on your phone when an app goes down, a new error shows up, a download fails or a disk fills up. Add as many destinations as you like and pick which events each one gets.</p>
+        <div class="app-grid" id="notifs"></div>
+        <form id="notif-options" class="form inline-form">
+          <label class="field"><span>Warn when a disk is over</span><span class="with-unit"><input type="number" name="diskThreshold" min="50" max="99" required><span>%</span></span></label>
+          <button class="btn" type="submit">Save</button>
+          <span class="saved" id="notif-saved" hidden>✓ Saved</span>
+          <div class="form-error" id="notif-error" hidden></div>
+        </form>
       </section>
 
       <section class="card">

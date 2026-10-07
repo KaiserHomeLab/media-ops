@@ -11,10 +11,18 @@ there as soon as I can.
 - API keys and tokens are stored in `/config/config.json` (permissions `0600`) on your
   server, and are never sent back to the browser. The Settings form only shows that one is saved.
 - The optional Settings password is stored as a salted scrypt hash. Sessions live in
-  memory only.
+  memory only. Ten wrong passwords (or reset codes) from one address lock it out for 15 minutes.
+- A saved API key or token is only ever sent to the address it was saved for. Changing an app's
+  address (or a notification server) requires entering the key again, so nobody who can edit
+  settings can redirect a stored key to their own server.
 - Password reset needs a one-time code written to the container log and the config folder,
   so only someone with access to the server can reset it.
-- Requests that change anything are rejected if they come from another website (Origin check).
+- Requests that change anything are rejected if they come from another website (Origin and
+  Sec-Fetch-Site checks; the session cookie is also SameSite=Strict, and Secure behind https).
+- Every page is sent with a strict Content Security Policy (no inline or third-party scripts),
+  `frame-ancestors 'none'` against clickjacking, `nosniff` and `no-referrer`. Values coming from
+  your apps (titles, versions, log lines) are escaped before they're shown, and only http(s)
+  links are ever made clickable.
 - Actions that change something inside an app (clear its log, stop a stream, retry or replace
   a download) need the settings login when a password is set. Re-check only reads, so it's open.
 - Notification secrets (webhook URLs, tokens, keys) are stored like API keys: in `config.json`,
@@ -23,8 +31,10 @@ there as soon as I can.
   (plex.tv, authenticated with your Plex token; the same service Tautulli uses). No other
   third party receives them. Only city-level locations reach the browser, never the IPs.
   You can turn the map off under Settings → General.
-- **Backups** downloaded from Settings contain your API keys and the password hash. Store them like
-  a password manager export. A restore keeps the current password if the backup has none.
+- **Backups** downloaded from Settings contain your API keys and the password hash, so they can
+  only be downloaded once a settings password is set. Store them like a password manager export.
+  A restore runs every app and destination through the same checks as the Settings forms, drops
+  unknown settings, and keeps the current password if the backup has none.
 - The dashboard view is open on your LAN by default. Turn on **Settings → Security → Also require
   the password to view the dashboard** before exposing it more widely, or put it behind your
   reverse proxy's login (Authelia, Authentik, etc.).
@@ -35,8 +45,15 @@ there as soon as I can.
   be shared.
 - Without the dashboard login, don't expose port 8484 to the internet unless a reverse proxy in
   front of it adds authentication.
-- **TrueNAS** is always reached over `wss://` (TrueNAS revokes API keys sent over plain http). Its
-  certificate isn't verified, because TrueNAS ships with a self-signed one; use it on your LAN, and
-  give Media Ops a user with the read-only administrator role.
+- **TrueNAS** is always reached over `wss://` (TrueNAS revokes API keys sent over plain http).
+  TrueNAS ships with a self-signed certificate, so Media Ops trusts it on first use and remembers
+  its fingerprint (`known-certs.json`); if the certificate later changes, the connection is
+  refused before the key is sent. Testing or saving TrueNAS in Settings trusts a replaced
+  certificate. Give Media Ops a user with the read-only administrator role.
 - Mounting the Docker socket gives the container root-equivalent access to the host. Media
-  Ops only reads the container list, but leave the socket out if you don't need that panel.
+  Ops only reads the container list, but a bug or compromise in any program with the socket
+  could do anything. Safer: run a read-only socket proxy (e.g. `tecnativa/docker-socket-proxy`
+  with only `CONTAINERS=1`) and enter its address (`http://socket-proxy:2375`) under Settings →
+  General instead, or leave the socket out if you don't need that panel.
+- Replies from apps are capped (128 MB per reply, 64 MB per TrueNAS message), so a misbehaving
+  app can't exhaust memory. Settings writes are capped at 64 KB (2 MB for a restore).

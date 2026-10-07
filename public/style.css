@@ -718,3 +718,7 @@ body.tv .rq-acts { display: none; }
 .sp-bar > i { display: block; height: 100%; background: var(--series-1); border-radius: 3px; }
 .sp-row .num { font: 12px var(--mono); text-align: right; }
 @media (max-width: 600px) { .sp-row { grid-template-columns: minmax(0, 1fr) 70px; } .sp-bar { display: none; } }
+
+/* "Settings aren't password-protected" */
+.nudge { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--warning); background: var(--surface-1); font-size: 13px; }
+.nudge > span { flex: 1 1 320px; }

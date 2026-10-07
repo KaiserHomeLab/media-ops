@@ -99,7 +99,7 @@
         <form id="general-form" class="form grid-form">
           <label class="field"><span>Refresh every (seconds)</span><input type="number" name="refreshSeconds" min="3" max="300" required></label>
           <label class="field"><span>Docker socket <em>optional</em></span><input name="dockerSocket" placeholder="/var/run/docker.sock" spellcheck="false">
-            <small>Lists your containers and whether they're running. The socket must be mounted into this container. Leave blank to hide.</small></label>
+            <small>Lists your containers and whether they're running. Either the mounted socket, or (safer) a read-only socket proxy such as <code>http://socket-proxy:2375</code>. Leave blank to hide.</small></label>
           <label class="field wide"><span>Disks to show <em>one path per line</em></span><textarea name="paths" rows="3" placeholder="/mnt/user&#10;/mnt/cache" spellcheck="false"></textarea>
             <small>Paths as seen inside this container. The disk space your arrs report is shown too.</small></label>
           <label class="field"><span>Internet upload speed <em>optional · Mbps</em></span><input type="number" name="uploadMbps" min="1" step="any" placeholder="e.g. 40">
@@ -116,7 +116,7 @@
         </form>
       </section>
 
-      <section class="card">
+      <section class="card" id="security">
         <h2>Security</h2>
         <p class="hint" id="pw-status"></p>
         <form id="pw-form" class="form grid-form">

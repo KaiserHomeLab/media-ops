@@ -9,6 +9,9 @@
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const num = n => (n == null ? '—' : Number(n).toLocaleString());
+// Only http(s) links get an href: an address from settings or an app can never be javascript:.
+const safeHref = u => (/^https?:\/\//i.test(String(u || '')) ? esc(u) : '#');
+const n0 = v => (Number.isFinite(Number(v)) ? Number(v) : 0); // numbers from apps, before they go into HTML
 const sum = (arr, f) => arr.reduce((a, x) => a + (Number(f(x)) || 0), 0);
 
 function bytes(b, digits = 1) {
@@ -57,8 +60,17 @@ async function refresh() {
   } catch (e) {
     console.warn('refresh failed', e);
   }
-  timer = setTimeout(refresh, (state?.refreshSeconds || 10) * 1000);
+  // A hidden tab doesn't poll; coming back to it refreshes at once (visibilitychange below).
+  if (!document.hidden) timer = setTimeout(refresh, (state?.refreshSeconds || 10) * 1000);
 }
+
+// "Settings aren't password-protected" can be hidden for 30 days (per browser).
+const NUDGE_KEY = 'mo-lock-nudge-hidden';
+const nudgeHidden = () => { try { return Date.now() - Number(localStorage.getItem(NUDGE_KEY) || 0) < 30 * 864e5; } catch { return false; } };
+$('lock-nudge-close').addEventListener('click', () => {
+  try { localStorage.setItem(NUDGE_KEY, String(Date.now())); } catch { /* private mode: hide for now only */ }
+  $('lock-nudge').hidden = true;
+});
 
 // History (uptime, trends, forecasts) changes slowly, so it's fetched once a minute.
 let hist = null;
@@ -89,6 +101,7 @@ function render(d) {
   const clients = all(['sabnzbd', 'qbittorrent']);
 
   $('demo-badge').hidden = !d.demo;
+  $('lock-nudge').hidden = d.demo || d.settingsLocked !== false || nudgeHidden();
   $('self-update').hidden = !d.latestVersion;
   if (d.latestVersion) {
     $('self-update').textContent = `⬆ Media Ops ${d.latestVersion}`;
@@ -200,7 +213,7 @@ function renderStreams(streams, demo, plexId) {
       : `<div class="poster" aria-hidden="true">${initials(s.title)}</div>`;
     const dc = s.decision.startsWith('Transcode') ? 'tc' : s.decision === 'Direct Play' ? 'dp' : 'ds';
     const chips = [
-      `<span class="chip ${dc}"${s.hwName ? ` title="Hardware: ${esc(s.hwName)}"` : ''}>${esc(s.decision)}${s.hw && dc === 'tc' ? ' (HW)' : ''}${s.transcodeSpeed ? ` ${s.transcodeSpeed}×` : ''}</span>`,
+      `<span class="chip ${dc}"${s.hwName ? ` title="Hardware: ${esc(s.hwName)}"` : ''}>${esc(s.decision)}${s.hw && dc === 'tc' ? ' (HW)' : ''}${s.transcodeSpeed ? ` ${esc(s.transcodeSpeed)}×` : ''}</span>`,
       s.fourKTranscode && '<span class="chip k4" title="4K transcodes are the heaviest load on the server">4K transcode</span>',
       s.resolution && `<span class="chip">${esc(/^\d+$/.test(s.resolution) ? s.resolution + 'p' : s.resolution.toUpperCase())}</span>`,
       s.videoCodec && `<span class="chip">${esc(s.videoCodec.toUpperCase())}</span>`,
@@ -237,7 +250,7 @@ function renderServices(services) {
   $('svc-count').textContent = `${up}/${services.length} up${updates ? ` · ${updates} update${updates === 1 ? '' : 's'}` : ''}`;
   setHTML($('services'), services.map(s => {
     const meta = s.up
-      ? [s.version && `v${String(s.version).replace(/^v/, '')}`, s.latency != null && `${s.latency}ms`].filter(Boolean).join(' · ')
+      ? [s.version && esc(`v${String(s.version).replace(/^v/, '')}`), s.latency != null && `${n0(s.latency)}ms`].filter(Boolean).join(' · ')
       : esc(s.error);
     const slow = s.up && s.latency > 1500;
     const u = hist?.uptime?.[s.id];
@@ -248,7 +261,7 @@ function renderServices(services) {
           `<i class="${c == null ? 'none' : c >= 0.999 ? 'ok' : c > 0 ? 'part' : 'bad'}"></i>`).join('')}</span><span class="uppct" aria-label="Uptime ${pct(u.day)} over 24 hours">${pct(u.day)}</span></span>`
       : '';
     const title = `${s.up ? `${s.name} is up` : s.error}${u ? ` · uptime ${pct(u.day)} (24 h), ${pct(u.week)} (7 days)` : ''}`;
-    return `<a class="svc ${s.up ? '' : 'down'}" href="${esc(s.link)}" target="_blank" rel="noopener" title="${esc(title)}">
+    return `<a class="svc ${s.up ? '' : 'down'}" href="${safeHref(s.link)}" target="_blank" rel="noopener" title="${esc(title)}">
       <span class="dot ${!s.up ? 'down' : slow ? 'warn' : 'up'}" aria-label="${s.up ? 'up' : 'down'}"></span>
       <span class="name">${esc(s.name)}</span>
       <span class="meta">${s.up ? '' : '✕ '}${meta}</span>
@@ -288,7 +301,7 @@ function renderLibrary(plex, services) {
   ];
 
   setHTML($('arr-stats'), services.filter(s => s.up && rows[s.kind] && s.data?.stats).map(s => {
-    const kv = rows[s.kind](s.data.stats).map(([k, v, bad]) => `<dt>${k}</dt><dd class="${bad ? 'bad' : ''}">${v}</dd>`).join('');
+    const kv = rows[s.kind](s.data.stats).map(([k, v, bad]) => `<dt>${k}</dt><dd class="${bad ? 'bad' : ''}">${esc(v)}</dd>`).join('');
     return `<div class="arr"><h3>${esc(s.name)}<span>${s.data.queue ? `${s.data.queue.length} in queue` : ''}</span></h3><dl class="kv">${kv}</dl></div>`;
   }).join(''));
 }
@@ -549,7 +562,8 @@ function renderEvents(d) {
       ? '<span class="tag">dismissed</span>'
       : `${queueActs}${e.live && (e.healthCheck || e.source === 'Connection') ? `<button class="icon-btn" type="button" data-recheck="${esc(e.svcId)}" title="Re-check ${esc(svc?.name || '')}" aria-label="Re-check ${esc(svc?.name || '')}">↻</button>` : ''}
          <button class="icon-btn" type="button" data-dismiss="${esc(e.key)}" title="Dismiss" aria-label="Dismiss">✕</button>`;
-    const cells = `<span class="lvl ${e.level}">${e.level === 'error' ? 'error' : 'warn'}</span>
+    const lvl = e.level === 'error' ? 'error' : 'warn';
+    const cells = `<span class="lvl ${lvl}">${lvl}</span>
       <span class="svc-n">${esc(e.svc)}</span>
       <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}${e.hint ? '<span class="hint-mark" title="Has a how-to-fix tip: click to open"> 💡</span>' : ''}</span>
       <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>
@@ -778,7 +792,7 @@ function renderWatch(t) {
     list('Top shows', t.data.topShows),
     list('Top movies', t.data.topMovies),
     list('Top platforms', t.data.topPlatforms),
-  ].join('') + (t.data.mostConcurrent ? `<div class="toplist"><h3>Peak concurrent</h3><div class="num" style="font-size:22px;font-weight:600">${t.data.mostConcurrent} streams</div></div>` : ''));
+  ].join('') + (t.data.mostConcurrent ? `<div class="toplist"><h3>Peak concurrent</h3><div class="num" style="font-size:22px;font-weight:600">${num(t.data.mostConcurrent)} streams</div></div>` : ''));
 }
 
 // Hover tooltips (chart + map). Delegated, so they survive re-renders.
@@ -880,8 +894,8 @@ function renderUnraid(u) {
   const p = d.parity;
   const when = p.date ? new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null;
   setHTML($('unraid-parity'), p.running || p.paused
-    ? `<div class="row1"><span><b>Parity ${p.correcting ? 'check (correcting)' : 'check'}</b> ${p.paused ? '· paused' : ''}</span><span class="m">${p.progress ?? 0}%${p.speed ? ` · ${esc(p.speed)}` : ''} · ${p.errors} errors</span></div><div class="bar"><i style="width:${p.progress ?? 0}%"></i></div>`
-    : `<div class="row1"><span><b>Parity</b> ${p.status === 'NEVER_RUN' ? '· never checked' : `· last check ${esc((p.status || '').toLowerCase())}${when ? ` ${when}` : ''}`}</span><span class="m ${p.errors ? 'hot' : ''}">${p.errors ? `⚠ ${p.errors} errors` : '0 errors'}</span></div>`);
+    ? `<div class="row1"><span><b>Parity ${p.correcting ? 'check (correcting)' : 'check'}</b> ${p.paused ? '· paused' : ''}</span><span class="m">${n0(p.progress)}%${p.speed ? ` · ${esc(p.speed)}` : ''} · ${n0(p.errors)} errors</span></div><div class="bar"><i style="width:${n0(p.progress)}%"></i></div>`
+    : `<div class="row1"><span><b>Parity</b> ${p.status === 'NEVER_RUN' ? '· never checked' : `· last check ${esc((p.status || '').toLowerCase())}${when ? ` ${when}` : ''}`}</span><span class="m ${p.errors ? 'hot' : ''}">${p.errors ? `⚠ ${n0(p.errors)} errors` : '0 errors'}</span></div>`);
   setHTML($('unraid-disks'), d.disks.map(k => {
     const pct = k.used != null && k.size ? (k.used / k.size) * 100 : null;
     const hot = k.temp != null && k.temp >= k.tempCrit ? 'crit' : k.temp != null && k.temp >= k.tempWarn ? 'warn' : '';
@@ -889,7 +903,7 @@ function renderUnraid(u) {
     const bad = k.status !== 'DISK_OK';
     return `<div class="udisk ${bad ? 'bad' : ''}" title="${esc(`${k.name} · ${k.role}${k.ssd ? ' (SSD)' : ''} · ${bytes(k.size)}${k.temp != null ? ` · ${k.temp} °C (warn ${k.tempWarn}, critical ${k.tempCrit})` : ''}`)}">
       <div class="row1"><b>${esc(k.name)}</b><span class="role">${esc(k.role)}</span></div>
-      <div class="temp ${hot}">${k.temp != null ? `${hot ? '⚠ ' : ''}${k.temp} °C` : k.spinning === false ? '◌ spun down' : '—'}</div>
+      <div class="temp ${hot}">${k.temp != null ? `${hot ? '⚠ ' : ''}${n0(k.temp)} °C` : k.spinning === false ? '◌ spun down' : '—'}</div>
       ${pct != null ? `<div class="bar ${full}"><i style="width:${pct.toFixed(0)}%"></i></div><div class="m">${pct.toFixed(0)}% of ${bytes(k.size)}</div>` : `<div class="m">${bytes(k.size)}</div>`}
       ${bad ? `<div class="m hot">✕ ${esc(k.status.replace('DISK_', '').toLowerCase())}</div>` : k.errors ? `<div class="m hot">⚠ ${k.errors} errors</div>` : ''}
     </div>`;
@@ -956,9 +970,9 @@ function renderSpace(sp) {
   $('space-note').textContent = note;
   const max = Math.max(1, ...list.map(sizeOf));
   setHTML($('space-list'), list.map(x => {
-    const title = `${esc(x.title)}${x.year ? ` <span class="muted">(${x.year})</span>` : ''}`;
+    const title = `${esc(x.title)}${x.year ? ` <span class="muted">(${esc(x.year)})</span>` : ''}`;
     return `<li class="sp-row">
-      <span class="sp-t">${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${title}</a>` : title}
+      <span class="sp-t">${x.link ? `<a href="${safeHref(x.link)}" target="_blank" rel="noopener">${title}</a>` : title}
         <span class="sp-meta">${esc(x.app)}${extra(x) ? ` · ${esc(extra(x))}` : ''}</span></span>
       <span class="sp-bar" aria-hidden="true"><i style="width:${(sizeOf(x) / max * 100).toFixed(1)}%"></i></span>
       <span class="num">${bytes(sizeOf(x))}</span>
@@ -977,7 +991,7 @@ const udiskTile = k => {
   const hot = k.temp != null && k.temp >= k.tempCrit ? 'crit' : k.temp != null && k.temp >= k.tempWarn ? 'warn' : '';
   return `<div class="udisk" title="${esc(`${k.name}${k.model ? ` · ${k.model}` : ''} · ${k.ssd ? 'SSD' : 'HDD'} · ${bytes(k.size)}${k.temp != null ? ` · ${k.temp} °C (warn ${k.tempWarn}, critical ${k.tempCrit})` : ''}`)}">
     <div class="row1"><b>${esc(k.name)}</b><span class="role">${esc(k.role)}</span></div>
-    <div class="temp ${hot}">${k.temp != null ? `${hot ? '⚠ ' : ''}${k.temp} °C` : '—'}</div>
+    <div class="temp ${hot}">${k.temp != null ? `${hot ? '⚠ ' : ''}${n0(k.temp)} °C` : '—'}</div>
     <div class="m">${k.ssd ? 'SSD' : 'HDD'} · ${bytes(k.size)}</div>
   </div>`;
 };
@@ -1043,10 +1057,10 @@ function renderRequests(seerrs) {
   if (rollUp('requests-card', !reqs.length)) return;
   setHTML($('requests'), reqs.map(r => `<li>
       <div class="rq-main"><b>${esc(r.title)}</b>${r.year ? ` <span class="muted">(${esc(r.year)})</span>` : ''}
-        <span class="chip">${r.type === 'tv' ? `TV${r.seasons?.length ? ` · S${r.seasons.join(', S')}` : ''}` : 'Movie'}</span>${r.is4k ? '<span class="chip">4K</span>' : ''}
+        <span class="chip">${r.type === 'tv' ? `TV${r.seasons?.length ? ` · S${esc(r.seasons.join(', S'))}` : ''}` : 'Movie'}</span>${r.is4k ? '<span class="chip">4K</span>' : ''}
         <div class="muted">requested by ${esc(r.requestedBy)} · ${ago(new Date(r.createdAt).getTime())}</div></div>
-      <div class="rq-acts"><button class="btn small" type="button" data-rq="approve" data-svc="${esc(r.svcId)}" data-id="${r.id}" data-title="${esc(r.title)}">✓ Approve</button>
-        <button class="btn small ghost" type="button" data-rq="decline" data-svc="${esc(r.svcId)}" data-id="${r.id}" data-title="${esc(r.title)}">Decline</button></div>
+      <div class="rq-acts"><button class="btn small" type="button" data-rq="approve" data-svc="${esc(r.svcId)}" data-id="${esc(r.id)}" data-title="${esc(r.title)}">✓ Approve</button>
+        <button class="btn small ghost" type="button" data-rq="decline" data-svc="${esc(r.svcId)}" data-id="${esc(r.id)}" data-title="${esc(r.title)}">Decline</button></div>
     </li>`).join('') || '<li class="empty">No requests waiting. 🎉</li>');
 }
 

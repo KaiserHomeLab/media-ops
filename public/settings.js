@@ -50,6 +50,8 @@ async function load() {
   renderGeneral();
   renderSecurity();
   loadStatus();
+  // The page fills in after loading, so jump to a #section (e.g. #security from the dashboard) now.
+  if (location.hash.length > 1) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 }
 
 async function loadStatus() {

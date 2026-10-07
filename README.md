@@ -75,7 +75,9 @@ Settings → **Add app** → pick the app → enter its address and API key → 
 - To run two of the same app (e.g. Sonarr and Sonarr Anime), add Sonarr twice with different names.
 - Drag the cards to reorder the dashboard. Click a card to edit, disable or delete it.
 - Saved API keys are never sent back to the browser. To keep a key, leave the field blank when editing.
-- **Security**: set a password to lock the Settings page. The dashboard itself stays viewable without logging in.
+- **Security**: set a password to lock the Settings page. **Do this first**: without one, anyone on your network can change your apps, stop streams or clear logs, and the dashboard shows a reminder until you do. Backups can only be downloaded once a password is set. The dashboard itself stays viewable without logging in unless you turn that on too.
+- Changing an app's address means entering its API key again: a saved key is only ever sent to the address it was saved for.
+- Docker container list: rather than mounting the Docker socket (root-level access to the host), you can run a read-only [socket proxy](https://github.com/Tecnativa/docker-socket-proxy) with `CONTAINERS=1` and enter its address under Settings → General.
 
 ### Forgot the settings password?
 

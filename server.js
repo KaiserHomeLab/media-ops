@@ -19,8 +19,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
+const { promisify } = require('node:util');
 const collectors = require('./lib/collectors');
-const { join, unixGet, clearCache } = require('./lib/http');
+const { join, req: httpReq, unixGet, clearCache } = require('./lib/http');
 const config = require('./lib/config');
 const { KINDS } = require('./lib/kinds');
 const demo = require('./lib/demo');
@@ -35,6 +37,7 @@ const digest = require('./lib/digest');
 const gpu = require('./lib/gpu');
 const space = require('./lib/space');
 const selfupdate = require('./lib/selfupdate');
+const pins = require('./lib/pins');
 const pkg = require('./package.json');
 
 const PUBLIC = path.join(__dirname, 'public');
@@ -95,12 +98,17 @@ async function localDisks(paths = []) {
   return out;
 }
 
-// Container list from the Docker Engine API over its unix socket. Read-only: one GET.
+// Container list from the Docker Engine API: a mounted unix socket, or (safer) the URL of a
+// read-only socket proxy such as tecnativa/docker-socket-proxy. Read-only: one GET.
 async function dockerContainers(cfg) {
-  if (!cfg?.socket) return null;
-  if (!fs.existsSync(cfg.socket)) return null; // socket not mounted — just hide the panel
+  const where = cfg?.socket;
+  if (!where) return null;
+  const viaProxy = /^https?:\/\//i.test(where);
+  if (!viaProxy && !fs.existsSync(where)) return null; // socket not mounted — just hide the panel
   try {
-    const list = await unixGet(cfg.socket, '/containers/json?all=1');
+    const list = viaProxy
+      ? await httpReq(join(where, '/containers/json?all=1'), { timeout: 4000 })
+      : await unixGet(where, '/containers/json?all=1');
     return list
       .map(c => ({
         name: (c.Names?.[0] || c.Id).replace(/^\//, ''),
@@ -176,14 +184,25 @@ async function polled() {
   return p;
 }
 
-// Poll results + the unified errors feed with dismissals applied (cheap, so done per request).
+// Every open tab asks for the overview, but the poll result only changes every few seconds:
+// build the errors feed (hashes, hints) once per poll result and reuse it.
+const collected = new WeakMap();
+function eventsOf(raw) {
+  if (!collected.has(raw.services)) collected.set(raw.services, feed.collect(raw.services));
+  return collected.get(raw.services).map(e => ({ ...e })); // apply() marks dismissals on its own copy
+}
+
+// Poll results + the unified errors feed with dismissals applied.
 async function overview() {
   const raw = DEMO ? demo.overview(hostStats()) : await polled();
-  const { events, changed } = feed.apply(feed.collect(raw.services), raw.services, config.load().dismissed);
+  const cfg = config.load();
+  const { events, changed } = feed.apply(eventsOf(raw), raw.services, cfg.dismissed);
   if (changed) config.update(c => ({ ...c, dismissed: changed }));
   const services = raw.services.map(s => ({ ...s, actions: actions.capabilities(s.kind, s.name) }));
-  const cfg = config.load();
-  return { ...raw, services, events, uploadMbps: Number(cfg.uploadMbps) || null, version: pkg.version, latestVersion: DEMO ? null : selfupdate.latest(cfg) };
+  return {
+    ...raw, services, events, uploadMbps: Number(cfg.uploadMbps) || null, version: pkg.version,
+    latestVersion: DEMO ? null : selfupdate.latest(cfg), settingsLocked: !!cfg.auth,
+  };
 }
 
 // ------------------------------------------------------------- background monitor
@@ -193,7 +212,7 @@ async function monitorTick() {
   const cfg = config.load();
   try {
     const raw = DEMO ? demo.overview(hostStats()) : await polled();
-    const { events } = feed.apply(feed.collect(raw.services), raw.services, cfg.dismissed);
+    const { events } = feed.apply(eventsOf(raw), raw.services, cfg.dismissed);
     history.record(raw);
     await notify.handle(raw, events, history.diskList(raw), cfg);
     await digest.maybeSend(cfg, { ...raw, latestVersion: DEMO ? null : selfupdate.latest(cfg) }, events, notify.sendDigest);
@@ -286,33 +305,71 @@ function loggedIn(req) {
   const exp = t && sessions.get(t);
   return !!exp && exp > Date.now();
 }
-function startSession(res) {
+// Served over https (directly or behind a reverse proxy): the cookie is then marked Secure.
+const isHttps = req => req.socket.encrypted || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+function startSession(req, res) {
+  const now = Date.now();
+  for (const [t, exp] of sessions) if (exp <= now) sessions.delete(t);
   const t = crypto.randomBytes(32).toString('hex');
-  sessions.set(t, Date.now() + SESSION_DAYS * 864e5);
-  res.setHeader('Set-Cookie', `mo_session=${t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 86400}`);
+  sessions.set(t, now + SESSION_DAYS * 864e5);
+  res.setHeader('Set-Cookie', `mo_session=${t}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_DAYS * 86400}${isHttps(req) ? '; Secure' : ''}`);
+}
+
+// Password guessing: 10 wrong passwords (or reset codes) from one address in 15 minutes locks
+// that address out for the rest of the window. On top of the 0.8 s delay per wrong answer,
+// which alone wouldn't stop many guesses sent in parallel.
+const FAIL_WINDOW = 15 * 60e3, FAIL_MAX = 10;
+const failures = new Map(); // ip -> { n, since }
+const clientIp = req => req.socket.remoteAddress || '?';
+function lockedOut(req) {
+  const f = failures.get(clientIp(req));
+  if (!f || Date.now() - f.since > FAIL_WINDOW) return 0;
+  return f.n >= FAIL_MAX ? Math.ceil((f.since + FAIL_WINDOW - Date.now()) / 60e3) : 0;
+}
+function noteFailure(req) {
+  const ip = clientIp(req), now = Date.now();
+  const f = failures.get(ip);
+  failures.set(ip, f && now - f.since < FAIL_WINDOW ? { n: f.n + 1, since: f.since } : { n: 1, since: now });
+  if (failures.size > 1000) for (const [k, v] of failures) if (now - v.since > FAIL_WINDOW) failures.delete(k);
 }
 
 // Writes must come from this page (blocks other websites from silently changing your settings).
+// Browsers send Origin on cross-site writes and Sec-Fetch-Site on everything; either one
+// pointing elsewhere is refused.
 function sameOrigin(req) {
+  const site = req.headers['sec-fetch-site'];
+  if (site && site !== 'same-origin' && site !== 'none') return false;
   const origin = req.headers.origin;
   if (!origin) return true;
   try { return new URL(origin).host === req.headers.host; } catch { return false; }
 }
 
-async function readJson(req) {
+async function readJson(req, limit = 64 * 1024) {
   if (!/^application\/json/.test(req.headers['content-type'] || '')) throw Object.assign(new Error('Expected JSON'), { status: 415 });
   let body = '';
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 64 * 1024) throw Object.assign(new Error('Request too large'), { status: 413 });
+    if (body.length > limit) throw Object.assign(new Error('Request too large'), { status: 413 });
   }
   try { return JSON.parse(body || '{}'); } catch { throw Object.assign(new Error('Invalid JSON'), { status: 400 }); }
 }
 
 function send(res, status, body) {
   if (body === undefined) return res.writeHead(status).end();
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(body));
+  return reply(res, status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, Buffer.from(JSON.stringify(body)));
+}
+
+// gzip text bodies over 1 KB when the browser accepts it: the overview JSON and app.js
+// shrink to a fifth, which matters on phones and wall tablets on Wi-Fi.
+const gzip = promisify(zlib.gzip);
+async function reply(res, status, headers, body) {
+  const req = res.req;
+  if (body.length > 1024 && /\bgzip\b/.test(req.headers['accept-encoding'] || '') && /json|text|javascript|css|svg|manifest/.test(headers['Content-Type'] || '')) {
+    body = await gzip(body, { level: 6 });
+    headers = { ...headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' };
+  }
+  res.writeHead(status, { ...headers, 'Content-Length': body.length });
+  res.end(body);
 }
 
 function settingsPayload(req) {
@@ -343,18 +400,25 @@ function settingsPayload(req) {
   };
 }
 
+const hhmm = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ''));
+
 // Routes under /api/settings. /login, /logout, /forgot and /reset work without a session;
 // everything else needs one when a settings password is set.
 async function settingsApi(req, res, route) {
   const method = req.method;
 
+  if ((route === '/login' || route === '/reset') && method === 'POST') {
+    const wait = lockedOut(req);
+    if (wait) return send(res, 429, { error: `Too many wrong attempts. Try again in ${wait} minute${wait === 1 ? '' : 's'}.` });
+  }
   if (route === '/login' && method === 'POST') {
     const { password } = await readJson(req);
     if (!config.checkPassword(password)) {
+      noteFailure(req);
       await new Promise(r => setTimeout(r, 800)); // slow down guessing
       return send(res, 401, { error: 'Wrong password' });
     }
-    startSession(res);
+    startSession(req, res);
     return send(res, 200, { ok: true });
   }
   if (route === '/forgot' && method === 'POST') {
@@ -366,18 +430,19 @@ async function settingsApi(req, res, route) {
     if (next && String(next).length < 8) return send(res, 400, { error: 'Use at least 8 characters, or leave it blank to remove the password' });
     const err = recovery.verify(code);
     if (err) {
+      noteFailure(req);
       await new Promise(r => setTimeout(r, 800));
       return send(res, 400, { error: err });
     }
     config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null }));
     sessions.clear(); // sign out everywhere else
-    if (next) startSession(res);
+    if (next) startSession(req, res);
     console.log(`Settings password ${next ? 'reset' : 'removed'} using a reset code.`);
     return send(res, 200, { ok: true, authEnabled: !!next });
   }
   if (route === '/logout' && method === 'POST') {
     sessions.delete(cookie(req, 'mo_session'));
-    res.setHeader('Set-Cookie', 'mo_session=; Max-Age=0; Path=/');
+    res.setHeader('Set-Cookie', 'mo_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict');
     return send(res, 200, { ok: true });
   }
 
@@ -391,6 +456,7 @@ async function settingsApi(req, res, route) {
     const existing = config.load().services.find(s => s.id === input.id);
     let svc;
     try { svc = config.mergeService(existing, input); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
+    if (svc.kind === 'truenas') pins.forget(svc.url); // testing from Settings trusts its current certificate
     const r = await runService(svc);
     return send(res, 200, r.up
       ? { ok: true, version: r.version, latency: r.latency, note: r.data?.note || null }
@@ -401,6 +467,7 @@ async function settingsApi(req, res, route) {
     const input = await readJson(req);
     let svc;
     try { svc = config.mergeService(null, input); } catch (e) { return send(res, 400, { error: e.message }); }
+    if (svc.kind === 'truenas') pins.forget(svc.url);
     config.update(c => ({ ...c, services: [...c.services, svc] }));
     invalidate();
     return send(res, 201, config.publicService(svc));
@@ -413,6 +480,7 @@ async function settingsApi(req, res, route) {
     if (!existing) return send(res, 404, { error: 'Not found' });
     let svc;
     try { svc = config.mergeService(existing, { ...input, kind: existing.kind }); } catch (e) { return send(res, 400, { error: e.message }); }
+    if (svc.kind === 'truenas') pins.forget(svc.url);
     config.update(c => ({ ...c, services: c.services.map(s => (s.id === id ? svc : s)) }));
     invalidate();
     return send(res, 200, config.publicService(svc));
@@ -465,7 +533,6 @@ async function settingsApi(req, res, route) {
     const { diskThreshold, quiet = {}, digest: dg = {} } = await readJson(req);
     const n = Math.round(Number(diskThreshold));
     if (!(n >= 50 && n <= 99)) return send(res, 400, { error: 'Disk threshold must be between 50 and 99%' });
-    const hhmm = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ''));
     if (quiet.enabled && !(hhmm(quiet.from) && hhmm(quiet.to))) return send(res, 400, { error: 'Quiet hours need a start and end time' });
     if (dg.enabled && !hhmm(dg.time)) return send(res, 400, { error: 'Pick a time for the daily digest' });
     config.update(c => ({
@@ -488,6 +555,8 @@ async function settingsApi(req, res, route) {
 
   // Backup / restore: the whole config, secrets included, as one JSON file.
   if (method === 'GET' && route === '/backup') {
+    // The file holds every API key. Without a password, anyone on the network could fetch it.
+    if (!config.load().auth) return send(res, 403, { error: 'Set a settings password first: backups contain all your API keys.' });
     const body = JSON.stringify({ app: 'media-ops', version: pkg.version, exportedAt: new Date().toISOString(), config: config.load() }, null, 2);
     res.writeHead(200, {
       'Content-Type': 'application/json',
@@ -497,15 +566,42 @@ async function settingsApi(req, res, route) {
     return res.end(body);
   }
   if (method === 'POST' && route === '/restore') {
-    const b = await readJson(req);
+    const b = await readJson(req, 2 * 1024 * 1024);
     const incoming = b?.app === 'media-ops' ? b.config : b;
     if (!incoming || !Array.isArray(incoming.services)) return send(res, 400, { error: "That doesn't look like a Media Ops backup" });
-    const bad = incoming.services.find(x => !collectors[x.kind]);
-    if (bad) return send(res, 400, { error: `Unknown app type "${bad.kind}" in the backup` });
-    // Keep the current password if the backup has none, so a restore can't silently unlock Settings.
-    config.update(c => ({ ...incoming, auth: incoming.auth || c.auth }));
+    // Every app and destination goes through the same checks as the Settings forms, and only
+    // known settings are taken, so a crafted file can't smuggle in anything the forms refuse.
+    let services, targets;
+    try {
+      services = incoming.services.map(x => {
+        if (!collectors[x.kind]) throw new Error(`Unknown app type "${x.kind}" in the backup`);
+        return { ...config.mergeService(null, x), id: /^[\w-]{1,64}$/.test(x.id) ? x.id : crypto.randomUUID() };
+      });
+      targets = (incoming.notifications?.targets || []).map(t => ({ ...notify.mergeTarget(null, t), id: /^[\w-]{1,64}$/.test(t.id) ? t.id : crypto.randomUUID() }));
+    } catch (e) { return send(res, 400, { error: e.message }); }
+    const auth = incoming.auth && /^[0-9a-f]{32}$/.test(incoming.auth.salt) && /^[0-9a-f]{128}$/.test(incoming.auth.hash) ? { salt: incoming.auth.salt, hash: incoming.auth.hash } : null;
+    const n = incoming.notifications || {};
+    config.update(c => ({
+      ...c,
+      services,
+      // Keep the current password if the backup has none, so a restore can't silently unlock Settings.
+      auth: auth || c.auth,
+      refreshSeconds: Math.min(300, Math.max(3, Math.round(Number(incoming.refreshSeconds)) || c.refreshSeconds)),
+      paths: Array.isArray(incoming.paths) ? incoming.paths.map(String).filter(p => p.startsWith('/')) : c.paths,
+      map: { enabled: incoming.map?.enabled !== false, home: geo.parseLatLon(incoming.map?.home || '') ? String(incoming.map.home) : '' },
+      uploadMbps: Number(incoming.uploadMbps) > 0 ? Number(incoming.uploadMbps) : null,
+      cleanupDays: Math.min(3650, Math.max(30, Math.round(Number(incoming.cleanupDays)) || 365)),
+      checkUpdates: incoming.checkUpdates !== false,
+      dashboardAuth: !!incoming.dashboardAuth && !!(auth || c.auth),
+      notifications: {
+        diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
+        quiet: n.quiet ? { enabled: !!n.quiet.enabled, from: hhmm(n.quiet.from) ? n.quiet.from : '23:00', to: hhmm(n.quiet.to) ? n.quiet.to : '07:00', allowDown: n.quiet.allowDown !== false } : c.notifications?.quiet,
+        digest: n.digest ? { enabled: !!n.digest.enabled, time: hhmm(n.digest.time) ? n.digest.time : '08:00' } : c.notifications?.digest,
+        targets,
+      },
+    }));
     invalidate();
-    return send(res, 200, { ok: true, apps: incoming.services.length });
+    return send(res, 200, { ok: true, apps: services.length });
   }
   if (method === 'PUT' && route === '/security') {
     const { dashboardAuth } = await readJson(req);
@@ -531,6 +627,8 @@ async function settingsApi(req, res, route) {
     const paths = (Array.isArray(g.paths) ? g.paths : String(g.paths || '').split(/[\n,]/))
       .map(p => String(p).trim()).filter(Boolean);
     if (paths.some(p => !p.startsWith('/'))) return send(res, 400, { error: 'Disk paths must be absolute, like /mnt/user' });
+    const docker = String(g.dockerSocket || '').trim();
+    if (docker && !docker.startsWith('/') && !/^https?:\/\/[^\s]+$/i.test(docker)) return send(res, 400, { error: 'Docker needs a socket path like /var/run/docker.sock, or a socket proxy address like http://socket-proxy:2375' });
     const mapHome = String(g.mapHome || '').trim();
     if (mapHome && !geo.parseLatLon(mapHome)) return send(res, 400, { error: 'Home location must look like "41.88, -87.63" (latitude, longitude)' });
     const upload = g.uploadMbps === '' || g.uploadMbps == null ? null : Number(g.uploadMbps);
@@ -538,7 +636,7 @@ async function settingsApi(req, res, route) {
     const cleanupDays = Math.round(Number(g.cleanupDays || 365));
     if (!(cleanupDays >= 30 && cleanupDays <= 3650)) return send(res, 400, { error: 'Cleanup period should be between 30 and 3650 days' });
     config.update(c => ({
-      ...c, refreshSeconds: refresh, paths, docker: { socket: String(g.dockerSocket || '').trim() },
+      ...c, refreshSeconds: refresh, paths, docker: { socket: docker },
       map: { enabled: g.mapEnabled !== false, home: mapHome },
       uploadMbps: upload, cleanupDays, checkUpdates: g.checkUpdates !== false,
     }));
@@ -553,7 +651,7 @@ async function settingsApi(req, res, route) {
     if (next && String(next).length < 8) return send(res, 400, { error: 'Use at least 8 characters' });
     config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null, dashboardAuth: next ? c.dashboardAuth : false }));
     sessions.clear();
-    if (next) startSession(res);
+    if (next) startSession(req, res);
     return send(res, 200, { ok: true, authEnabled: !!next });
   }
 
@@ -573,8 +671,37 @@ function dashboardLocked(req, pathname) {
   return !loggedIn(req);
 }
 
+// Sent with every response. The pages load nothing from other sites and run no inline script,
+// so the policy can be strict: a value injected into the page can't run code, the pages can't
+// be framed by another site (clickjacking), and links don't leak the dashboard's address.
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+};
+
+// Static files are read once and kept in memory with an ETag, so a reload costs a 304. The
+// file's mtime is checked (at most every 2 s) so edits during development still show up.
+const statics = new Map(); // file -> { body, etag, mtime, checked }
+async function staticFile(file) {
+  let hit = statics.get(file);
+  if (hit && Date.now() - hit.checked < 2000) return hit;
+  const st = await fs.promises.stat(file);
+  if (!st.isFile()) throw Object.assign(new Error('Not found'), { code: 'ENOENT' });
+  if (hit && hit.mtime === st.mtimeMs) { hit.checked = Date.now(); return hit; }
+  const body = await fs.promises.readFile(file);
+  hit = { body, etag: `"${crypto.createHash('sha1').update(body).digest('base64url').slice(0, 20)}"`, mtime: st.mtimeMs, checked: Date.now() };
+  statics.set(file, hit);
+  return hit;
+}
+
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x');
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+  let url;
+  try { url = new URL(req.url, 'http://x'); } catch { return send(res, 400); }
   try {
     if (dashboardLocked(req, url.pathname)) {
       if (url.pathname.startsWith('/api/')) return send(res, 401, { error: 'Log in to view the dashboard', needLogin: true });
@@ -594,13 +721,15 @@ const server = http.createServer(async (req, res) => {
       return await settingsApi(req, res, url.pathname.slice('/api/settings'.length));
     }
 
+    if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405);
     const file = path.join(PUBLIC, path.normalize(PAGES[url.pathname] || url.pathname));
     if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403);
-    const data = await fs.promises.readFile(file);
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
-    res.end(data);
+    const f = await staticFile(file);
+    const headers = { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', ETag: f.etag, 'Cache-Control': 'no-cache' };
+    if (req.headers['if-none-match'] === f.etag) return res.writeHead(304, headers).end();
+    return reply(res, 200, headers, f.body);
   } catch (e) {
-    if (e.code === 'ENOENT') return res.writeHead(404).end('Not found');
+    if (e.code === 'ENOENT' || e.code === 'EISDIR' || e.code === 'ENOTDIR') return res.writeHead(404).end('Not found');
     if (e.status) return send(res, e.status, { error: e.message });
     console.error(e);
     send(res, 500, { error: 'Server error' });

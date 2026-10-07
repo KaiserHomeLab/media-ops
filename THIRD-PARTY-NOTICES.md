@@ -9,6 +9,7 @@ plain HTML, CSS and JavaScript.
 | Component | License | Source |
 |---|---|---|
 | World map land outlines (`public/world-map.js`), generated from Natural Earth 1:110m data | Public domain (Natural Earth); TopoJSON packaging ISC © 2013-2019 Michael Bostock | https://www.naturalearthdata.com/ · https://github.com/topojson/world-atlas |
+| Inter typeface (`public/fonts/InterVariable.woff2`), v4.1 by Rasmus Andersson and the Inter Project Authors | SIL Open Font License 1.1 (full text in `public/fonts/LICENSE-Inter.txt`) | https://github.com/rsms/inter |
 | Natural Earth projection formula (`public/map-projection.js`) | Published method (Šavrič, Jenny, Patterson & Jenny, 2011); same polynomial as d3-geo (ISC) | https://github.com/d3/d3-geo |
 
 `public/world-map.js` is generated from that data (pre-projected, split at the antimeridian).

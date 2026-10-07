@@ -692,12 +692,12 @@ async function settingsApi(req, res, route) {
 }
 
 // ------------------------------------------------------------- http
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 const PAGES = { '/': '/index.html', '/settings': '/settings.html' };
 
 // With "require login for the dashboard" on, only the login page (Settings) and what it needs
 // are reachable without a session.
-const ALWAYS_OPEN = new Set(['/healthz', '/settings', '/settings.html', '/settings.js', '/style.css', '/manifest.webmanifest', '/icon.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png']);
+const ALWAYS_OPEN = new Set(['/healthz', '/settings', '/settings.html', '/settings.js', '/style.css', '/manifest.webmanifest', '/icon.png', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/fonts/InterVariable.woff2']);
 function dashboardLocked(req, pathname) {
   const cfg = config.load();
   if (!cfg.dashboardAuth || !cfg.auth || ALWAYS_OPEN.has(pathname) || pathname.startsWith('/api/settings')) return false;

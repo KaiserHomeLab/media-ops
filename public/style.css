@@ -6,6 +6,16 @@
  * (TV, Movies, Music), and status colors (good/warning/serious/critical) are only
  * ever shown next to an icon or label, never as the only signal.
  */
+/* Inter (SIL Open Font License, public/fonts/LICENSE-Inter.txt), served from this app so the
+ * page works offline and loads nothing from other sites. One variable file covers every weight. */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
   --bg: #121211;
@@ -25,7 +35,7 @@
   --critical: #d03b3b;
   --track: #2e2e2b;
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
@@ -53,6 +63,8 @@ body {
   font: 14px/1.45 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
+/* Form controls don't inherit the page font by default. */
+input, select, textarea, button { font-family: inherit; }
 .num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 [hidden] { display: none !important; }
 

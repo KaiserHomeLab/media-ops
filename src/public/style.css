@@ -39,14 +39,14 @@
   --serious: #ec835a;
   --critical: #d03b3b;
   --track: #2e2e2b;
-  /* The stream map's joke: Asgard (gold star) and the rainbow Bifröst leading to it. */
+  /* The stream map's joke: Asgard (gold star) and the Bifröst, a beam of iridescent light. */
   --asgard: #f2c94c;
-  --bifrost-1: #ff5f5f;
-  --bifrost-2: #ff9d42;
-  --bifrost-3: #ffd84d;
-  --bifrost-4: #4fd17c;
-  --bifrost-5: #4aa8ff;
-  --bifrost-6: #a67cff;
+  --bifrost-1: #5ee7ff;
+  --bifrost-2: #7aa2ff;
+  --bifrost-3: #b47cff;
+  --bifrost-4: #ff7ad9;
+  --bifrost-5: #ffd36b;
+  --bifrost-core: #ffffff;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
   --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -69,12 +69,12 @@
     --series-3: #1baf7a;
     --track: #e7e6e1;
     --asgard: #b8860b;
-    --bifrost-1: #e03131;
-    --bifrost-2: #f08c00;
-    --bifrost-3: #e0b000;
-    --bifrost-4: #2f9e44;
-    --bifrost-5: #1c7ed6;
-    --bifrost-6: #7048e8;
+    --bifrost-1: #00a6c8;
+    --bifrost-2: #3d6bff;
+    --bifrost-3: #8a3ffc;
+    --bifrost-4: #e0399e;
+    --bifrost-5: #d99a00;
+    --bifrost-core: #ffffff;
   }
 }
 :root[data-theme='light'] {
@@ -93,12 +93,12 @@
   --series-3: #1baf7a;
   --track: #e7e6e1;
   --asgard: #b8860b;
-  --bifrost-1: #e03131;
-  --bifrost-2: #f08c00;
-  --bifrost-3: #e0b000;
-  --bifrost-4: #2f9e44;
-  --bifrost-5: #1c7ed6;
-  --bifrost-6: #7048e8;
+  --bifrost-1: #00a6c8;
+  --bifrost-2: #3d6bff;
+  --bifrost-3: #8a3ffc;
+  --bifrost-4: #e0399e;
+  --bifrost-5: #d99a00;
+  --bifrost-core: #ffffff;
 }
 
 /* Accent presets (Settings → Appearance). */
@@ -582,36 +582,85 @@ h3 {
   fill: transparent;
   cursor: pointer;
 }
-.map .bifrost .band {
+.map .bifrost {
+  pointer-events: none;
+}
+.bf-s1 {
+  stop-color: var(--bifrost-1);
+}
+.bf-s2 {
+  stop-color: var(--bifrost-2);
+}
+.bf-s3 {
+  stop-color: var(--bifrost-3);
+}
+.bf-s4 {
+  stop-color: var(--bifrost-4);
+}
+.bf-s5 {
+  stop-color: var(--bifrost-5);
+}
+.map .bf-haze,
+.map .bf-glow,
+.map .bf-beam,
+.map .bf-core,
+.map .bf-spark {
   fill: none;
   stroke-linecap: round;
+}
+.map .bf-haze {
+  opacity: 0.35;
+}
+.map .bf-glow {
+  opacity: 0.8;
+  animation: bf-pulse 2.4s ease-in-out infinite;
+}
+.map .bf-beam {
+  opacity: 0.85;
+}
+.map .bf-core {
+  stroke: var(--bifrost-core);
   opacity: 0.9;
 }
-.map .bifrost {
-  animation: shimmer 3s ease-in-out infinite;
+/* Sparks of light racing up the beam toward Asgard. */
+.map .bf-spark {
+  stroke: var(--bifrost-core);
+  stroke-dasharray: 1.2 9;
+  animation: bf-flow 1.3s linear infinite;
 }
-@keyframes shimmer {
+.map .bf-land-glow {
+  fill: var(--bifrost-1);
+  opacity: 0.6;
+  animation: bf-pulse 2.4s ease-in-out infinite;
+}
+/* The mark the Bifröst leaves where it lands: a ring of runes, slowly turning. */
+.map .bf-runes {
+  fill: none;
+  stroke: var(--bifrost-2);
+  stroke-dasharray: 4 1.5 1 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bf-turn 24s linear infinite;
+}
+.map .asgard-glow {
+  fill: var(--asgard);
+  opacity: 0.7;
+  animation: bf-pulse 2.4s ease-in-out infinite;
+}
+@keyframes bf-pulse {
   50% {
-    opacity: 0.65;
+    opacity: 0.3;
   }
 }
-.map .band.b1 {
-  stroke: var(--bifrost-1);
+@keyframes bf-flow {
+  to {
+    stroke-dashoffset: -10.2;
+  }
 }
-.map .band.b2 {
-  stroke: var(--bifrost-2);
-}
-.map .band.b3 {
-  stroke: var(--bifrost-3);
-}
-.map .band.b4 {
-  stroke: var(--bifrost-4);
-}
-.map .band.b5 {
-  stroke: var(--bifrost-5);
-}
-.map .band.b6 {
-  stroke: var(--bifrost-6);
+@keyframes bf-turn {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .map .asgard {
   fill: var(--asgard);
@@ -626,7 +675,7 @@ h3 {
 @media (prefers-reduced-motion: reduce) {
   .map .arc,
   .map .pulse,
-  .map .bifrost {
+  .map .bifrost * {
     animation: none;
   }
   .map .pulse {

@@ -79,11 +79,13 @@ test('stream map: a viewer without a location goes to Asgard, across the Bifrös
   const { page, problems } = await open('/');
   await page.waitForSelector('#map svg .asgard');
   const m = await page.evaluate(() => ({
-    bands: document.querySelectorAll('#map .bifrost .band').length,
+    beam: ['.bf-glow', '.bf-beam', '.bf-core', '.bf-spark', '.bf-runes'].every(c =>
+      document.querySelector(`#map .bifrost ${c}`),
+    ),
     label: [...document.querySelectorAll('#map .lbl.asgard')].map(e => e.textContent),
     row: [...document.querySelectorAll('#viewers li')].find(li => li.querySelector('.sw.asgard'))?.textContent,
   }));
-  assert.equal(m.bands, 6, 'six rainbow bands');
+  assert.ok(m.beam, 'the beam: glow, light, core, sparks and the landing mark');
   assert.deepEqual(m.label, ['Asgard']);
   assert.match(m.row || '', /Asgard · location unknown · Jellyfin\/Emby/, 'the list still says why');
   noProblems(problems);

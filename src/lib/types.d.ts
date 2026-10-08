@@ -91,6 +91,16 @@ export interface PollResult {
   [key: string]: any;
 }
 
+/** One library on a media server, as the Library card shows it. */
+export interface Library {
+  title: string;
+  type: string;
+  count: number | null;
+  episodes?: number | null;
+  albums?: number | null;
+  tracks?: number | null;
+}
+
 /** One app in a poll result (lib/poll.js runService): up with its data, or down with an error. */
 export interface Polled {
   id: string;

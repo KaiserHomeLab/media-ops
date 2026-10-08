@@ -8,7 +8,7 @@
 'use strict';
 const net = require('node:net');
 const { join, req, timed, cached } = require('../http');
-const { DAY, pad } = require('./shared');
+const { DAY, pad, list } = require('./shared');
 
 const TICKS_PER_MS = 10000; // durations and positions are in 100-nanosecond ticks
 
@@ -20,10 +20,12 @@ const AUTH = {
 };
 
 // The server's TranscodeReasons, in plain words (the codecs fill in where they're known).
+/** @param {unknown} reasons @param {{ video?: string, audio?: string, container?: string }} src @param {any} ti TranscodingInfo */
 function transcodeReason(reasons, src, ti) {
+  /** @param {unknown} s */
   const UP = s => String(s || '').toUpperCase();
   const why = [];
-  for (const r of reasons || []) {
+  for (const r of list(reasons)) {
     if (/^Subtitle/.test(r)) why.push('burning in subtitles');
     else if (r === 'VideoCodecNotSupported' || r === 'VideoProfileNotSupported' || r === 'VideoLevelNotSupported')
       why.push(
@@ -44,11 +46,14 @@ function transcodeReason(reasons, src, ti) {
   return [...new Set(why)].join(' · ') || null;
 }
 
+/** @param {number | undefined} height */
 const resolutionOf = height =>
   !height ? null : height >= 2000 ? '4k' : height >= 1000 ? '1080' : height >= 700 ? '720' : 'sd';
+/** @type {Record<string, string>} */
 const TYPE = { Episode: 'episode', Movie: 'movie', Audio: 'track', MusicVideo: 'clip', TvChannel: 'live' };
 
 // RemoteEndPoint is "1.2.3.4", "1.2.3.4:5678", "2001:db8::1" or "[2001:db8::1]:5678".
+/** @param {unknown} endpoint */
 function hostOf(endpoint) {
   const e = String(endpoint || '').trim();
   const bracketed = /^\[([^\]]+)\]/.exec(e);
@@ -57,17 +62,19 @@ function hostOf(endpoint) {
 }
 
 // Private and loopback addresses are on the home network.
+/** @param {string} ip */
 function isLocal(ip) {
   const a = String(ip || '').replace(/^::ffff:/, '');
   if (!net.isIP(a)) return false;
   return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1$|f[cd][0-9a-f]{2}:|fe80:)/i.test(a);
 }
 
+/** @param {any} s a session from /Sessions */
 function mapSession(s) {
   const it = s.NowPlayingItem;
   const ps = s.PlayState || {};
   const ti = s.TranscodingInfo || null;
-  const streams = it.MediaStreams || [];
+  const streams = list(it.MediaStreams);
   const video = streams.find(x => x.Type === 'Video');
   const audio = streams.find(x => x.Type === 'Audio' && x.IsDefault) || streams.find(x => x.Type === 'Audio');
   const transcoding = ps.PlayMethod === 'Transcode' && ti;
@@ -122,17 +129,23 @@ function mapSession(s) {
   };
 }
 
+/** @type {Record<string, string>} */
 const LIB_TYPE = { movies: 'movie', tvshows: 'show', music: 'artist', homevideos: 'photo', photos: 'photo' };
 
+/** @param {'jellyfin' | 'emby'} kind */
 function collector(kind) {
+  /** @param {import('../types').Service} cfg */
   return async function mediaServer(cfg) {
-    const headers = AUTH[kind](cfg.apiKey);
+    const headers = AUTH[kind](cfg.apiKey || '');
+    /** @param {string} p */
     const api = p => req(join(cfg.url, p), { headers });
     const [info, latency] = await timed(() => api('/System/Info'));
 
     // Library-wide item queries need no user with an API key (Jellyfin 10.9+, Emby 4.7+). On
     // older versions the counts and "recently added" stay empty; streams still work.
+    /** @param {string} query */
     const items = query => api(`/Items?${query}`);
+    /** @param {string} parent @param {string} types */
     const count = (parent, types) =>
       items(`ParentId=${encodeURIComponent(parent)}&Recursive=true&IncludeItemTypes=${types}&Limit=0`)
         .then(r => r?.TotalRecordCount ?? 0)
@@ -141,11 +154,12 @@ function collector(kind) {
     const [sessions, libraries, recent] = await Promise.all([
       api('/Sessions?ActiveWithinSeconds=600'),
       cached(`${kind}-libs:${cfg.url}`, 5 * 60e3, async () => {
-        const folders = (await api('/Library/VirtualFolders').catch(() => [])) || [];
+        const folders = list(await api('/Library/VirtualFolders').catch(() => []));
         return Promise.all(
           folders.map(async f => {
             const type = LIB_TYPE[f.CollectionType] || 'other';
             const id = f.ItemId;
+            /** @type {import('../types').Library} */
             const lib = { title: f.Name, type, count: null };
             if (type === 'movie') lib.count = await count(id, 'Movie');
             else if (type === 'show')
@@ -168,8 +182,10 @@ function collector(kind) {
       ),
     ]);
 
-    const streams = (sessions || []).filter(s => s.NowPlayingItem).map(mapSession);
-    const recentlyAdded = (recent?.Items || [])
+    const streams = list(sessions)
+      .filter(s => s.NowPlayingItem)
+      .map(mapSession);
+    const recentlyAdded = list(recent?.Items)
       .map(m => {
         const type = m.Type === 'Episode' ? 'episode' : m.Type === 'MusicAlbum' ? 'album' : 'movie';
         return {

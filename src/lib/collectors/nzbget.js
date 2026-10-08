@@ -4,9 +4,11 @@
 // NZBGet: queue, speed, failed downloads and log warnings, over its JSON-RPC API.
 'use strict';
 const { basicAuth, join, req, timed, cached } = require('../http');
+const { list } = require('./shared');
 
 const MB = 1048576;
 // History status is "RESULT/DETAIL", e.g. "FAILURE/UNPACK". Plain words for the failures.
+/** @type {Record<string, string>} */
 const FAILURES = {
   PAR: 'repair failed',
   UNPACK: 'unpack failed',
@@ -17,7 +19,9 @@ const FAILURES = {
   FETCH: 'could not fetch the NZB',
 };
 
+/** @param {import('../types').Service} cfg */
 async function nzbget(cfg) {
+  /** @param {string} method @param {unknown[]} [params] */
   const rpc = (method, params = []) =>
     req(join(cfg.url, '/jsonrpc'), {
       method: 'POST',
@@ -38,7 +42,7 @@ async function nzbget(cfg) {
 
   const rate = Number(status.DownloadRate) || 0;
   const paused = !!(status.DownloadPaused || status.Download2Paused);
-  const items = (groups || []).map(g => {
+  const items = list(groups).map(g => {
     const size = (g.FileSizeMB || 0) * MB;
     const left = (g.RemainingSizeMB || 0) * MB;
     return {
@@ -50,7 +54,7 @@ async function nzbget(cfg) {
     };
   });
 
-  const failed = (history || [])
+  const failed = list(history)
     .filter(h => String(h.Status).startsWith('FAILURE'))
     .sort((a, b) => b.HistoryTime - a.HistoryTime)
     .slice(0, 15)
@@ -66,7 +70,7 @@ async function nzbget(cfg) {
           null,
       };
     });
-  const warnings = (log || [])
+  const warnings = list(log)
     .filter(l => l.Kind === 'ERROR' || l.Kind === 'WARNING')
     .map(l => ({
       time: l.Time * 1000,

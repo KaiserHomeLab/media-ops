@@ -5,17 +5,22 @@
 // the helpers at the top: queue, logs, health, library lists, imports and update checks.
 'use strict';
 const { join, req, timed, cached, background } = require('../http');
-const { DAY, MINUTE, isoDate, pad, sum, normLevel, UPDATE_TTL } = require('./shared');
+const { DAY, MINUTE, isoDate, pad, sum, normLevel, UPDATE_TTL, list } = require('./shared');
+
+/** @typedef {(path: string, opts?: import('../types').ReqOptions) => Promise<any>} ArrApi */
 
 // *arr REST client: Sonarr/Radarr use API v3, Lidarr/Readarr/Prowlarr use v1.
+/** @param {import('../types').Service} cfg @param {string} ver @returns {ArrApi} */
 function arrApi(cfg, ver) {
-  return (p, opts = {}) => req(join(cfg.url, `/api/${ver}${p}`), { headers: { 'X-Api-Key': cfg.apiKey }, ...opts });
+  return (p, opts = {}) =>
+    req(join(cfg.url, `/api/${ver}${p}`), { headers: { 'X-Api-Key': cfg.apiKey || '' }, ...opts });
 }
 
 // Normalise a page of an *arr queue. `label` builds a readable title from the series/movie/
 // album the queue call was asked to include; otherwise we fall back to the release name.
+/** @param {any} q a queue page @param {(r: any) => string | null} label */
 const mapQueue = (q, label) =>
-  (q.records || []).map(r => ({
+  list(q.records).map(r => ({
     id: r.id,
     title: label(r) || r.title,
     size: r.size,
@@ -27,27 +32,29 @@ const mapQueue = (q, label) =>
     protocol: r.protocol,
     client: r.downloadClient,
     messages: [
-      ...(r.statusMessages || []).flatMap(m => (m.messages?.length ? m.messages : [m.title])),
+      ...list(r.statusMessages).flatMap(m => (m.messages?.length ? m.messages : [m.title])),
       r.errorMessage,
     ].filter(Boolean),
   }));
 
 // Recent imports (history event 3 = "download folder imported" in both Sonarr and Radarr).
+/** @param {import('../types').Service} cfg @param {ArrApi} api @param {string} include @param {(x: any) => string} label */
 function arrImports(cfg, api, include, label) {
   return cached(`imports:${cfg.url}`, 2 * 60e3, async () => {
     const r = await api(
       `/history?page=1&pageSize=25&sortKey=date&sortDirection=descending&eventType=3&${include}`,
     ).catch(() => null);
-    return (r?.records || []).map(x => ({ time: x.date, title: label(x), quality: x.quality?.quality?.name || null }));
+    return list(r?.records).map(x => ({ time: x.date, title: label(x), quality: x.quality?.quality?.name || null }));
   });
 }
 
 // Recent warnings/errors from an *arr's own log (System → Logs in the UI).
 // v4+ honours `level=warn` (warn and above); older builds ignore it, so filter here too.
+/** @param {import('../types').Service} cfg @param {ArrApi} api */
 async function arrLogs(cfg, api) {
   return cached(`logs:${cfg.url}`, 60e3, async () => {
     const r = await api('/log?page=1&pageSize=50&sortKey=time&sortDirection=descending&level=warn').catch(() => null);
-    return (r?.records || [])
+    return list(r?.records)
       .filter(x => normLevel(x.level))
       .map(x => ({
         time: x.time,
@@ -60,6 +67,7 @@ async function arrLogs(cfg, api) {
 }
 
 // Queue items stuck with warnings (failed import, sample, no match…) are as important as log errors.
+/** @param {ReturnType<typeof mapQueue>} queue */
 const queueEvents = queue =>
   queue
     .filter(q => q.warning)
@@ -73,20 +81,24 @@ const queueEvents = queue =>
       queueId: q.id,
     }));
 
-const mapHealth = h => h.map(x => ({ type: x.type, message: x.message }));
+/** @param {unknown} h */
+const mapHealth = h => list(h).map(x => ({ type: x.type, message: x.message }));
 
 // Whole-library lists (every series / movie / artist) are big: 1.4 MB and 2.5 s for a large
 // Sonarr. They only feed the totals, which barely move, so keep a slim copy for a few minutes
 // instead of refetching them on every refresh. The calendar is cached the same way.
 const LIBRARY_TTL = 5 * 60e3;
+/** @param {any} o @param {...string} keys */
 const pick = (o, ...keys) => Object.fromEntries(keys.map(k => [k, o?.[k]]));
+/** @param {import('../types').Service} cfg @param {() => Promise<unknown>} fetch @param {(x: any) => object} slim @returns {Promise<any[]>} */
 const libraryList = (cfg, fetch, slim) =>
-  cached(`library:${cfg.url}`, LIBRARY_TTL, async () => (await fetch()).map(slim));
+  cached(`library:${cfg.url}`, LIBRARY_TTL, async () => list(await fetch()).map(slim));
 
 // Per-title sizes for "What's using space" (server-side only: lib/space.js reads these
 // underscore fields and server.js strips them before anything goes to the browser).
-const spaceItems = (list, kind, title = x => x.title) =>
-  list.map(x => ({
+/** @param {any[]} titles @param {string} kind @param {(x: any) => string} [title] */
+const spaceItems = (titles, kind, title = x => x.title) =>
+  titles.map(x => ({
     kind,
     id: x.id,
     title: title(x),
@@ -98,6 +110,7 @@ const spaceItems = (list, kind, title = x => x.title) =>
 // Everything imported in the last 30 days, summed per series / movie. Refreshed hourly in the
 // background: on a big Sonarr this is a 1-2 MB reply that takes 10+ seconds.
 const IMPORTED = new Set([3, 'downloadFolderImported']);
+/** @param {import('../types').Service} cfg @param {ArrApi} api @param {string} idKey */
 const downloaded30 = (cfg, api, idKey) =>
   background(`dl30:${cfg.url}`, 60 * 60e3, async () => {
     const since = new Date(Date.now() - 30 * DAY).toISOString();
@@ -116,13 +129,15 @@ const downloaded30 = (cfg, api, idKey) =>
   });
 
 // Newest release the app knows about, if it isn't the one installed (checked every 6 hours).
+/** @param {import('../types').Service} cfg @param {ArrApi} api @param {string} current */
 const arrUpdate = (cfg, api, current) =>
   background(`update:${cfg.url}`, UPDATE_TTL, async () => {
-    const list = await api('/update');
-    const latest = Array.isArray(list) ? list.find(u => u.latest) || list[0] : null;
+    const updates = await api('/update');
+    const latest = Array.isArray(updates) ? updates.find(u => u.latest) || updates[0] : null;
     return latest?.version && !latest.installed && latest.version !== current ? { version: latest.version } : null;
   });
 
+/** @param {import('../types').Service} cfg */
 async function sonarr(cfg) {
   const api = arrApi(cfg, 'v3');
   const [status, latency] = await timed(() => api('/system/status'));
@@ -154,7 +169,7 @@ async function sonarr(cfg) {
       x.series ? `${x.series.title} S${pad(x.episode?.seasonNumber)}E${pad(x.episode?.episodeNumber)}` : x.sourceTitle,
     ),
   ]);
-  const st = s => s.statistics || {};
+  const st = (/** @type {any} */ s) => s.statistics || {};
   const q = mapQueue(queue, r =>
     r.series ? `${r.series.title} S${pad(r.episode?.seasonNumber)}E${pad(r.episode?.episodeNumber)}` : null,
   );
@@ -178,7 +193,7 @@ async function sonarr(cfg) {
       events: [...queueEvents(q), ...logs],
       imports,
       disks,
-      upcoming: cal.map(e => ({
+      upcoming: list(cal).map(e => ({
         kind: 'tv',
         title: e.series?.title || 'Unknown series',
         sub: `S${pad(e.seasonNumber)}E${pad(e.episodeNumber)} · ${e.title}`,
@@ -190,6 +205,7 @@ async function sonarr(cfg) {
 }
 
 // ---------------------------------------------------------------- Radarr
+/** @param {import('../types').Service} cfg */
 async function radarr(cfg) {
   const api = arrApi(cfg, 'v3');
   const [status, latency] = await timed(() => api('/system/status'));
@@ -216,7 +232,7 @@ async function radarr(cfg) {
     arrLogs(cfg, api),
     arrImports(cfg, api, 'includeMovie=true', x => (x.movie ? `${x.movie.title} (${x.movie.year})` : x.sourceTitle)),
   ]);
-  const releaseDate = m => m.digitalRelease || m.physicalRelease || m.inCinemas;
+  const releaseDate = (/** @type {any} */ m) => m.digitalRelease || m.physicalRelease || m.inCinemas;
   const q = mapQueue(queue, r => (r.movie ? `${r.movie.title} (${r.movie.year})` : null));
   return {
     version: status.version,
@@ -237,7 +253,7 @@ async function radarr(cfg) {
       events: [...queueEvents(q), ...logs],
       imports,
       disks,
-      upcoming: cal
+      upcoming: list(cal)
         .filter(m => releaseDate(m))
         .map(m => ({
           kind: 'movie',
@@ -251,6 +267,7 @@ async function radarr(cfg) {
 }
 
 // ---------------------------------------------------------------- Lidarr
+/** @param {import('../types').Service} cfg */
 async function lidarr(cfg) {
   const api = arrApi(cfg, 'v1');
   const [status, latency] = await timed(() => api('/system/status'));
@@ -276,7 +293,7 @@ async function lidarr(cfg) {
     ),
     arrLogs(cfg, api),
   ]);
-  const st = a => a.statistics || {};
+  const st = (/** @type {any} */ a) => a.statistics || {};
   const q = mapQueue(queue, r => (r.artist && r.album ? `${r.artist.artistName} — ${r.album.title}` : null));
   return {
     version: status.version,
@@ -295,7 +312,7 @@ async function lidarr(cfg) {
       health: mapHealth(health),
       events: [...queueEvents(q), ...logs],
       disks,
-      upcoming: cal.map(a => ({
+      upcoming: list(cal).map(a => ({
         kind: 'music',
         title: a.artist?.artistName || 'Unknown artist',
         sub: a.title,
@@ -307,6 +324,7 @@ async function lidarr(cfg) {
 }
 
 // ---------------------------------------------------------------- Readarr
+/** @param {import('../types').Service} cfg */
 async function readarr(cfg) {
   const api = arrApi(cfg, 'v1');
   const [status, latency] = await timed(() => api('/system/status'));
@@ -322,7 +340,7 @@ async function readarr(cfg) {
     cached(`diskspace:${cfg.url}`, MINUTE, () => api('/diskspace')),
     arrLogs(cfg, api),
   ]);
-  const st = a => a.statistics || {};
+  const st = (/** @type {any} */ a) => a.statistics || {};
   const q = mapQueue(queue, r => (r.author && r.book ? `${r.author.authorName} — ${r.book.title}` : null));
   return {
     version: status.version,
@@ -345,27 +363,31 @@ async function readarr(cfg) {
 }
 
 // ---------------------------------------------------------------- Prowlarr
+/** @param {import('../types').Service} cfg */
 async function prowlarr(cfg) {
   const api = arrApi(cfg, 'v1');
   const [status, latency] = await timed(() => api('/system/status'));
   const [indexers, statuses, health, stats, logs] = await Promise.all([
-    cached(`indexers:${cfg.url}`, MINUTE, () => api('/indexer')),
-    api('/indexerstatus'),
+    cached(`indexers:${cfg.url}`, MINUTE, () => api('/indexer')).then(list),
+    api('/indexerstatus').then(list),
     api('/health'),
     cached(`prowlarr-stats:${cfg.url}`, 5 * 60e3, () => api('/indexerstats').catch(() => null)),
     arrLogs(cfg, api),
   ]);
-  const idx = stats?.indexers || [];
+  const idx = list(stats?.indexers);
 
   // API limits, counted the way Prowlarr enforces them: queries (searches + RSS) and grabs over
   // a rolling day, or a rolling hour when the indexer's limit unit is "Hour".
-  const field = (i, name) => i.fields?.find(f => f.name === name)?.value;
+  /** @param {any} i @param {string} name */
+  const field = (i, name) => list(i.fields).find(f => f.name === name)?.value;
+  /** @param {any} i */
   const hourly = i => field(i, 'baseSettings.limitsUnit') === 1;
   const enabled = indexers.filter(i => i.enable);
+  /** @param {number} hours @returns {Promise<any[]>} */
   const usage = hours =>
     cached(`prowlarr-${hours}h:${cfg.url}`, 2 * 60e3, () =>
       api(`/indexerstats?startDate=${encodeURIComponent(new Date(Date.now() - hours * 3600e3).toISOString())}`)
-        .then(r => r.indexers || [])
+        .then(r => list(r?.indexers))
         .catch(() => []),
     );
   const [day, hour] = await Promise.all([usage(24), enabled.some(hourly) ? usage(1) : []]);

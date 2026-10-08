@@ -4,6 +4,7 @@
 // Unraid (official GraphQL API): array, parity check and disks.
 'use strict';
 const { join, req, timed } = require('../http');
+const { list } = require('./shared');
 
 // Unraid 7.2+ (or the Unraid Connect plugin): POST /graphql with an API key from
 // Settings → Management Access → API Keys. A read-only "viewer" key is enough.
@@ -18,6 +19,7 @@ const UNRAID_QUERY = `query MediaOps {
     caches { name status temp numErrors warning critical isSpinning size fsSize fsFree fsUsed rotational }
   }
 }`;
+/** @type {Record<string, string>} */
 const DISK_PROBLEM = {
   DISK_DSBL: 'is disabled',
   DISK_NP_DSBL: 'is disabled and missing',
@@ -26,20 +28,23 @@ const DISK_PROBLEM = {
   DISK_WRONG: 'is the wrong disk',
   DISK_DSBL_NEW: 'is disabled (new disk)',
 };
+/** @param {import('../types').Service} cfg */
 async function unraid(cfg) {
   const [r, latency] = await timed(() =>
     req(join(cfg.url, '/graphql'), {
       method: 'POST',
-      headers: { 'x-api-key': cfg.apiKey, 'Content-Type': 'application/json' },
+      headers: { 'x-api-key': cfg.apiKey || '', 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: UNRAID_QUERY }),
     }),
   );
   if (!r.data?.array) throw new Error(r.errors?.[0]?.message || 'Unraid API returned no array data');
   const a = r.data.array;
+  /** @param {unknown} v */
   const kb = v => Number(v || 0) * 1024;
   // Sizes are in KiB. `warning`/`critical` are Unraid's disk-*utilization* thresholds (% full);
   // the API has no temperature thresholds, so use Unraid's defaults: 45/55 °C for hard
   // drives, 60/70 °C for SSDs (which run hotter).
+  /** @param {string} role @returns {(d: any) => any} */
   const disk = role => d => {
     const ssd = d.rotational === false;
     return {
@@ -59,14 +64,16 @@ async function unraid(cfg) {
     };
   };
   const disks = [
-    ...(a.parities || []).map(disk('parity')),
-    ...(a.disks || []).map(disk('data')),
-    ...(a.caches || []).map(disk('cache')),
+    ...list(a.parities).map(disk('parity')),
+    ...list(a.disks).map(disk('data')),
+    ...list(a.caches).map(disk('cache')),
   ];
 
   // Problems become errors-feed events (and notifications). Messages stay stable so a
   // fluctuating temperature doesn't look like a new problem every poll.
+  /** @type {any[]} */
   const events = [];
+  /** @param {string} level @param {string} message @param {string} [detail] */
   const ev = (level, message, detail) =>
     events.push({
       time: new Date().toISOString(),

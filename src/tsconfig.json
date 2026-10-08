@@ -1,13 +1,11 @@
 {
   // Type checking only (npm run typecheck): the code stays plain JavaScript with JSDoc types,
-  // nothing is compiled. Being turned on gradually; see .github/CONTRIBUTING.md → Types.
+  // nothing is compiled. See .github/CONTRIBUTING.md → Types.
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
-    "strict": true,
-    // Next step: add JSDoc types to every parameter, then turn this on.
-    "noImplicitAny": false,
+    "strict": true, // includes noImplicitAny: every parameter has a JSDoc type
     // Everything we catch is an Error (from our code, fetch or Node), so `e.message` is safe.
     "useUnknownInCatchVariables": false,
     "module": "nodenext",

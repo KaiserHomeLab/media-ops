@@ -2,7 +2,7 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // The stream map: viewers on a world map with a line back to the server. Viewers it can't
-// place go to Asgard, up in the sky, across a rainbow Bifröst (Settings can turn the joke off).
+// place go to Asgard, up in the sky, down the beam of the Bifröst (Settings can turn the joke off).
 import { $, closest, esc, mbps, placeTip, rollUp, setHTML, tip } from './util.js';
 
 // --------------------------------------------------------------------- stream map
@@ -126,30 +126,49 @@ export function renderMap(src) {
   let svg = `<svg viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}" role="img" aria-label="World map: ${remote.length} remote and ${atHome.length} local streams${unknown.length ? `, ${unknown.length} without a location` : ''}">`;
   svg += `<path class="grat" d="${MAP_GRATICULE}"/><path class="land" d="${land}"/>`;
 
-  // Asgard: high in the sky of whatever part of the world is in view, a little east of home.
+  // Asgard: high in the sky of whatever part of the world is in view, straight above home.
   const asgard =
     src.asgard && unknown.length
       ? {
-          x: Math.min(vx + vw * 0.88, Math.max(vx + vw * 0.12, hp ? hp[0] + vw * 0.14 : vx + vw / 2)),
-          y: vy + vh * 0.1,
+          x: Math.min(vx + vw * 0.9, Math.max(vx + vw * 0.1, hp ? hp[0] : vx + vw / 2)),
+          y: vy + vh * 0.08,
           r: 7 * k,
         }
       : null;
-  // The Bifröst: six rainbow bands from home up to Asgard, bowed to one side.
-  if (asgard && hp) {
-    const [x1, y1] = hp,
-      { x: x2, y: y2 } = asgard;
-    const dist = Math.hypot(x2 - x1, y2 - y1) || 1;
-    const nx = -(y2 - y1) / dist,
-      ny = (x2 - x1) / dist; // unit normal
-    const cx = (x1 + x2) / 2 + nx * dist * 0.3,
-      cy = (y1 + y2) / 2 + ny * dist * 0.3;
-    let bands = '';
-    for (let i = 0; i < 6; i++) {
-      const o = (i - 2.5) * 2.2 * k;
-      bands += `<path class="band b${i + 1}" style="stroke-width:${f(2.6 * k)}" d="M${f(x1 + nx * o)} ${f(y1 + ny * o)}Q${f(cx + nx * o)} ${f(cy + ny * o)} ${f(x2 + nx * o)} ${f(y2 + ny * o)}"/>`;
+  // The Bifröst: a beam of light from Asgard down to the server. Layers, back to front: a blurred
+  // iridescent glow, the beam, a white-hot core, and sparks racing up it; where it lands, a
+  // glowing ring with turning runes. Blur and gradient use map coordinates (userSpaceOnUse)
+  // because a vertical line's bounding box has no width.
+  if (asgard) {
+    const [x1, y1] = hp || [asgard.x, asgard.y];
+    const { x: x2, y: y2 } = asgard;
+    const m = 100 * k; // room for the blur
+    const fx = Math.min(x1, x2) - m,
+      fy = Math.min(y1, y2) - m;
+    svg += `<defs>
+      <linearGradient id="bifrost-grad" gradientUnits="userSpaceOnUse" x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}">
+        <stop offset="0" class="bf-s1"/><stop offset="0.3" class="bf-s2"/><stop offset="0.55" class="bf-s3"/><stop offset="0.8" class="bf-s4"/><stop offset="1" class="bf-s5"/>
+      </linearGradient>
+      <filter id="bifrost-blur" filterUnits="userSpaceOnUse" x="${f(fx)}" y="${f(fy)}" width="${f(Math.abs(x2 - x1) + 2 * m)}" height="${f(Math.abs(y2 - y1) + 2 * m)}">
+        <feGaussianBlur stdDeviation="${f(4 * k)}"/>
+      </filter>
+      <filter id="bifrost-haze" filterUnits="userSpaceOnUse" x="${f(fx)}" y="${f(fy)}" width="${f(Math.abs(x2 - x1) + 2 * m)}" height="${f(Math.abs(y2 - y1) + 2 * m)}">
+        <feGaussianBlur stdDeviation="${f(12 * k)}"/>
+      </filter>
+    </defs>`;
+    let beam = '';
+    if (hp) {
+      const d = `M${f(x1)} ${f(y1)}L${f(x2)} ${f(y2)}`;
+      beam =
+        `<circle class="bf-land-glow" cx="${f(x1)}" cy="${f(y1)}" r="${f(18 * k)}" filter="url(#bifrost-haze)"/>` +
+        `<circle class="bf-runes" cx="${f(x1)}" cy="${f(y1)}" r="${f(12 * k)}" pathLength="100" style="stroke-width:${f(1.6 * k)}"/>` +
+        `<path class="bf-haze" d="${d}" stroke="url(#bifrost-grad)" style="stroke-width:${f(40 * k)}" filter="url(#bifrost-haze)"/>` +
+        `<path class="bf-glow" d="${d}" stroke="url(#bifrost-grad)" style="stroke-width:${f(16 * k)}" filter="url(#bifrost-blur)"/>` +
+        `<path class="bf-beam" d="${d}" stroke="url(#bifrost-grad)" style="stroke-width:${f(5 * k)}"/>` +
+        `<path class="bf-core" d="${d}" style="stroke-width:${f(1.5 * k)}"/>` +
+        `<path class="bf-spark" d="${d}" pathLength="100" style="stroke-width:${f(2.4 * k)}"/>`;
     }
-    svg += `<g class="bifrost">${bands}</g>`;
+    svg += `<g class="bifrost">${beam}<circle class="asgard-glow" cx="${f(x2)}" cy="${f(y2)}" r="${f(16 * k)}" filter="url(#bifrost-haze)"/></g>`;
   }
 
   // Arcs from the server to each viewer, bowed toward the pole so they read as flight paths.

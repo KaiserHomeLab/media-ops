@@ -191,6 +191,7 @@ function renderApps() {
     $('detected').innerHTML =
       `<span>Media Ops is running on <b>${esc(os.label)}</b>. Add it to see ${os.kind === 'truenas' ? 'pools, disks, apps and alerts' : 'the array, parity checks and disks'} on the dashboard.</span>
     <button class="btn small primary" type="button" data-add-kind="${esc(os.kind)}">Add ${esc(os.label)}</button>`;
+  renderStatusPage(); // its list of apps follows this one
 }
 $('detected').addEventListener('click', e => {
   const b = e.target.closest('[data-add-kind]');
@@ -807,6 +808,54 @@ $('general-form').addEventListener('submit', async e => {
     flash($('general-saved'));
   } catch (err) {
     showError($('general-error'), err.message);
+  }
+});
+
+// --------------------------------------------------------------------- public status page
+function renderStatusPage() {
+  const f = $('status-form');
+  const sp = S.statusPage;
+  f.enabled.checked = sp.enabled;
+  f.title.value = sp.title;
+  f.notice.value = sp.notice;
+  const chosen = new Set(sp.services);
+  setStatusLink(sp.enabled);
+  $('status-apps').innerHTML =
+    '<legend>Apps to show</legend>' +
+    (S.services.length
+      ? S.services
+          .map(
+            s =>
+              `<label class="check"><input type="checkbox" name="svc" value="${esc(s.id)}" ${chosen.has(s.id) ? 'checked' : ''}><span>${esc(s.name)}</span></label>`,
+          )
+          .join('')
+      : '<p class="hint">Add your apps first.</p>');
+}
+function setStatusLink(on) {
+  const link = `${location.origin}/status`;
+  $('status-link').innerHTML = on
+    ? `Share this link: <a href="/status" target="_blank" rel="noopener">${esc(link)}</a>`
+    : 'Off: /status answers "not found".';
+}
+$('status-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  showError($('status-error'), '');
+  try {
+    const r = await api('/status-page', {
+      method: 'PUT',
+      body: {
+        enabled: f.enabled.checked,
+        title: f.title.value,
+        notice: f.notice.value,
+        services: [...f.querySelectorAll('input[name="svc"]:checked')].map(i => i.value),
+      },
+    });
+    S.statusPage = r.statusPage;
+    setStatusLink(r.statusPage.enabled);
+    flash($('status-saved'));
+  } catch (err) {
+    showError($('status-error'), err.message);
   }
 });
 

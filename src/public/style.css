@@ -2887,3 +2887,112 @@ body.tv .rq-acts {
 .nudge > span {
   flex: 1 1 320px;
 }
+
+/* ================================================================== public status page (/status) */
+.stp {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 16px 32px;
+}
+.stp-head h1 {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+}
+.stp-overall {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+}
+.stp-overall::before {
+  content: '●';
+  margin-right: 8px;
+}
+.stp-overall[data-state='up']::before {
+  color: var(--good);
+}
+.stp-overall[data-state='down']::before {
+  color: var(--critical);
+}
+.stp-overall[data-state='checking']::before {
+  color: var(--text-muted);
+}
+.stp-notice {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line));
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface-1));
+  white-space: pre-line;
+}
+.stp-list {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.stp-row {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+}
+.stp-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stp-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex: none;
+}
+.stp-row.is-up .stp-dot {
+  background: var(--good);
+}
+.stp-row.is-down .stp-dot {
+  background: var(--critical);
+}
+.stp-name {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.stp-state {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.stp-row.is-down .stp-state {
+  color: var(--critical);
+  font-weight: 600;
+}
+.stp-bar {
+  margin-top: 12px;
+  height: 22px;
+}
+.stp-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font: 11px var(--mono);
+  color: var(--text-muted);
+}
+.stp-pct {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.stp-foot {
+  margin: 18px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}

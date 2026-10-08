@@ -61,6 +61,13 @@ always fits on one screen. Open `http://<your-server>:8484/?tv=1` to go straight
 
 ![TV mode](docs/screenshots/tv-mode.png)
 
+## A status page for the people you share with
+
+Turn on **Settings → Status page** and share `http://<your-server>:8484/status` with the people
+who use your Plex. They can check whether it's up, and see its uptime for the last day, without
+asking you. You pick which apps it lists and can add a notice like "down for maintenance
+tonight". It shows nothing else: no addresses, versions or errors.
+
 ## On your phone
 
 The dashboard works on a phone too, and you can add it to your home screen like an app.

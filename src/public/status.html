@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT · Copyright (c) 2026 KaiserHomeLab · Public status page: whether each app is up. Filled in by js/status.js. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Server status</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230ca30c'/><circle cx='16' cy='16' r='6' fill='%23fff'/></svg>">
+  <meta name="theme-color" content="#121211">
+  <meta name="robots" content="noindex">
+  <link rel="preload" href="fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="status-page">
+  <main class="stp">
+    <header class="stp-head">
+      <h1 id="stp-title">Server status</h1>
+      <p class="stp-overall" id="stp-overall" role="status" data-state="checking">Checking…</p>
+    </header>
+    <p class="stp-notice" id="stp-notice" hidden></p>
+    <ul class="stp-list" id="stp-list" aria-label="Services"></ul>
+    <p class="stp-foot" id="stp-foot"></p>
+  </main>
+  <script type="module" src="js/status.js"></script>
+</body>
+</html>

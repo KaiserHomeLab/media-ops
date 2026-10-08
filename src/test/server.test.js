@@ -186,6 +186,52 @@ test('dashboard login: locked dashboard redirects and refuses data until logged 
   assert.equal((await fetch(`${base}/api/overview`)).status, 200);
 });
 
+test('status page: off by default; when on, only the chosen apps and their uptime, even with the dashboard locked', async () => {
+  for (const p of ['/status', '/api/status'])
+    assert.equal((await fetch(base + p)).status, 404, `${p} is off by default`);
+  const settings = await (await fetch(`${base}/api/settings`)).json();
+  const router = settings.services.find(x => x.name === 'Router');
+  const hidden = await (
+    await json('POST', '/api/settings/services', { kind: 'ping', name: 'Hidden box', url: 'http://192.0.2.7' })
+  ).json();
+  let r = await json('PUT', '/api/settings/status-page', { enabled: true, title: 'x'.repeat(81), services: [] });
+  assert.equal(r.status, 400, 'title length is checked');
+  r = await json('PUT', '/api/settings/status-page', {
+    enabled: true,
+    title: 'Our server',
+    notice: 'Back soon',
+    services: [router.id, 'not-an-app', router.id],
+  });
+  assert.deepEqual((await r.json()).statusPage.services, [router.id], 'unknown and repeated ids dropped');
+
+  const st = await (await fetch(`${base}/api/status`)).json();
+  assert.equal(st.title, 'Our server');
+  assert.equal(st.notice, 'Back soon');
+  assert.deepEqual(
+    st.services.map(x => Object.keys(x).sort()),
+    [['cells', 'day', 'name', 'up', 'week']],
+    'only the name, up/down and uptime',
+  );
+  assert.equal(st.services[0].name, 'Router');
+  assert.doesNotMatch(JSON.stringify(st), /192\.0\.2|Hidden box|ping/, 'no addresses, kinds or other apps');
+  r = await fetch(`${base}/status`);
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /js\/status\.js/);
+
+  r = await json('PUT', '/api/settings/password', { next: 'status-page-pw' });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  await json('PUT', '/api/settings/security', { dashboardAuth: true }, { Cookie: cookie });
+  assert.equal((await fetch(`${base}/api/overview`)).status, 401, 'dashboard locked');
+  for (const p of ['/status', '/api/status', '/js/status.js'])
+    assert.equal((await fetch(base + p, { redirect: 'manual' })).status, 200, `${p} stays open`);
+  assert.equal((await fetch(`${base}/js/main.js`, { redirect: 'manual' })).status, 302, 'the dashboard code does not');
+
+  await json('PUT', '/api/settings/status-page', { enabled: false }, { Cookie: cookie });
+  assert.equal((await fetch(`${base}/status`)).status, 404, 'off again');
+  await json('DELETE', `/api/settings/services/${hidden.id}`, undefined, { Cookie: cookie });
+  await json('PUT', '/api/settings/password', { current: 'status-page-pw', next: '' }, { Cookie: cookie });
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

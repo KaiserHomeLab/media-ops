@@ -30,6 +30,11 @@ there as soon as I can.
   a download) need the settings login when a password is set. Re-check only reads, so it's open,
   but limited to once per 15 seconds per app. IDs sent from the browser must be whole numbers
   before they go into an app's address.
+- The public status page (`/status`) is off until you turn it on. It's reachable without a
+  login, even when the dashboard needs one, so it only ever shows the apps you pick, by the
+  name you gave them, whether each is up, and its uptime: no addresses, versions, errors or
+  other data from the apps. It reads the last background check instead of starting one, so
+  opening it a lot can't make Media Ops poll your apps more often.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API

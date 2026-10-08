@@ -15,6 +15,9 @@ To stay on one version instead of `latest`, use a version tag such as
   and queue on the dashboard, failed NZBGet downloads and log warnings in the errors list.
 - Telegram and email notifications. Email works with any mail server (Gmail, Fastmail, your
   own): the password is only ever sent over an encrypted connection.
+- A public status page (`/status`) to share with the people who use your server: whether each
+  app you pick is up and its uptime over the last day, plus an optional notice. Off until you
+  turn it on under Settings → Status page.
 - Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
   list and in "failed or stuck downloads" notifications, for every torrent client.
 

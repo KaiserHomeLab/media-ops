@@ -180,6 +180,12 @@ h1 {
   margin: 0;
   letter-spacing: 0.02em;
 }
+.brand h1,
+.brand .sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .sub {
   color: var(--text-muted);
   font-size: 12px;
@@ -187,6 +193,96 @@ h1 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* Live strip in the top bar (public/js/strip.js): shown once the summary row scrolls away. */
+.strip {
+  display: flex;
+  flex-wrap: wrap; /* an item that doesn't fit wraps to a second row, which is cut off, */
+  height: 30px; /* so only whole items ever show */
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.2s,
+    visibility 0.2s;
+}
+body.strip-on .strip {
+  opacity: 1;
+  visibility: visible;
+}
+:root[data-strip='off'] .strip,
+body.tv .strip {
+  display: none;
+}
+.strip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.strip-item:hover,
+.strip-item:focus-visible {
+  border-color: var(--text-muted);
+}
+.strip-item .ic {
+  color: var(--text-muted);
+}
+.strip-item.good .ic {
+  color: var(--good);
+}
+.strip-item.bad {
+  border-color: color-mix(in srgb, var(--critical) 55%, var(--line));
+}
+.strip-item.bad .ic {
+  color: var(--critical);
+}
+.strip-item.warn .ic {
+  color: var(--warning);
+}
+.strip-item .short {
+  display: none;
+}
+@media (max-width: 1280px) {
+  .strip-item.wide {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .strip {
+    gap: 6px;
+    flex: none; /* keep its two short items; the title gives way (…) */
+  }
+  .strip-item {
+    padding: 5px 9px;
+  }
+  .strip-item .long {
+    display: none;
+  }
+  .strip-item .short {
+    display: inline;
+  }
+}
+/* Jumps from the strip land below the sticky top bar. */
+.card,
+.kpis {
+  scroll-margin-top: 84px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 .top-right {
   display: flex;

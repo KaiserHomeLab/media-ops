@@ -15,6 +15,9 @@ To stay on one version instead of `latest`, use a version tag such as
   and logo (PNG, JPEG or WebP); and a separate light/dark choice for the status page, which
   also shows your logo. Applied by the server before the page loads, so there's no flash of
   the default look.
+- A live summary in the top bar (streams, download speed, apps up, errors) that appears once
+  you scroll past the summary row. Click one to jump to its card. Phones get a short version;
+  TV mode hides it; Settings → Appearance can turn it off.
 
 ### Fixed
 

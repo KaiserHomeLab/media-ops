@@ -9,6 +9,18 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Added
+
+- NZBGet, Transmission and Deluge as download clients, next to SABnzbd and qBittorrent: speeds
+  and queue on the dashboard, failed NZBGet downloads and log warnings in the errors list.
+- Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
+  list and in "failed or stuck downloads" notifications, for every torrent client.
+
+### Fixed
+
+- Testing a qBittorrent login in Settings with a different password could pass by reusing the
+  session from the saved one.
+
 ### Changed
 
 - The update check now asks GitHub for the latest release instead of reading the code on the

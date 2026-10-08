@@ -253,7 +253,8 @@ function detect(raw, events, disks, cfg) {
     state.seen.set(e.key, now);
     if (!fresh || e.dismissed || e.source === 'Connection') continue;
     if (!e.live && (e.t < state.startedAt || now - e.t > 30 * 60e3)) continue; // old log lines
-    const download = e.source === 'Queue' || e.source === 'Failed download' || /DownloadClient|Import/i.test(e.source);
+    const download =
+      ['Queue', 'Failed download', 'Torrent error'].includes(e.source) || /DownloadClient|Import/i.test(e.source);
     const kind = SERVER_SOURCES.has(e.source)
       ? 'unraid'
       : download

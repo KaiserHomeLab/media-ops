@@ -150,6 +150,7 @@ test('qbittorrent: logs in, reuses the session, renews it on 403', async t => {
     'POST /api/v2/auth/login': (req, url, body) => {
       logins++;
       assert.match(body, /username=admin/);
+      if (!/password=pw\b/.test(body)) return { status: 200, body: 'Fails.' };
       return { status: 200, body: 'Ok.', headers: { 'Set-Cookie': `SID=${sid}; path=/` } };
     },
     '/api/v2/app/version': req => (req.headers.cookie === `SID=${sid}` ? 'v5.1.2' : { status: 403, body: 'Forbidden' }),
@@ -166,6 +167,178 @@ test('qbittorrent: logs in, reuses the session, renews it on 403', async t => {
   sid = 'two';
   await c.qbittorrent(cfg);
   assert.equal(logins, 2, 'expired session renewed');
+  await assert.rejects(c.qbittorrent({ ...cfg, password: 'wrong' }), /login failed/, 'other credentials log in afresh');
+});
+
+test('nzbget: queue, speed, failed downloads and log warnings, with basic auth', async t => {
+  const results = {
+    version: '25.4',
+    status: { DownloadRate: 3_145_728, DownloadPaused: false },
+    listgroups: [
+      { NZBName: 'Show.S01E01', Status: 'DOWNLOADING', FileSizeMB: 1000, RemainingSizeMB: 250 },
+      { NZBName: 'Movie.2024', Status: 'QUEUED', FileSizeMB: 4000, RemainingSizeMB: 4000 },
+    ],
+    history: [
+      { Name: 'Old.Thing', Status: 'SUCCESS/ALL', HistoryTime: 1_760_000_000 },
+      { Name: 'Broken.Thing', Status: 'FAILURE/UNPACK', HistoryTime: 1_760_000_100, Category: 'tv' },
+    ],
+    log: [
+      { Kind: 'INFO', Time: 1_760_000_000, Text: 'Started' },
+      { Kind: 'WARNING', Time: 1_760_000_200, Text: 'Server news.example.com: connection timed out' },
+    ],
+  };
+  const srv = await fakeServer({
+    'POST /jsonrpc': (req, url, body) => {
+      if (req.headers.authorization !== `Basic ${Buffer.from('nzbget:pw').toString('base64')}`)
+        return { status: 401, body: 'Unauthorized' };
+      return { version: '1.1', result: results[JSON.parse(body).method] };
+    },
+  });
+  t.after(() => srv.close());
+  clearCache();
+  const r = await c.nzbget({ url: srv.url, username: 'nzbget', password: 'pw' });
+  assert.equal(r.version, '25.4');
+  assert.equal(r.data.client, 'usenet');
+  assert.equal(r.data.downBps, 3_145_728);
+  assert.equal(r.data.status, 'Downloading');
+  assert.equal(r.data.items[0].progress, 0.75);
+  assert.equal(r.data.items[0].eta, Math.round((250 * 1048576) / 3_145_728));
+  assert.equal(r.data.items[1].eta, null, 'no ETA for queued items');
+  assert.deepEqual(
+    r.data.events.map(e => [e.source, e.level, e.message]),
+    [
+      ['Log', 'warn', 'Server news.example.com: connection timed out'],
+      ['Failed download', 'error', 'Broken.Thing: unpack failed'],
+    ],
+  );
+  await assert.rejects(c.nzbget({ url: srv.url, username: 'nzbget', password: 'wrong' }), /HTTP 401/);
+});
+
+test('transmission: session-id handshake (409), torrents and tracker errors', async t => {
+  let sessionId = 'abc';
+  const methods = [];
+  const srv = await fakeServer({
+    'POST /transmission/rpc': (req, url, body) => {
+      if (req.headers['x-transmission-session-id'] !== sessionId)
+        return { status: 409, headers: { 'X-Transmission-Session-Id': sessionId }, body: '' };
+      const { method } = JSON.parse(body);
+      methods.push(method);
+      const args = {
+        'session-get': { version: '4.0.6 (38c164933e)' },
+        'session-stats': {
+          downloadSpeed: 500_000,
+          uploadSpeed: 120_000,
+          'cumulative-stats': { downloadedBytes: 1000, uploadedBytes: 2500 },
+        },
+        'torrent-get': {
+          torrents: [
+            { name: 'Done', percentDone: 1, status: 6, error: 0, rateDownload: 0 },
+            { name: 'Slow', percentDone: 0.2, sizeWhenDone: 10, eta: -1, status: 4, rateDownload: 10, error: 0 },
+            {
+              name: 'Broken',
+              percentDone: 0.5,
+              status: 0,
+              error: 3,
+              errorString: 'No data found! Ensure your drives are connected',
+              rateDownload: 0,
+            },
+          ],
+        },
+      }[method];
+      return { result: 'success', arguments: args };
+    },
+  });
+  t.after(() => srv.close());
+  const cfg = { url: `${srv.url}/transmission/web/` };
+  const r = await c.transmission(cfg);
+  assert.equal(r.version, '4.0.6');
+  assert.equal(r.data.client, 'torrent');
+  assert.equal(r.data.ratio, 2.5);
+  assert.deepEqual(
+    r.data.items.map(i => [i.title, i.eta]),
+    [
+      ['Slow', null],
+      ['Broken', null],
+    ],
+  );
+  assert.deepEqual(r.data.states, { seeding: 1, downloading: 1, stopped: 1 });
+  assert.deepEqual(
+    r.data.events.map(e => [e.level, e.message, e.live]),
+    [['error', 'Broken: No data found! Ensure your drives are connected', true]],
+  );
+  sessionId = 'def'; // Transmission restarted
+  await c.transmission(cfg);
+  assert.equal(methods.filter(m => m === 'session-get').length, 2, 'retried after a new 409');
+});
+
+test('deluge: logs in, connects the Web UI to its daemon, renews an expired session', async t => {
+  let logins = 0,
+    connected = false,
+    valid = 'one';
+  const srv = await fakeServer({
+    'POST /json': (req, url, body) => {
+      const { method, params, id } = JSON.parse(body);
+      if (method === 'auth.login') {
+        logins++;
+        const ok = params[0] === 'deluge';
+        return {
+          status: 200,
+          headers: ok ? { 'Set-Cookie': `_session_id=${valid}; Path=/json` } : {},
+          body: JSON.stringify({ result: ok, error: null, id }),
+        };
+      }
+      if (req.headers.cookie !== `_session_id=${valid}`)
+        return { result: null, error: { message: 'Not authenticated', code: 1 }, id };
+      if (method === 'web.connect') {
+        connected = params[0] === 'h1';
+        return { result: null, error: null, id };
+      }
+      const result = {
+        'web.connected': connected,
+        'web.get_hosts': [['h1', '127.0.0.1', 58846, 'localclient']],
+        'daemon.info': '2.1.1',
+        'web.update_ui': {
+          stats: { download_rate: 2048, upload_rate: 512, free_space: 1e12 },
+          torrents: {
+            a: { name: 'Seed', progress: 100, total_done: 100, total_uploaded: 300, state: 'Seeding' },
+            b: {
+              name: 'Get',
+              progress: 40,
+              total_wanted: 50,
+              eta: 120,
+              state: 'Downloading',
+              download_payload_rate: 9,
+            },
+            c: { name: 'Bad', progress: 10, total_done: 0, state: 'Error', message: 'Disk full' },
+          },
+        },
+      }[method];
+      return { result, error: null, id };
+    },
+  });
+  t.after(() => srv.close());
+  const cfg = { url: srv.url, password: 'deluge' };
+  const r = await c.deluge(cfg);
+  assert.equal(connected, true, 'connected to the daemon');
+  assert.equal(r.version, '2.1.1');
+  assert.equal(r.data.ratio, 3);
+  assert.deepEqual(
+    r.data.items.map(i => [i.title, i.progress, i.eta]),
+    [
+      ['Get', 0.4, 120],
+      ['Bad', 0.1, null],
+    ],
+  );
+  assert.deepEqual(
+    r.data.events.map(e => e.message),
+    ['Bad: Disk full'],
+  );
+  await c.deluge(cfg);
+  assert.equal(logins, 1, 'session reused');
+  valid = 'two';
+  await c.deluge(cfg);
+  assert.equal(logins, 2, 'expired session renewed');
+  await assert.rejects(c.deluge({ url: srv.url, password: 'nope' }), /login failed/);
 });
 
 test('tautulli: home stats and plays by date', async t => {

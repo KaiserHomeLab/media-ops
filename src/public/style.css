@@ -1758,9 +1758,19 @@ main.settings {
 .k-sabnzbd {
   background: #f5c518;
 }
+.k-nzbget {
+  background: #5bb85b;
+}
 .k-qbittorrent {
   background: #2f67ba;
   color: #fff;
+}
+.k-transmission {
+  background: #c8322c;
+  color: #fff;
+}
+.k-deluge {
+  background: #7fb0e3;
 }
 .k-clonarr {
   background: #3fb6a8;

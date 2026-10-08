@@ -947,6 +947,7 @@ function renderAppearance() {
   f.querySelector(`[name=theme][value="${a.theme}"]`).checked = true;
   f.querySelector(`[name=statusTheme][value="${a.statusTheme}"]`).checked = true;
   f.title.value = a.title;
+  f.liveStrip.checked = a.liveStrip;
   $('accent-swatches').innerHTML = S.accents
     .map(
       x =>
@@ -986,7 +987,13 @@ $('appearance-form').addEventListener('submit', async e => {
   try {
     const r = await api('/appearance', {
       method: 'PUT',
-      body: { theme: f.theme.value, accent: f.accent.value, title: f.title.value, statusTheme: f.statusTheme.value },
+      body: {
+        theme: f.theme.value,
+        accent: f.accent.value,
+        title: f.title.value,
+        statusTheme: f.statusTheme.value,
+        liveStrip: f.liveStrip.checked,
+      },
     });
     S.appearance = r.appearance;
     document.querySelector('header.top .sub').textContent = S.appearance.title || 'Media Ops';

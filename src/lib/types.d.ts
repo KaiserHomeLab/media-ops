@@ -60,6 +60,7 @@ export interface Config {
     accent: string;
     title: string;
     statusTheme: string;
+    liveStrip?: boolean;
     logo: { type: string; data: string; hash: string } | null;
   } | null;
   [key: string]: any;

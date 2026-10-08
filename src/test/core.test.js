@@ -460,6 +460,7 @@ test('appearance: settings checked, logo must be a real PNG/JPEG/WebP, pages get
     accent: 'amber',
     title: '',
     statusTheme: 'auto',
+    liveStrip: true,
     logo: null,
   });
   assert.deepEqual(appearance.clean({ theme: 'neon', accent: 'pink', title: ' Home ', statusTheme: 'light' }, null), {
@@ -467,6 +468,7 @@ test('appearance: settings checked, logo must be a real PNG/JPEG/WebP, pages get
     accent: 'amber',
     title: 'Home',
     statusTheme: 'light',
+    liveStrip: true,
     logo: null,
   });
   assert.throws(() => appearance.clean({ title: '<script>' }, null), /can't contain/);
@@ -493,6 +495,13 @@ test('appearance: settings checked, logo must be a real PNG/JPEG/WebP, pages get
   assert.match(page, /<h1>Tom &amp; Jerry&#39;s<\/h1>/);
   assert.match(page, /<img class="logo custom" src="\/branding\/logo\?v=[0-9a-f]{16}" alt="">/);
   assert.match(appearance.renderPage(html, cfg, 'status'), /data-theme="dark"/, 'the status page has its own theme');
+  const noStrip = { appearance: { liveStrip: false } };
+  assert.match(appearance.renderPage(html, noStrip, 'dashboard'), /<html lang="en" data-strip="off">/);
+  assert.doesNotMatch(
+    appearance.renderPage(html, noStrip, 'settings'),
+    /data-strip/,
+    'only the dashboard has the strip',
+  );
   assert.equal(
     appearance.renderPage(html, {}, 'dashboard'),
     html.replace('<!--brand-logo-->', ''),

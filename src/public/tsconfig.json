@@ -1,0 +1,18 @@
+{
+  // Type checking for the browser code (npm run typecheck): the dashboard modules (js/) and the
+  // Settings page, as plain JavaScript with JSDoc types. Nothing is compiled.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "useUnknownInCatchVariables": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2024",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["js/**/*.js", "settings.js", "globals.d.ts"]
+}

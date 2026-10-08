@@ -9,6 +9,7 @@ import { $ } from './util.js';
 
 let applied = '';
 
+/** @param {Overview['layout'] | undefined} layout */
 export function applyLayout(layout) {
   const key = JSON.stringify(layout || null);
   if (!layout || key === applied) return;

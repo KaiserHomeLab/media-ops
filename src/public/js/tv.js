@@ -7,6 +7,7 @@ import { $, lastHTML, store } from './util.js';
 
 // --------------------------------------------------------------------- TV mode (wall display)
 // Big, read-only, full-screen view. /?tv=1 opens straight into it (e.g. for a kiosk browser).
+/** @param {boolean} on */
 export function setTvMode(on) {
   document.body.classList.toggle('tv', on);
   $('tv-toggle').innerHTML = on
@@ -29,17 +30,19 @@ export function setTvMode(on) {
 // cut off rather than scrolled.
 const TV_LEFT = ['now-playing', 'map-card'];
 const TV_RIGHT = ['services-card', 'events-card', 'downloads-card', 'unraid-card', 'truenas-card'];
+/** @type {[Comment, HTMLElement][]} */
 const tvHomes = [];
+/** @param {boolean} on */
 function tvLayout(on) {
   if (on && !tvHomes.length) {
     const cols = document.createElement('div');
     cols.id = 'tv-cols';
     cols.innerHTML = '<div class="tv-col" id="tv-left"></div><div class="tv-col" id="tv-right"></div>';
     $('kpis').after(cols);
-    for (const [ids, col] of [
+    for (const [ids, col] of /** @type {[string[], string][]} */ ([
       [TV_LEFT, 'tv-left'],
       [TV_RIGHT, 'tv-right'],
-    ])
+    ]))
       for (const id of ids) {
         const el = $(id);
         const home = document.createComment(id);
@@ -69,6 +72,7 @@ setInterval(() => {
   $('tv-clock').textContent = new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }, 1000);
 // Hide the mouse pointer after a few idle seconds in TV mode.
+/** @type {ReturnType<typeof setTimeout> | undefined} */
 let idleTimer;
 addEventListener('mousemove', () => {
   document.body.classList.remove('idle');

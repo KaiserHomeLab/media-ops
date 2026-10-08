@@ -4,6 +4,7 @@
 // Now playing: one card per stream, from every media server (Plex, Jellyfin, Emby).
 import { $, clock, esc, initials, mbps, setHTML, thumbUrl } from './util.js';
 
+/** @param {any[]} streams every media server's, tagged with `server` @param {boolean} demo */
 export function renderStreams(streams, demo) {
   $('np-count').textContent = streams.length ? `${streams.length} active` : '';
   if (!streams.length) return setHTML($('streams'), '<div class="empty">Nothing playing. The server is resting.</div>');
@@ -51,7 +52,7 @@ export function renderStreams(streams, demo) {
         () => {
           const div = document.createElement('div');
           div.className = 'poster';
-          div.textContent = img.dataset.fallback;
+          div.textContent = /** @type {HTMLElement} */ (img).dataset.fallback || '';
           img.replaceWith(div);
         },
         { once: true },

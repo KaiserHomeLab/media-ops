@@ -158,6 +158,20 @@
         </form>
       </section>
 
+      <section class="card" id="metrics">
+        <h2>Metrics</h2>
+        <p class="hint">For Prometheus and Grafana: the dashboard's numbers (apps up, streams and bandwidth, download speeds, queues, errors, disk space) at <code>/metrics</code>. Off until you turn it on. Prometheus sends a token with each scrape; app addresses, keys and viewer names are never included.</p>
+        <form id="metrics-form" class="form grid-form">
+          <label class="field toggle wide"><input type="checkbox" name="enabled"><span>Turn on <code>/metrics</code></span></label>
+          <div class="field wide" id="metrics-token-row"></div>
+          <div class="form-error" id="metrics-error" hidden></div>
+          <div class="actions wide"><button class="btn ghost" type="button" id="metrics-regen" hidden>New token</button><span class="spacer"></span><span class="saved" id="metrics-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
+        </form>
+        <details class="more"><summary>Prometheus setup</summary>
+          <pre class="code" id="metrics-example"></pre>
+        </details>
+      </section>
+
       <section class="card" id="status-page">
         <h2>Status page</h2>
         <p class="hint">A simple page you can share with the people who use your server, so they can check whether Plex or Jellyfin is up without asking you. It shows only the apps you pick, whether each is up, and its uptime over the last day: no addresses, versions or errors. Anyone who can reach Media Ops can open it, even when the dashboard needs a login.</p>

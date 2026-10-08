@@ -85,6 +85,23 @@ tonight". It shows nothing else: no addresses, versions or errors.
 
 <img src="docs/screenshots/status-page.png" alt="The public status page" width="600">
 
+## Prometheus and Grafana
+
+Already graph your homelab? Turn on **Settings → Metrics** and Media Ops serves its numbers at
+`/metrics` for Prometheus: apps up, latency and updates, streams and bandwidth, download speeds
+and queues, wanted/missing, pending requests, errors and disk space. Settings gives you a token
+and a ready-to-paste scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: media-ops
+    metrics_path: /metrics
+    authorization:
+      credentials: <the token from Settings>
+    static_configs:
+      - targets: ['192.168.1.10:8484']
+```
+
 ## On your phone
 
 The dashboard works on a phone too, and you can add it to your home screen like an app.

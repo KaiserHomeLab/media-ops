@@ -3305,3 +3305,15 @@ fieldset.events.inline {
   object-fit: cover;
   display: block;
 }
+
+/* settings: code examples */
+pre.code {
+  margin: 8px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font: 12px/1.5 var(--mono);
+  overflow-x: auto;
+  white-space: pre;
+}

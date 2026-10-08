@@ -21,6 +21,7 @@ const selfupdate = require('./selfupdate');
 const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
+const metrics = require('./metrics');
 const { hostStats, localDisks, dockerContainers } = require('./host');
 const pkg = require('../package.json');
 
@@ -181,6 +182,14 @@ function statusPayload() {
   return status.payload({ services, statusPage: { enabled: true } }, raw, id => hist.uptime[id]);
 }
 
+// Prometheus metrics: from the last poll as well, never starting one.
+const metricsEnabled = () => metrics.settingsOf(config.load()).enabled;
+function metricsText() {
+  const raw = DEMO ? demo.overview(hostStats()) : cache.value;
+  const events = raw ? feed.apply(eventsOf(raw), raw.services, config.load().dismissed).events : [];
+  return metrics.render(raw, events, raw ? history.diskList(raw) : []);
+}
+
 module.exports = {
   DEMO,
   describeError,
@@ -193,4 +202,6 @@ module.exports = {
   historyPayload,
   statusEnabled,
   statusPayload,
+  metricsEnabled,
+  metricsText,
 };

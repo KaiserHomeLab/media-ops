@@ -17,6 +17,7 @@ const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
 const appearance = require('./appearance');
+const metrics = require('./metrics');
 const diagnostics = require('./diagnostics');
 const digest = require('./digest');
 const pins = require('./pins');
@@ -71,6 +72,7 @@ function settingsPayload(req) {
     autoFix: { ...autofix.settingsOf(cfg), recent: autofix.recent() },
     appearance: appearance.settingsOf(cfg),
     accents: appearance.ACCENTS,
+    metrics: metrics.settingsOf(cfg),
   };
 }
 
@@ -371,6 +373,27 @@ async function saveLayout(req, res) {
   return send(res, 200, { ok: true, layout: next });
 }
 
+// ---------------------------------------------------------------- Prometheus metrics
+// Turning it on the first time creates the token; it's only ever sent back here, once.
+/** @param {Req} req @param {Res} res */
+async function saveMetrics(req, res) {
+  const enabled = !!(await readJson(req)).enabled;
+  /** @type {string | null} */
+  let token = null;
+  config.update(c => {
+    const keep = c.metrics?.token;
+    if (enabled && !keep) token = metrics.newToken();
+    return { ...c, metrics: { enabled, token: keep || token } };
+  });
+  return send(res, 200, { ok: true, metrics: metrics.settingsOf(config.load()), token });
+}
+/** @param {Req} req @param {Res} res */
+function newMetricsToken(req, res) {
+  const token = metrics.newToken();
+  config.update(c => ({ ...c, metrics: { enabled: !!c.metrics?.enabled, token } }));
+  return send(res, 200, { ok: true, metrics: metrics.settingsOf(config.load()), token });
+}
+
 // ---------------------------------------------------------------- appearance
 /** @param {Req} req @param {Res} res */
 async function saveAppearance(req, res) {
@@ -523,6 +546,10 @@ async function restore(req, res) {
     layout: incoming.layout ? layout.clean(incoming.layout) : null,
     autoFix: incoming.autoFix ? autofix.clean(incoming.autoFix) : null,
     appearance: incoming.appearance ? safeAppearance(incoming.appearance) : null,
+    metrics:
+      incoming.metrics && /^[\w-]{20,100}$/.test(String(incoming.metrics.token))
+        ? { enabled: !!incoming.metrics.enabled, token: String(incoming.metrics.token) }
+        : null,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -574,6 +601,8 @@ const ROUTE_LIST = [
   ['PUT', '/layout', saveLayout],
   ['PUT', '/auto-fix', saveAutoFix],
   ['PUT', '/appearance', saveAppearance],
+  ['PUT', '/metrics', saveMetrics],
+  ['POST', '/metrics/token', newMetricsToken],
   ['PUT', '/logo', uploadLogo],
   ['DELETE', '/logo', removeLogo],
   ['POST', '/digest-test', sendTestDigest],

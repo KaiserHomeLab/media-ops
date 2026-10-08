@@ -11,6 +11,7 @@
 //   POST /api/events/services/:id/recheck  re-run an app's health checks
 //   *    /api/settings/…                   apps, general options, password, password reset
 //   GET  /api/status                       the public status page's data (only when turned on)
+//   GET  /metrics                          Prometheus metrics (when turned on; Bearer token)
 //   GET  /branding/logo                    the logo uploaded under Settings → Appearance
 //   GET  /healthz                          liveness probe
 //
@@ -29,7 +30,17 @@ const appearance = require('./lib/appearance');
 const history = require('./lib/history');
 const { loggedIn } = require('./lib/auth');
 const { SECURITY_HEADERS, sameOrigin, send, serveStatic } = require('./lib/web');
-const { DEMO, overview, monitorTick, historyPayload, statusEnabled, statusPayload } = require('./lib/poll');
+const {
+  DEMO,
+  overview,
+  monitorTick,
+  historyPayload,
+  statusEnabled,
+  statusPayload,
+  metricsEnabled,
+  metricsText,
+} = require('./lib/poll');
+const metrics = require('./lib/metrics');
 const { eventsApi, mediaThumb } = require('./lib/dashboard-api');
 const { settingsApi } = require('./lib/settings-api');
 
@@ -43,6 +54,7 @@ const STATUS_PAGE = new Set(['/status', '/status.html', '/api/status']);
 const ALWAYS_OPEN = new Set([
   ...STATUS_PAGE,
   '/branding/logo', // shown on the login page and the status page
+  '/metrics', // Prometheus can't log in; it has its own token
   '/js/status.js',
   '/healthz',
   '/settings',
@@ -72,6 +84,18 @@ const PAGE_RENDER = {
   key: () => appearance.pageKey(config.load()),
   apply: (html, file) => appearance.renderPage(html, config.load(), PAGE_OF[path.basename(file)] || 'other'),
 };
+/** @param {import('node:http').ServerResponse} res */
+/** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res */
+function metricsEndpoint(req, res) {
+  if (!metricsEnabled()) return send(res, 404, { error: 'Not found' });
+  if (!metrics.authorized(req.headers.authorization, config.load())) {
+    res.writeHead(401, { 'WWW-Authenticate': 'Bearer realm="media-ops"', 'Content-Type': 'text/plain' });
+    return res.end('Send the token from Settings → Metrics as "Authorization: Bearer <token>".\n');
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8', 'Cache-Control': 'no-store' });
+  return res.end(metricsText());
+}
+
 /** @param {import('node:http').ServerResponse} res */
 function brandingLogo(res) {
   const saved = config.load().appearance?.logo;
@@ -117,6 +141,7 @@ const server = http.createServer(async (req, res) => {
       return mediaThumb(res, url.searchParams.get('s'), url.searchParams.get('p'));
     if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
     if (url.pathname === '/branding/logo') return brandingLogo(res);
+    if (url.pathname === '/metrics') return metricsEndpoint(req, res);
     if (url.pathname.startsWith('/api/events/')) {
       if (!sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });
       return await eventsApi(req, res, url.pathname.slice('/api/events'.length));

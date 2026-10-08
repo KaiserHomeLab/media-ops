@@ -41,6 +41,11 @@ there as soon as I can.
 - A logo uploaded under Settings → Appearance must be a PNG, JPEG or WebP (checked by its
   bytes, not its name; SVG is refused because it can carry script), at most 256 KB. It's
   served with the type its bytes prove, never one read from `config.json`.
+- Prometheus metrics (`/metrics`) are off until you turn them on, then need the token Settings
+  creates (`Authorization: Bearer …`, compared in constant time). The token is shown once, when
+  it's made; a new one replaces it. The metrics are counts and timings only: app names you gave,
+  no addresses, keys, viewer names or log text. Like the status page, they read the last
+  background check and never start one.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API

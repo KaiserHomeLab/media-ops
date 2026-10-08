@@ -23,6 +23,10 @@ To stay on one version instead of `latest`, use a version tag such as
   Docker access as the containers panel.
 - Settings → Dashboard: turn cards off and change the order of the rows. Saved on the server,
   so every screen and TV mode use the same layout.
+- Stuck downloads can be fixed automatically (off unless you turn it on under Settings → Stuck
+  downloads): when an *arr flags a download as stuck and it stays that way, Media Ops has the
+  app re-check it, then replaces it with another release. At most 3 per app per hour, with a
+  notification for each.
 - Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
   list and in "failed or stuck downloads" notifications, for every torrent client.
 

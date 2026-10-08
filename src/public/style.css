@@ -3057,3 +3057,16 @@ body.tv .rq-acts {
   opacity: 0.3;
   cursor: default;
 }
+
+/* settings: stuck downloads */
+.fix-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.fix-log li.bad b {
+  color: var(--critical);
+}

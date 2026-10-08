@@ -2267,6 +2267,14 @@ body.tv.idle * {
   background: #5865f2;
   color: #fff;
 }
+.n-telegram {
+  background: #27a7e7;
+  color: #fff;
+}
+.n-email {
+  background: #8a6fd1;
+  color: #fff;
+}
 .n-ntfy {
   background: #338574;
   color: #fff;

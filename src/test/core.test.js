@@ -347,3 +347,78 @@ test('dashboard layout: only known rows and cards, every row placed, ids match i
       assert.match(html, new RegExp(`id="${b.cards[0].id}"[^>]*data-block="${b.id}"`), `${b.id} is the card itself`);
   }
 });
+
+test('stuck downloads: re-check at half the wait, replace at the end, 3 per app per hour, off by default', async () => {
+  const autofix = require('../lib/autofix');
+  const calls = [];
+  const act = {
+    queueRetry: async app => calls.push(['retry', app.id]),
+    queueRemove: async (app, id) => {
+      if (id === 99) throw new Error('HTTP 500');
+      calls.push(['remove', app.id, id]);
+    },
+  };
+  const item = id => ({
+    id,
+    title: `Show ${id}`,
+    warning: true,
+    status: 'importPending',
+    messages: ['No files found'],
+  });
+  const raw = queue => ({ services: [{ id: 'son', kind: 'sonarr', name: 'Sonarr', up: true, data: { queue } }] });
+  const services = [{ id: 'son', kind: 'sonarr', name: 'Sonarr', url: 'http://x', apiKey: 'k' }];
+  const MIN = 60e3;
+  const t0 = 1_000_000_000;
+
+  // Off: tracked, never acted on.
+  assert.deepEqual(await autofix.tick(raw([item(1)]), { services }, t0, act), []);
+  assert.deepEqual(await autofix.tick(raw([item(1)]), { services }, t0 + 120 * MIN, act), []);
+  assert.deepEqual(calls, []);
+
+  const cfg = { services, autoFix: { enabled: true, minutes: 60 } };
+  // Item 1 has been stuck since t0 (counted while off): replaced at once.
+  let out = await autofix.tick(raw([item(1), item(2)]), cfg, t0 + 121 * MIN, act);
+  assert.deepEqual(calls, [['remove', 'son', 1]]);
+  assert.match(out[0].line, /^🔁 Sonarr: replaced Show 1 after 2 h stuck \(No files found\)$/);
+  assert.equal(out[0].kind, 'downloads');
+
+  // Item 2 (first seen now): one re-check at 30 min, nothing more until 60.
+  calls.length = 0;
+  await autofix.tick(raw([item(2)]), cfg, t0 + 151 * MIN, act);
+  await autofix.tick(raw([item(2)]), cfg, t0 + 160 * MIN, act);
+  assert.deepEqual(calls, [['retry', 'son']]);
+  await autofix.tick(raw([item(2)]), cfg, t0 + 181 * MIN, act);
+  assert.deepEqual(calls.at(-1), ['remove', 'son', 2]);
+
+  // An item that clears on its own starts over if it comes back.
+  calls.length = 0;
+  await autofix.tick(raw([item(3)]), cfg, t0 + 200 * MIN, act);
+  await autofix.tick(raw([]), cfg, t0 + 250 * MIN, act);
+  await autofix.tick(raw([item(3)]), cfg, t0 + 265 * MIN, act);
+  assert.deepEqual(calls, [], 'not replaced: the clock restarted');
+
+  // At most 3 removals per app per hour (1 and 2 above were more than an hour ago).
+  calls.length = 0;
+  const many = [4, 5, 6, 7].map(item);
+  await autofix.tick(raw(many), cfg, t0 + 300 * MIN, act);
+  await autofix.tick(raw(many), cfg, t0 + 400 * MIN, act);
+  assert.equal(calls.filter(c => c[0] === 'remove').length, 3);
+  await autofix.tick(raw(many), cfg, t0 + 461 * MIN, act);
+  assert.equal(calls.filter(c => c[0] === 'remove').length, 4, 'the fourth waits for room in the hour');
+
+  // A failed removal is logged and waits a full period.
+  calls.length = 0;
+  await autofix.tick(raw([item(99)]), cfg, t0 + 500 * MIN, act);
+  out = await autofix.tick(raw([item(99)]), cfg, t0 + 561 * MIN, act);
+  assert.deepEqual(out, []);
+  assert.equal(autofix.recent()[0].ok, false);
+  assert.equal(autofix.recent()[0].error, 'HTTP 500');
+
+  // Imports in progress and other apps are left alone.
+  calls.length = 0;
+  const busy = { ...item(8), status: 'importing' };
+  await autofix.tick(raw([busy]), cfg, t0 + 600 * MIN, act);
+  await autofix.tick(raw([busy]), cfg, t0 + 700 * MIN, act);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(autofix.clean({ enabled: 1, minutes: 5 }), { enabled: true, minutes: 15 }, 'minutes clamped');
+});

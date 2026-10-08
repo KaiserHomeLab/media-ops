@@ -52,6 +52,8 @@ export interface Config {
   statusPage?: { enabled: boolean; title: string; notice: string; services: string[] } | null;
   /** Dashboard rows in order and the cards turned off (lib/layout.js); null = the default. */
   layout?: { order: string[]; hidden: string[] } | null;
+  /** Fix stuck downloads automatically (lib/autofix.js); null = off. */
+  autoFix?: { enabled: boolean; minutes: number } | null;
   [key: string]: any;
 }
 

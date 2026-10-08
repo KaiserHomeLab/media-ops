@@ -80,14 +80,26 @@ function showLogin() {
   $('login-form').password.focus();
 }
 
+// `next` comes from the address bar, so only follow it to a page on this site. Resolving it as a
+// URL catches the tricks a prefix check misses ("/\evil.example" is "//evil.example" to a browser).
+function sameSitePath(raw) {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw, location.origin);
+    return u.origin === location.origin ? u.pathname + u.search + u.hash : null;
+  } catch {
+    return null;
+  }
+}
+
 $('login-form').addEventListener('submit', async e => {
   e.preventDefault();
   showError($('login-error'), '');
   try {
     await api('/login', { method: 'POST', body: { password: e.target.password.value } });
     e.target.reset();
-    const next = new URLSearchParams(location.search).get('next');
-    if (next && next.startsWith('/') && !next.startsWith('//')) return (location.href = next);
+    const next = sameSitePath(new URLSearchParams(location.search).get('next'));
+    if (next) return (location.href = next);
     load();
   } catch (err) {
     showError($('login-error'), err.message);

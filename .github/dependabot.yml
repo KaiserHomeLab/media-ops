@@ -14,7 +14,7 @@ updates:
 
   # The base image (pinned to a digest in the Dockerfile)
   - package-ecosystem: docker
-    directory: /
+    directory: /src
     schedule:
       interval: weekly
     commit-message:
@@ -22,7 +22,7 @@ updates:
 
   # Development tools only (ESLint, Prettier); the app has no runtime dependencies
   - package-ecosystem: npm
-    directory: /
+    directory: /src
     schedule:
       interval: weekly
     groups:

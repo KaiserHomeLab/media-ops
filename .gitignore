@@ -1,6 +1,0 @@
-node_modules
-data/
-config.json
-
-# Claude Code notes stay on the dev machine.
-CLAUDE.md

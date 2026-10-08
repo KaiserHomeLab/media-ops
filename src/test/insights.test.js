@@ -206,6 +206,10 @@ test('updates: arr reports a newer release; installed latest means no update', a
   assert.equal(selfupdate.newer('1.12.0', '1.11.9'), true);
   assert.equal(selfupdate.newer('1.11.0', '1.11.0'), false);
   assert.equal(selfupdate.newer('1.9.0', '1.10.0'), false, 'compared as numbers, not text');
+  assert.equal(selfupdate.versionOf({ tag_name: 'v1.16.0' }), '1.16.0');
+  assert.equal(selfupdate.versionOf({ tag_name: 'v1.16.0', prerelease: true }), null);
+  assert.equal(selfupdate.versionOf({ tag_name: 'nightly' }), null);
+  assert.equal(selfupdate.versionOf(null), null);
 });
 
 test('hints: known causes get a how-to-fix line, unknown errors none', () => {

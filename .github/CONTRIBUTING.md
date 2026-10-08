@@ -10,12 +10,13 @@ dependencies); `npm ci` only installs the development tools (ESLint and Prettier
 
 ```bash
 git clone https://github.com/KaiserHomeLab/media-ops.git
-cd media-ops
+cd media-ops/src       # the app and its tools live in src/
 npm ci
 npm run demo          # http://localhost:8484 with made-up data, no apps needed
 ```
 
-`npm start` runs it for real, with settings in `./data/config.json`.
+`npm start` runs it for real, with settings in `src/data/config.json`. To build the image, run
+`docker build -f src/Dockerfile -t media-ops .` from the top of the repo.
 
 ## Before you open a pull request
 
@@ -28,12 +29,17 @@ npm test              # unit and server tests
 
 CI runs the same checks on every pull request, and `main` only accepts changes that pass
 them. Please add or update a test for any change in behaviour, and add user-visible changes to
-`CHANGELOG.md` under **Unreleased**.
+`CHANGELOG.md` (at the top of the repo) under **Unreleased**.
 
-## How the code is laid out
+## How the repo is laid out
 
-| Where | What |
+The top level holds only what people installing Media Ops need (README, install guide,
+compose file, Unraid template, changelog, license). Everything that builds the image is in
+`src/`:
+
+| Where (in `src/`) | What |
 |---|---|
+| `Dockerfile`, `root/` | The image: linuxserver.io's Alpine base plus the s6 start-up scripts |
 | `server.js` | Routes requests and starts everything |
 | `lib/poll.js` | Polls every app, builds the overview, runs the background monitor |
 | `lib/collectors/` | One file per app (the *arr apps share `arr.js`); each returns `{ version, latency, data }` |
@@ -77,13 +83,13 @@ JSDoc types to every parameter and turn that on, then bring in `public/js/`.
 
 1. In a pull request, move the **Unreleased** notes in `CHANGELOG.md` under a new version heading
    (`## [1.16.0] - YYYY-MM-DD`, plus its link at the bottom) and set the same `version` in
-   `package.json`. New features bump the middle number, fixes the last one.
+   `src/package.json`. Installed copies learn about it from the GitHub release. New features bump the middle number, fixes the last one.
 2. After it's merged, tag that commit and push the tag:
    ```bash
    git checkout main && git pull
    git tag v1.16.0 && git push origin v1.16.0
    ```
-3. CI checks the tag matches `package.json`, publishes `:1.16.0` and `:1.16` with a signed
+3. CI checks the tag matches `src/package.json`, publishes `:1.16.0` and `:1.16` with a signed
    provenance attestation, and creates the GitHub release from the changelog notes.
 
 ## Commits and pull requests
@@ -95,4 +101,4 @@ JSDoc types to every parameter and turn that on, then bring in `public/js/`.
   fixtures or screenshots. Test fixtures use made-up values (`example.com`, documentation IP
   ranges like `198.51.100.x`).
 
-By contributing, you agree that your contribution is licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contribution is licensed under the [MIT License](../LICENSE).

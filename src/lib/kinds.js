@@ -226,7 +226,7 @@ const KINDS = [
         type: 'text',
         optional: true,
         placeholder: 'https://requests.example.com',
-        help: 'The addresses people open from the internet through this tunnel, e.g. your Seerr. Media Ops opens each one through Cloudflare every poll and alerts you if it stops loading. Separate several with commas.',
+        help: 'The addresses people open from the internet through this tunnel, e.g. your Seerr. Use https://. Media Ops opens each one through Cloudflare once a minute and alerts you if it stops loading. Separate several with commas.',
       },
     ],
   },

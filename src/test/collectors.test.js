@@ -515,6 +515,23 @@ test('cloudflared: connections and version from metrics; public addresses checke
   assert.equal(r.data.events.filter(e => e.source === 'Public address' && e.live).length, 3);
   assert.match(r.data.note, /^4 connections to Cloudflare \(dfw08, iah01\)\./);
 
+  // http:// → https:// on the same host is answered by Cloudflare's edge, not the tunnel, so it's
+  // followed. (This fake has no TLS: the followed request fails, which shows it was made.) A
+  // redirect anywhere else, like Seerr's to /login, counts as loading.
+  const edge = await fakeServer({
+    '/upgrade': req => ({ status: 301, headers: { Location: `https://${req.headers.host}/upgrade` } }),
+    '/login-redirect': { status: 307, headers: { Location: '/login' } },
+  });
+  t.after(() => edge.close());
+  const r3 = await c.cloudflared({ url: tunnel.url, publicUrls: `${edge.url}/upgrade ${edge.url}/login-redirect` });
+  assert.deepEqual(
+    r3.data.public.map(p => [p.ok, p.status]),
+    [
+      [false, null],
+      [true, 307],
+    ],
+  );
+
   // No connections: the tunnel is down.
   const off = await fakeServer({ '/ready': { status: 503, body: '{"status":503,"readyConnections":0}' } });
   t.after(() => off.close());

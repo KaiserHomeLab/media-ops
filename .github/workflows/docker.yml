@@ -136,6 +136,7 @@ jobs:
           curl -fsS -o /dev/null -w '%{content_type}' http://localhost:8484/js/main.js | grep -q javascript
           curl -fsS http://localhost:8484/api/overview | jq -e '(.services | length) > 0 and .version != null'
           curl -fsS http://localhost:8484/settings | grep -q 'Settings'
+          curl -fsS http://localhost:8484/api/status | jq -e '(.services | length) > 0'
       - name: Container log
         if: always()
         run: docker logs smoke || true

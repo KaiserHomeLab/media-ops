@@ -48,6 +48,8 @@ export interface Config {
     digest?: { enabled: boolean; time: string };
   };
   dismissed: { before: Record<string, number>; items: any[] };
+  /** Public /status page (lib/status.js); null until first saved. */
+  statusPage?: { enabled: boolean; title: string; notice: string; services: string[] } | null;
   [key: string]: any;
 }
 

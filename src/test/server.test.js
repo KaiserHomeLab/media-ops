@@ -232,6 +232,35 @@ test('status page: off by default; when on, only the chosen apps and their uptim
   await json('PUT', '/api/settings/password', { current: 'status-page-pw', next: '' }, { Cookie: cookie });
 });
 
+test('apps found in Docker: read through the configured socket proxy; none when Docker is off', async t => {
+  const g = (await (await fetch(`${base}/api/settings`)).json()).general;
+  const general = dockerSocket =>
+    json('PUT', '/api/settings/general', { ...g, paths: g.paths.join('\n'), dockerSocket });
+  await general('');
+  let r = await (await fetch(`${base}/api/settings/discover`)).json();
+  assert.deepEqual(r, { docker: false, apps: [] }, 'Docker turned off');
+  const docker = await fakeServer({
+    '/containers/json': [
+      {
+        Id: 'a1',
+        Names: ['/sonarr'],
+        Image: 'lscr.io/linuxserver/sonarr:latest',
+        State: 'running',
+        Ports: [{ PrivatePort: 8989, PublicPort: 8989, Type: 'tcp' }],
+        NetworkSettings: { Networks: { bridge: {} } },
+      },
+    ],
+  });
+  t.after(() => docker.close());
+  await general(docker.url);
+  r = await (await fetch(`${base}/api/settings/discover`)).json();
+  assert.deepEqual(r, {
+    docker: true,
+    apps: [{ kind: 'sonarr', label: 'Sonarr', container: 'sonarr', via: 'published', host: null, port: 8989 }],
+  });
+  await general(g.dockerSocket);
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

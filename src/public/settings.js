@@ -55,6 +55,7 @@ async function load() {
   $('demo-banner').hidden = !S.demo;
   $('config-file').textContent = S.configFile;
   renderApps();
+  loadFound();
   renderNotifs();
   renderGeneral();
   renderSecurity();
@@ -192,7 +193,57 @@ function renderApps() {
       `<span>Media Ops is running on <b>${esc(os.label)}</b>. Add it to see ${os.kind === 'truenas' ? 'pools, disks, apps and alerts' : 'the array, parity checks and disks'} on the dashboard.</span>
     <button class="btn small primary" type="button" data-add-kind="${esc(os.kind)}">Add ${esc(os.label)}</button>`;
   renderStatusPage(); // its list of apps follows this one
+  renderFound();
 }
+// --------------------------------------------------------------------- apps found in Docker
+let found = [];
+async function loadFound() {
+  try {
+    found = (await api('/discover')).apps || [];
+  } catch {
+    found = [];
+  }
+  renderFound();
+}
+// Same kind at the same address (or, for a published port, the same port) is already added.
+const SEERR = ['seerr', 'overseerr', 'jellyseerr'];
+const kindMatches = (a, b) => a === b || (SEERR.includes(a) && SEERR.includes(b));
+function alreadyAdded(app) {
+  return S.services.some(s => {
+    if (!kindMatches(s.kind, app.kind)) return false;
+    try {
+      const u = new URL(s.url);
+      const port = Number(u.port) || (u.protocol === 'https:' ? 443 : 80);
+      return port === app.port && (!app.host || u.hostname === app.host);
+    } catch {
+      return false;
+    }
+  });
+}
+function foundUrl(app) {
+  const host = app.host || serverHost();
+  return host ? `http://${host}:${app.port}` : '';
+}
+function renderFound() {
+  const list = found.map((a, i) => ({ ...a, i })).filter(a => !alreadyAdded(a));
+  $('found').hidden = !list.length;
+  if (!list.length) return;
+  $('found').innerHTML = `<span>Found in Docker. Click one to add it; you'll only need its API key.</span>
+    <span class="found-apps">${list
+      .map(
+        a =>
+          `<button class="btn small" type="button" data-found="${a.i}" title="Container ${esc(a.container)} · ${esc(foundUrl(a) || 'address unknown')}"><span class="app-icon k-${esc(a.kind)}" aria-hidden="true">${abbrev(a.label)}</span>${esc(a.label)}${found.filter(f => f.kind === a.kind).length > 1 ? ` <em>${esc(a.container)}</em>` : ''}</button>`,
+      )
+      .join('')}</span>`;
+}
+$('found').addEventListener('click', e => {
+  const b = e.target.closest('[data-found]');
+  if (!b) return;
+  const app = found[Number(b.dataset.found)];
+  const twins = found.filter(f => f.kind === app.kind).length > 1;
+  openForm(app.kind, null, { name: twins ? app.container : app.label, url: foundUrl(app) });
+});
+
 $('detected').addEventListener('click', e => {
   const b = e.target.closest('[data-add-kind]');
   if (b) openForm(b.dataset.addKind);
@@ -273,6 +324,14 @@ function openPicker() {
 const isLoopback = h => /^(localhost|127(\.\d+){3}|\[::1\])$/i.test(h);
 
 function suggestUrl(def) {
+  const host = serverHost();
+  if (!host) return '';
+  if (def.kind === 'truenas') return `https://${host}`;
+  return def.port ? `http://${host}:${def.port}` : `http://${host}`;
+}
+
+// The address of the server the apps run on, as Media Ops can reach it, or '' if unknown.
+function serverHost() {
   // Most people run everything on one box, so reuse the host of an app already added (or this page's host).
   let host = location.hostname;
   const first = S.services[0];
@@ -286,8 +345,7 @@ function suggestUrl(def) {
     if (!S.platform?.vm) return '';
     host = 'host.docker.internal';
   }
-  if (def.kind === 'truenas') return `https://${host}`;
-  return def.port ? `http://${host}:${def.port}` : `http://${host}`;
+  return host;
 }
 
 // Shared by the app and notification forms --------------------------------------------------
@@ -324,9 +382,10 @@ const focusFirstEmpty = (form, fallback) =>
 
 // Apps -----------------------------------------------------------------------------------------
 
-function appFormHtml(def, svc) {
+// prefill: { name, url } for a new app found in Docker.
+function appFormHtml(def, svc, prefill) {
   const sameKind = S.services.filter(s => s.kind === def.kind).length;
-  const defaultName = !svc && sameKind ? `${def.label} ${sameKind + 1}` : def.label;
+  const defaultName = prefill?.name || (!svc && sameKind ? `${def.label} ${sameKind + 1}` : def.label);
   const urlHelp = S.platform?.vm
     ? "Use the computer's network IP, or <code>host.docker.internal</code> for an app installed on this computer. Not <code>localhost</code>."
     : "Use the server's network IP, not <code>localhost</code>.";
@@ -336,7 +395,7 @@ function appFormHtml(def, svc) {
       <label class="field"><span>Name</span><input name="name" required value="${esc(svc?.name || defaultName)}" placeholder="${esc(def.label)}"></label>
       <label class="field toggle"><input type="checkbox" name="enabled" ${svc?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
       <label class="field wide"><span>Address</span><input name="url" required spellcheck="false" inputmode="url"
-        value="${esc(svc?.url || suggestUrl(def))}" placeholder="http://192.168.1.10:${def.port || 80}">
+        value="${esc(svc?.url || prefill?.url || suggestUrl(def))}" placeholder="http://192.168.1.10:${def.port || 80}">
         <small>${urlHelp}${def.port ? ` ${esc(def.label)}'s default port is ${def.port}.` : ''}</small></label>
       ${def.fields.map(f => fieldHtml(f, svc)).join('')}
       <details class="field wide more"${svc?.link ? ' open' : ''}><summary>Advanced</summary>
@@ -374,9 +433,9 @@ async function deleteApp(svc) {
   renderApps();
 }
 
-function openForm(kind, svc = null) {
+function openForm(kind, svc = null, prefill = null) {
   const def = kindDef(kind);
-  openModal(svc ? `Edit ${svc.name}` : `Add ${def.label}`, appFormHtml(def, svc));
+  openModal(svc ? `Edit ${svc.name}` : `Add ${def.label}`, appFormHtml(def, svc, prefill));
   const form = $('app-form'),
     result = $('test-result');
 

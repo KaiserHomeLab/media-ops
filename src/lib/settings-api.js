@@ -18,7 +18,8 @@ const diagnostics = require('./diagnostics');
 const digest = require('./digest');
 const pins = require('./pins');
 const { platform } = require('./platform');
-const { hostOs, hostStats, loopbackNote } = require('./host');
+const { hostOs, hostStats, loopbackNote, listContainers } = require('./host');
+const discover = require('./discover');
 const { sessions, cookie, loggedIn, startSession, lockedOut, noteFailure } = require('./auth');
 const { readJson, send } = require('./web');
 const { DEMO, describeError, runService, invalidate, polled } = require('./poll');
@@ -329,6 +330,18 @@ async function saveGeneral(req, res) {
   return send(res, 200, { ok: true });
 }
 
+// ---------------------------------------------------------------- apps found in Docker
+async function discoverApps(req, res) {
+  if (DEMO) return send(res, 200, { docker: false, apps: [] });
+  try {
+    const list = await listContainers(config.load().docker);
+    if (!list) return send(res, 200, { docker: false, apps: [] });
+    return send(res, 200, { docker: true, apps: discover.findApps(list) });
+  } catch (e) {
+    return send(res, 200, { docker: true, apps: [], error: describeError(e) });
+  }
+}
+
 // ---------------------------------------------------------------- public status page
 async function saveStatusPage(req, res) {
   let statusPage;
@@ -457,6 +470,7 @@ const ROUTE_LIST = [
   ['DELETE', '/notifications/:id', deleteTarget],
   ['PUT', '/notification-options', saveNotificationOptions],
   ['PUT', '/status-page', saveStatusPage],
+  ['GET', '/discover', discoverApps],
   ['POST', '/digest-test', sendTestDigest],
   ['GET', '/backup', backup],
   ['POST', '/restore', restore],

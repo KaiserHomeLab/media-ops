@@ -141,6 +141,9 @@ each version is in the [changelog](CHANGELOG.md) and on the
    change your apps, stop streams or clear logs. The dashboard reminds you until it's done.
 2. **Add your apps.** Go to **Settings → Add app**, pick an app, and enter its address and API
    key. Each form tells you where that app keeps its key. Click **Test**, then **Save**.
+   If Media Ops can see Docker (the Docker socket, or a socket proxy, under Settings →
+   General), it lists the apps it **found in Docker** at the top: click one and the address
+   is filled in for you, so you only paste its API key.
 
 ![Adding an app in Settings](docs/screenshots/settings.png)
 

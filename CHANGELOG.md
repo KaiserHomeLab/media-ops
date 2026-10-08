@@ -18,6 +18,9 @@ To stay on one version instead of `latest`, use a version tag such as
 - A public status page (`/status`) to share with the people who use your server: whether each
   app you pick is up and its uptime over the last day, plus an optional notice. Off until you
   turn it on under Settings → Status page.
+- Settings finds your apps in Docker: supported apps running in containers are listed under
+  Apps, and clicking one opens the form with its name and address filled in. Uses the same
+  Docker access as the containers panel.
 - Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
   list and in "failed or stuck downloads" notifications, for every torrent client.
 

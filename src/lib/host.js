@@ -79,15 +79,23 @@ async function localDisks(paths = []) {
 
 // Container list from the Docker Engine API: a mounted unix socket, or (safer) the URL of a
 // read-only socket proxy such as tecnativa/docker-socket-proxy. Read-only: one GET.
-async function dockerContainers(cfg) {
+// Docker's container list as it answers it, or null when Docker isn't set up (no socket
+// configured, or not mounted). Throws when Docker is set up but doesn't answer.
+async function listContainers(cfg) {
   const where = cfg?.socket;
   if (!where) return null;
   const viaProxy = /^https?:\/\//i.test(where);
   if (!viaProxy && !fs.existsSync(where)) return null; // socket not mounted — just hide the panel
+  const list = viaProxy
+    ? await httpReq(join(where, '/containers/json?all=1'), { timeout: 4000 })
+    : await unixGet(where, '/containers/json?all=1');
+  return Array.isArray(list) ? list : [];
+}
+
+async function dockerContainers(cfg) {
   try {
-    const list = viaProxy
-      ? await httpReq(join(where, '/containers/json?all=1'), { timeout: 4000 })
-      : await unixGet(where, '/containers/json?all=1');
+    const list = await listContainers(cfg);
+    if (!list) return null;
     return list
       .map(c => ({
         name: (c.Names?.[0] || c.Id).replace(/^\//, ''),
@@ -102,4 +110,4 @@ async function dockerContainers(cfg) {
   }
 }
 
-module.exports = { hostOs, hostStats, loopbackNote, localDisks, dockerContainers };
+module.exports = { hostOs, hostStats, loopbackNote, localDisks, listContainers, dockerContainers };

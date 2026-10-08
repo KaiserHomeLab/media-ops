@@ -262,3 +262,70 @@ test('geo: XML entities are decoded once (an escaped entity stays escaped)', () 
   assert.equal(unescapeXml('&amp;lt;script&amp;gt;'), '&lt;script&gt;');
   assert.equal(unescapeXml(undefined), undefined);
 });
+
+test('docker discovery: recognises apps by image and picks how to reach them', () => {
+  const { findApps, kindOfImage } = require('../lib/discover');
+  assert.equal(kindOfImage('lscr.io/linuxserver/sonarr:latest'), 'sonarr');
+  assert.equal(kindOfImage('ghcr.io/hotio/radarr:release@sha256:abc'), 'radarr');
+  assert.equal(kindOfImage('binhex/arch-qbittorrentvpn'), null, 'unknown image');
+  assert.equal(kindOfImage('binhex/arch-sabnzbd'), 'sabnzbd');
+  assert.equal(kindOfImage('plexinc/pms-docker'), 'plex');
+  assert.equal(kindOfImage('sha256:0123'), null);
+  const net = (...names) => ({ Networks: Object.fromEntries(names.map(n => [n, {}])) });
+  const containers = [
+    {
+      Id: 'abc123self0000',
+      Names: ['/media-ops'],
+      Image: 'ghcr.io/kaiserhomelab/media-ops',
+      State: 'running',
+      NetworkSettings: net('media'),
+    },
+    {
+      Id: 's1',
+      Names: ['/sonarr'],
+      Image: 'lscr.io/linuxserver/sonarr',
+      State: 'running',
+      NetworkSettings: net('media'),
+      Ports: [{ PrivatePort: 8989, PublicPort: 18989, Type: 'tcp' }],
+    },
+    {
+      Id: 'r1',
+      Names: ['/radarr'],
+      Image: 'lscr.io/linuxserver/radarr',
+      State: 'running',
+      NetworkSettings: net('bridge'),
+      Ports: [
+        { PrivatePort: 7878, PublicPort: 7878, Type: 'tcp', IP: '0.0.0.0' },
+        { PrivatePort: 7878, PublicPort: 7878, Type: 'tcp', IP: '::' },
+      ],
+    },
+    {
+      Id: 'p1',
+      Names: ['/plex'],
+      Image: 'plexinc/pms-docker',
+      State: 'running',
+      HostConfig: { NetworkMode: 'host' },
+      NetworkSettings: net('host'),
+    },
+    {
+      Id: 'q1',
+      Names: ['/qbit'],
+      Image: 'lscr.io/linuxserver/qbittorrent',
+      State: 'exited',
+      NetworkSettings: net('media'),
+    },
+    { Id: 'x1', Names: ['/nginx'], Image: 'nginx:alpine', State: 'running', NetworkSettings: net('media') },
+    { Id: 'b1', Names: ['/bazarr'], Image: 'hotio/bazarr', State: 'running', NetworkSettings: net('bridge') },
+  ];
+  assert.deepEqual(findApps(containers, 'abc123self00'), [
+    { kind: 'plex', label: 'Plex', container: 'plex', via: 'host', host: null, port: 32400 },
+    { kind: 'radarr', label: 'Radarr', container: 'radarr', via: 'published', host: null, port: 7878 },
+    { kind: 'sonarr', label: 'Sonarr', container: 'sonarr', via: 'network', host: 'sonarr', port: 8989 },
+  ]);
+  const notMe = findApps(containers, 'zzz');
+  assert.equal(
+    notMe.find(a => a.kind === 'sonarr').via,
+    'published',
+    'without our own container, only published ports',
+  );
+});

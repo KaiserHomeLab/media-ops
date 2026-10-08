@@ -9,6 +9,14 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Security
+
+- After logging in, Settings could be tricked into sending you to another website by a crafted
+  link (`/settings?next=/\evil.example`). It now only goes back to pages on this site.
+- Location names from plex.tv are decoded correctly (an escaped `&amp;quot;` was decoded twice),
+  TrueNAS alert text can't keep stray `<` `>` characters, and static files are read safely even
+  while they're being replaced. Found by CodeQL.
+
 ## [1.15.0] - 2026-10-08
 
 ### Added

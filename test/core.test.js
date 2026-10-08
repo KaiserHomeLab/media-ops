@@ -253,3 +253,12 @@ test('password check: async, and a broken hash in config.json fails closed inste
   assert.equal(await config.checkPassword('right-password'), false);
   config.save({ ...config.load(), auth: null });
 });
+
+test('geo: XML entities are decoded once (an escaped entity stays escaped)', () => {
+  const { unescapeXml } = require('../lib/geo');
+  assert.equal(unescapeXml('Saint-Jean &amp; Pierre'), 'Saint-Jean & Pierre');
+  assert.equal(unescapeXml('&quot;A&quot; &lt;b&gt; it&#39;s &apos;x&apos;'), `"A" <b> it's 'x'`);
+  assert.equal(unescapeXml('&amp;quot;'), '&quot;', 'not decoded twice');
+  assert.equal(unescapeXml('&amp;lt;script&amp;gt;'), '&lt;script&gt;');
+  assert.equal(unescapeXml(undefined), undefined);
+});

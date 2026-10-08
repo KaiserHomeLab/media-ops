@@ -15,8 +15,9 @@ const DEFAULTS = {
   paths: ['/mnt/user', '/mnt/cache'], // Unraid array + cache; paths that don't exist are skipped
   services: [],
   auth: null, // { salt, hash } once a settings password is set
-  map: { enabled: true, home: '' },
-  notifications: { diskThreshold: 90, targets: [] }, // see lib/notify.js // stream map; home = optional "lat, lon" override
+  map: { enabled: true, home: '' }, // stream map; home = optional "lat, lon" override
+  notifications: { diskThreshold: 90, targets: [] }, // see lib/notify.js
+  statusPage: null, // public /status page, see lib/status.js
   dismissed: { before: {}, items: [] }, // errors feed: what's been dismissed (see lib/events.js)
 };
 

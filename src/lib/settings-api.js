@@ -13,6 +13,7 @@ const feed = require('./events');
 const recovery = require('./recovery');
 const geo = require('./geo');
 const notify = require('./notify');
+const status = require('./status');
 const diagnostics = require('./diagnostics');
 const digest = require('./digest');
 const pins = require('./pins');
@@ -57,6 +58,7 @@ function settingsPayload(req) {
     },
     notifyTypes: notify.TYPES,
     notifyEvents: notify.EVENTS,
+    statusPage: status.settingsOf(cfg),
   };
 }
 
@@ -327,6 +329,18 @@ async function saveGeneral(req, res) {
   return send(res, 200, { ok: true });
 }
 
+// ---------------------------------------------------------------- public status page
+async function saveStatusPage(req, res) {
+  let statusPage;
+  try {
+    statusPage = status.clean(await readJson(req), config.load().services);
+  } catch (e) {
+    return send(res, 400, { error: e.message });
+  }
+  config.update(c => ({ ...c, statusPage }));
+  return send(res, 200, { ok: true, statusPage });
+}
+
 // ---------------------------------------------------------------- backup and restore
 // The whole config, secrets included, as one JSON file.
 function backup(req, res) {
@@ -344,6 +358,15 @@ function backup(req, res) {
     'Cache-Control': 'no-store',
   });
   return res.end(body);
+}
+
+// A backup's status page settings, through the same checks as the form (bad ones are dropped).
+function safeStatusPage(input, services) {
+  try {
+    return status.clean(input, services);
+  } catch {
+    return null;
+  }
 }
 
 async function restore(req, res) {
@@ -386,6 +409,7 @@ async function restore(req, res) {
     cleanupDays: Math.min(3650, Math.max(30, Math.round(Number(incoming.cleanupDays)) || 365)),
     checkUpdates: incoming.checkUpdates !== false,
     dashboardAuth: !!incoming.dashboardAuth && !!(auth || c.auth),
+    statusPage: incoming.statusPage ? safeStatusPage(incoming.statusPage, services) : null,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -432,6 +456,7 @@ const ROUTE_LIST = [
   ['PUT', '/notifications/:id', updateTarget],
   ['DELETE', '/notifications/:id', deleteTarget],
   ['PUT', '/notification-options', saveNotificationOptions],
+  ['PUT', '/status-page', saveStatusPage],
   ['POST', '/digest-test', sendTestDigest],
   ['GET', '/backup', backup],
   ['POST', '/restore', restore],

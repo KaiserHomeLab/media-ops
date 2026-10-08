@@ -18,6 +18,7 @@ const digest = require('./digest');
 const gpu = require('./gpu');
 const space = require('./space');
 const selfupdate = require('./selfupdate');
+const status = require('./status');
 const { hostStats, localDisks, dockerContainers } = require('./host');
 const pkg = require('../package.json');
 
@@ -157,6 +158,17 @@ function historyPayload() {
   };
 }
 
+// The public status page. Reads the background monitor's last poll and never starts one, so
+// anyone hammering /api/status can't make Media Ops poll your apps more often.
+const statusEnabled = () => DEMO || status.settingsOf(config.load()).enabled;
+function statusPayload() {
+  if (!DEMO) return status.payload(config.load(), cache.value);
+  const raw = demo.overview(hostStats());
+  const hist = demo.history();
+  const services = raw.services.map(s => ({ id: s.id, kind: s.kind, name: s.name }));
+  return status.payload({ services, statusPage: { enabled: true } }, raw, id => hist.uptime[id]);
+}
+
 module.exports = {
   DEMO,
   describeError,
@@ -167,4 +179,6 @@ module.exports = {
   overview,
   monitorTick,
   historyPayload,
+  statusEnabled,
+  statusPayload,
 };

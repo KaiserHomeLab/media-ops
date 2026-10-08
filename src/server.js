@@ -10,6 +10,7 @@
 //   POST /api/events/services/:id/clear    clear an app's own log (needs login if a password is set)
 //   POST /api/events/services/:id/recheck  re-run an app's health checks
 //   *    /api/settings/…                   apps, general options, password, password reset
+//   GET  /api/status                       the public status page's data (only when turned on)
 //   GET  /healthz                          liveness probe
 //
 // This file only routes and starts things. The work lives in lib/:
@@ -18,24 +19,28 @@
 //   auth.js           sessions and lockout   web.js             headers, JSON, static files
 //   host.js           CPU/memory, disks, Docker for the Host panel
 //
-// No dependencies beyond Node's standard library.'use strict';
+// No dependencies beyond Node's standard library.
+'use strict';
 const http = require('node:http');
 const path = require('node:path');
 const config = require('./lib/config');
 const history = require('./lib/history');
 const { loggedIn } = require('./lib/auth');
 const { SECURITY_HEADERS, sameOrigin, send, serveStatic } = require('./lib/web');
-const { DEMO, overview, monitorTick, historyPayload } = require('./lib/poll');
+const { DEMO, overview, monitorTick, historyPayload, statusEnabled, statusPayload } = require('./lib/poll');
 const { eventsApi, plexThumb } = require('./lib/dashboard-api');
 const { settingsApi } = require('./lib/settings-api');
 
 const PUBLIC = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT) || 8484;
-const PAGES = { '/': '/index.html', '/settings': '/settings.html' };
+const PAGES = { '/': '/index.html', '/settings': '/settings.html', '/status': '/status.html' };
 
-// With "require login for the dashboard" on, only the login page (Settings) and what it needs
-// are reachable without a session.
+// With "require login for the dashboard" on, only the login page (Settings), the public status
+// page (when it's turned on) and what they need are reachable without a session.
+const STATUS_PAGE = new Set(['/status', '/status.html', '/api/status']);
 const ALWAYS_OPEN = new Set([
+  ...STATUS_PAGE,
+  '/js/status.js',
   '/healthz',
   '/settings',
   '/settings.html',
@@ -70,6 +75,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(302, { Location: `/settings?next=${encodeURIComponent(url.pathname + url.search)}` });
       return res.end();
     }
+    if (STATUS_PAGE.has(url.pathname) && !statusEnabled()) return send(res, 404, { error: 'Not found' });
+    if (url.pathname === '/api/status') return send(res, 200, statusPayload());
     if (url.pathname === '/api/overview') return send(res, 200, await overview());
     if (url.pathname === '/api/history') return send(res, 200, historyPayload());
     if (url.pathname === '/api/plex/thumb') return plexThumb(res, url.searchParams.get('p'));

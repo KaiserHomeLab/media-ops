@@ -5,9 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/): a new feature bu
 number, a fix the last one.
 
 To stay on one version instead of `latest`, use a version tag such as
-`ghcr.io/kaiserhomelab/media-ops:1.15` (gets fixes, not new features) or `:1.15.0` (never changes).
+`ghcr.io/kaiserhomelab/media-ops:1.16` (gets fixes, not new features) or `:1.16.0` (never changes).
 
 ## [Unreleased]
+
+## [1.16.0] - 2026-10-08
 
 ### Added
 
@@ -34,13 +36,6 @@ To stay on one version instead of `latest`, use a version tag such as
 - Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
   list and in "failed or stuck downloads" notifications, for every torrent client.
 
-### Fixed
-
-- A failed Discord notification could show the webhook's token in Settings and the log (it's
-  part of the address in the error). Saved secrets are now blanked out of every send error.
-- Testing a qBittorrent login in Settings with a different password could pass by reusing the
-  session from the saved one.
-
 ### Changed
 
 - The update check now asks GitHub for the latest release instead of reading the code on the
@@ -49,6 +44,16 @@ To stay on one version instead of `latest`, use a version tag such as
   once (or let your usual update tool do it) and it works again.
 - The repository is reorganised: the source code is in `src/`, and the top level only has
   what you need to install Media Ops.
+
+### Fixed
+
+- Testing a qBittorrent login in Settings with a different password could pass by reusing the
+  session from the saved one.
+
+### Security
+
+- A failed Discord notification could show the webhook's token in Settings and the log (it's
+  part of the address in the error). Saved secrets are now blanked out of every send error.
 
 ## [1.15.1] - 2026-10-08
 
@@ -181,7 +186,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 First public release.
 
-[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.1...HEAD
+[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.16.0...HEAD
+[1.16.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.1...v1.16.0
 [1.15.1]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/KaiserHomeLab/media-ops/releases/tag/v1.15.0
 [1.14.2]: https://github.com/KaiserHomeLab/media-ops/commit/b0bb6a9

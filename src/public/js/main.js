@@ -14,11 +14,12 @@ import { renderStrip } from './strip.js';
 import { renderKpis, renderLibrary, renderServices } from './summary.js';
 import { renderDisks, renderHost, renderTrueNAS, renderUnraid } from './system.js';
 import { setTvMode } from './tv.js';
-import { $, allStreams, esc, lastHTML, mapSource, mediaServers, setHTML, store, uptime } from './util.js';
+import { $, allStreams, answered, esc, lastHTML, mapSource, mediaServers, setHTML, store, uptime } from './util.js';
 
 // --------------------------------------------------------------------- polling
 let lastOk = 0;
-let timer = null;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let timer;
 
 // Poll loop. The next request is scheduled only after this one finishes, so a slow server never
 // piles up requests; switching back to the tab refreshes immediately.
@@ -30,10 +31,12 @@ export async function refresh() {
       location.href = `/settings?next=${encodeURIComponent(location.pathname + location.search)}`;
       return;
     }
-    if (!r.ok) throw new Error(r.status);
-    store.state = await r.json();
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    /** @type {Overview} */
+    const d = await r.json();
+    store.state = d;
     lastOk = Date.now();
-    render(store.state);
+    render(d);
   } catch (e) {
     console.warn('refresh failed', e);
   }
@@ -82,13 +85,16 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // --------------------------------------------------------------------- render
+/** @param {Overview} d */
 export function render(d) {
+  /** @param {string} kind */
   const up = kind => d.services.filter(s => s.kind === kind && s.up);
+  /** @param {string[]} kinds */
   const all = kinds => d.services.filter(s => kinds.includes(s.kind) && s.up);
   const arrs = all(['sonarr', 'radarr', 'lidarr', 'readarr']);
   const media = mediaServers(d.services);
   const streams = allStreams(d.services);
-  const clients = d.services.filter(s => s.up && s.data?.client); // download clients
+  const clients = d.services.filter(answered).filter(s => s.data.client); // download clients
 
   applyLayout(d.layout);
   $('demo-badge').hidden = !d.demo;
@@ -128,7 +134,9 @@ export function render(d) {
   renderHost(d.host, d.docker, d.gpus, media.find(m => m.data.resources)?.data.resources);
 }
 
+/** @param {Overview} d */
 function renderAlerts(d) {
+  /** @type {{ cls: string, html: string, key?: string, svcId?: string }[]} */
   const items = d.events
     .filter(e => e.live && !e.dismissed && e.source !== 'Queue')
     .map(e => ({

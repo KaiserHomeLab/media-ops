@@ -6,6 +6,7 @@ import { $, bytes, esc, safeHref, setHTML, store } from './util.js';
 
 // --------------------------------------------------------------------- what's using space
 let spaceTab = 'biggest';
+/** @param {number} d */
 const daysText = d => {
   if (d >= 365) {
     const y = Math.round((d / 365) * 10) / 10;
@@ -13,7 +14,9 @@ const daysText = d => {
   }
   return d >= 60 ? `${Math.round(d / 30)} months` : `${d} day${d === 1 ? '' : 's'}`;
 };
+/** @param {number} t */
 const span = t => daysText(Math.floor((Date.now() - t) / 864e5));
+/** @param {any} sp the space summary from lib/space.js */
 export function renderSpace(sp) {
   const show = !!sp && (sp.biggest.length || sp.downloaded.items.length);
   $('space-card').hidden = !show;
@@ -26,10 +29,14 @@ export function renderSpace(sp) {
     ? `${bytes(c.total)} in ${c.count} title${c.count === 1 ? '' : 's'} nobody watched in ${daysText(c.days)}`
     : '';
 
-  let list = [],
-    note,
-    sizeOf = x => x.size,
-    extra = () => '';
+  /** @type {any[]} */
+  let list = [];
+  /** @type {string} */
+  let note;
+  /** @type {(x: any) => number} */
+  let sizeOf = x => x.size;
+  /** @type {(x: any) => string} */
+  let extra = () => '';
   if (spaceTab === 'biggest') {
     list = sp.biggest;
     note = 'The largest series, movies and artists, from Sonarr, Radarr and Lidarr.';
@@ -75,8 +82,8 @@ export function renderSpace(sp) {
   );
 }
 $('space-tabs').addEventListener('click', e => {
-  const b = e.target.closest('[data-space]');
+  const b = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest?.('[data-space]'));
   if (!b) return;
-  spaceTab = b.dataset.space;
+  spaceTab = b.dataset.space || 'biggest';
   if (store.state) renderSpace(store.state.space);
 });

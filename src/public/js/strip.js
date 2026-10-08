@@ -8,14 +8,17 @@
 // can turn it off. Same numbers as the summary row.
 import { $, esc, mbps, rate, setHTML } from './util.js';
 
+/** @param {any[]} list @param {(x: any) => number} f */
 const sum = (list, f) => list.reduce((a, x) => a + (f(x) || 0), 0);
 
+/** @param {Overview} d @param {{ streams: any[], clients: ServiceState[] }} parts */
 export function renderStrip(d, { streams, clients }) {
   const down = d.services.filter(s => !s.up);
   const errors = d.events.filter(e => !e.dismissed && e.level === 'error' && Date.now() - e.t < 864e5).length;
   const bw = mbps(sum(streams, s => s.bandwidth));
   const dl = rate(sum(clients, c => c.data.downBps));
   // text: the full label; short: what phones show next to the icon.
+  /** @type {{ to: string, wide?: boolean, state?: string, icon: string, text: string, short: string }[]} */
   const items = [
     {
       to: 'now-playing',
@@ -24,7 +27,7 @@ export function renderStrip(d, { streams, clients }) {
       text: streams.length ? `${streams.length} streaming · ${bw}` : 'nothing playing',
       short: String(streams.length),
     },
-    clients.length && { to: 'downloads-card', wide: true, icon: '↓', text: dl, short: dl },
+    ...(clients.length ? [{ to: 'downloads-card', wide: true, icon: '↓', text: dl, short: dl }] : []),
     down.length
       ? {
           to: 'services-card',
@@ -40,14 +43,18 @@ export function renderStrip(d, { streams, clients }) {
           text: `${d.services.length}/${d.services.length} up`,
           short: `${d.services.length} up`,
         },
-    errors && {
-      to: 'events-card',
-      state: 'warn',
-      icon: '⚠',
-      text: `${errors} error${errors === 1 ? '' : 's'}`,
-      short: String(errors),
-    },
-  ].filter(Boolean);
+    ...(errors
+      ? [
+          {
+            to: 'events-card',
+            state: 'warn',
+            icon: '⚠',
+            text: `${errors} error${errors === 1 ? '' : 's'}`,
+            short: String(errors),
+          },
+        ]
+      : []),
+  ];
   setHTML(
     $('strip'),
     items

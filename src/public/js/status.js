@@ -5,15 +5,19 @@
 // with its uptime over the last 24 hours. Builds DOM nodes with textContent (no HTML strings),
 // so nothing from the server can become markup.
 
+/** @param {string} id */
 const $ = id => /** @type {HTMLElement} */ (document.getElementById(id));
+/** @param {string} tag @param {string} [cls] @param {string} [text] */
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (text != null) e.textContent = text;
   return e;
 };
+/** @param {number | null} v */
 const pct = v => (v == null ? '—' : `${(v * 100).toFixed(v >= 0.9995 || v === 0 ? 0 : 1)}%`);
 
+/** @param {{ title: string, notice: string, checkedAt: number | null, services: { name: string, up: boolean | null, day: number | null, week: number | null, cells: (number | null)[] }[] }} d */
 function render(d) {
   document.title = d.title;
   $('stp-title').textContent = d.title;
@@ -76,3 +80,5 @@ setInterval(refresh, 30e3);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refresh();
 });
+
+export {}; // an ES module (type="module" in status.html), not a global script

@@ -67,8 +67,10 @@ nothing is compiled. Shared shapes (a saved app, the config, request options) li
 The server code (`server.js`, `lib/`, `bin/`) is checked in strict mode, including
 `noImplicitAny`: every function parameter has a JSDoc type. Data from another app's API is typed
 `any` honestly (its shape isn't ours to promise); read its lists through `list()` in
-`lib/collectors/shared.js`, which also turns a missing list into an empty one. Next step: bring
-`public/js/` into the check.
+`lib/collectors/shared.js`, which also turns a missing list into an empty one. The browser code (`public/js/`, `public/settings.js`) has its own config,
+`public/tsconfig.json`, and is being brought in file by file: `scripts/typecheck-web.js` (run
+by `npm run typecheck`) fails on errors in the files it lists. Shared shapes for it
+(`Overview`, `ServiceState`) are in `public/globals.d.ts`.
 
 ## Rules that keep it safe
 

@@ -2,12 +2,14 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // The top numbers row (KPIs), the services grid and the library card.
-import { $, ago, bytes, esc, mbps, n0, num, rate, safeHref, setHTML, store, sum } from './util.js';
+import { $, ago, answered, bytes, esc, list, mbps, n0, num, rate, safeHref, setHTML, store, sum } from './util.js';
 
+/** @param {string} label @param {string} value @param {string} [foot] */
 function kpi(label, value, foot = '') {
   return `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div><div class="foot">${foot}</div></div>`;
 }
 
+/** @param {Overview} d @param {{ streams: any[], arrs: Answered[], clients: Answered[] }} parts */
 export function renderKpis(d, { streams, arrs, clients }) {
   const tc = streams.filter(s => s.decision.startsWith('Transcode')).length;
   const paused = streams.filter(s => s.state === 'paused').length;
@@ -22,9 +24,10 @@ export function renderKpis(d, { streams, arrs, clients }) {
   const upCount = d.services.filter(s => s.up).length;
   const down = d.services.filter(s => !s.up).map(s => s.name);
   // Totals across every instance of a kind (e.g. Sonarr + Sonarr Anime).
+  /** @param {string} kind @param {string} key */
   const tot = (kind, key) => {
-    const list = arrs.filter(a => a.kind === kind);
-    return list.length ? sum(list, a => a.data.stats[key]) : null;
+    const ofKind = arrs.filter(a => a.kind === kind);
+    return ofKind.length ? sum(ofKind, a => a.data.stats[key]) : null;
   };
   const size = sum(arrs, a => a.data.stats.size);
   const missing = sum(arrs, a => a.data.stats.missing);
@@ -80,6 +83,7 @@ export function renderKpis(d, { streams, arrs, clients }) {
   );
 }
 
+/** @param {ServiceState[]} services */
 export function renderServices(services) {
   const up = services.filter(s => s.up).length;
   const updates = services.filter(s => s.up && s.data?.update).length;
@@ -94,8 +98,10 @@ export function renderServices(services) {
               .filter(Boolean)
               .join(' · ')
           : esc(s.error);
-        const slow = s.up && s.latency > 1500;
+        const slow = s.up && (s.latency ?? 0) > 1500;
+        /** @type {{ cells: (number | null)[], day: number | null, week: number | null } | undefined} */
         const u = store.hist?.uptime?.[s.id];
+        /** @param {number | null} v */
         const pct = v => (v == null ? '—' : `${(v * 100).toFixed(v >= 0.9995 ? 0 : 1)}%`);
         // 24 h in half-hour cells; the % next to it carries the meaning, color only reinforces it.
         const bar =
@@ -119,17 +125,21 @@ export function renderServices(services) {
   );
 }
 
+/** @param {Answered[]} media @param {ServiceState[]} services */
 export function renderLibrary(media, services) {
   // With more than one media server, each library says which one it's on.
   const libs = media.flatMap(m =>
-    (m.data.libraries || []).map(l => ({ ...l, title: media.length > 1 ? `${l.title} · ${m.name}` : l.title })),
+    list(m.data.libraries).map(l => ({ ...l, title: media.length > 1 ? `${l.title} · ${m.name}` : l.title })),
   );
+  /** @type {Record<string, string>} */
   const icon = { movie: '🎬', show: '📺', artist: '🎵', photo: '📷' };
+  /** @type {Record<string, string>} */
+  const UNIT = { movie: 'movies', show: 'shows', artist: 'artists', photo: 'items' };
   setHTML(
     $('libraries'),
     libs
       .map(l => {
-        const unit = { movie: 'movies', show: 'shows', artist: 'artists', photo: 'items' }[l.type] || 'items';
+        const unit = UNIT[l.type] || 'items';
         const extra =
           l.type === 'show'
             ? `${num(l.episodes)} episodes`
@@ -141,6 +151,7 @@ export function renderLibrary(media, services) {
       .join('') || (media.length ? '' : '<div class="empty">No media server (Plex, Jellyfin or Emby) connected.</div>'),
   );
 
+  /** @type {Record<string, (s: any) => [string, string, boolean?][]>} */
   const rows = {
     sonarr: s => [
       ['Series', num(s.series)],
@@ -202,7 +213,8 @@ export function renderLibrary(media, services) {
   setHTML(
     $('arr-stats'),
     services
-      .filter(s => s.up && rows[s.kind] && s.data?.stats)
+      .filter(answered)
+      .filter(s => rows[s.kind] && s.data.stats)
       .map(s => {
         const kv = rows[s.kind](s.data.stats)
           .map(([k, v, bad]) => `<dt>${k}</dt><dd class="${bad ? 'bad' : ''}">${esc(v)}</dd>`)

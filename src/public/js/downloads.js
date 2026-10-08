@@ -2,18 +2,35 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // Downloads, coming up, indexer limits, recently added and Seerr requests.
-import { $, ago, bytes, clock, esc, initials, num, rate, rollUp, setHTML, store, thumbUrl, timeOf } from './util.js';
+import {
+  $,
+  ago,
+  bytes,
+  clock,
+  esc,
+  initials,
+  list,
+  num,
+  rate,
+  rollUp,
+  setHTML,
+  store,
+  thumbUrl,
+  timeOf,
+} from './util.js';
 
+/** @param {unknown} eta seconds, or the client's own text */
 function etaText(eta) {
   if (eta == null || eta === '') return '';
   if (typeof eta === 'number') return eta >= 8640000 ? '∞' : clock(eta * 1000);
   return String(eta).replace(/^00:/, '');
 }
 
+/** @param {Answered[]} clients @param {Answered[]} arrs */
 export function renderDownloads(clients, arrs) {
   // Prefer the *arr queues (clean titles); fall back to raw client items when no arr is grabbing anything.
-  let items = arrs.flatMap(a => a.data.queue.map(q => ({ ...q, source: a.name })));
-  if (!items.length) items = clients.flatMap(c => c.data.items.map(q => ({ ...q, source: c.name })));
+  let items = arrs.flatMap(a => list(a.data.queue).map(q => ({ ...q, source: a.name })));
+  if (!items.length) items = clients.flatMap(c => list(c.data.items).map(q => ({ ...q, source: c.name })));
   const today = clients.reduce((n, c) => n + (c.data.totals?.day || 0), 0);
   $('downloads-count').textContent = items.length
     ? `${items.length} in queue`
@@ -61,22 +78,24 @@ export function renderDownloads(clients, arrs) {
   );
 }
 
+/** @param {string} date */
 function dayLabel(date) {
   const d = new Date(date),
     today = new Date();
-  const diff = Math.round((new Date(d.toDateString()) - new Date(today.toDateString())) / 864e5);
+  const diff = Math.round((new Date(d.toDateString()).getTime() - new Date(today.toDateString()).getTime()) / 864e5);
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
   if (diff === -1) return 'Yesterday';
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+/** @param {Answered[]} arrs */
 export function renderUpcoming(arrs) {
   const cutoff = Date.now() - 864e5;
   const items = arrs
-    .flatMap(a => a.data.upcoming)
-    .filter(u => new Date(u.date) >= cutoff)
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .flatMap(a => list(a.data.upcoming))
+    .filter(u => new Date(u.date).getTime() >= cutoff)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .slice(0, 16);
   if (!items.length) return setHTML($('upcoming'), '<div class="empty">Nothing on the calendar.</div>');
   let html = '',
@@ -99,14 +118,16 @@ export function renderUpcoming(arrs) {
 // --------------------------------------------------------------------- indexer limits (Prowlarr)
 // One row per enabled indexer: queries and grabs in Prowlarr's own rolling window, against the
 // limits set on the indexer. Bars only where a limit is set; the numbers are always shown.
+/** @param {Answered[]} prowlarrs */
 export function renderIndexers(prowlarrs) {
-  const rows = prowlarrs.flatMap(p => p.data.limits || []);
+  const rows = prowlarrs.flatMap(p => list(p.data.limits));
   $('indexers-card').hidden = !rows.length;
   if (!rows.length) return;
   const limited = rows.filter(l => l.queryLimit || l.grabLimit).length;
   $('indexers-sub').textContent =
     `${rows.length} indexer${rows.length === 1 ? '' : 's'}${limited ? ` · ${limited} with limits` : ''}`;
   $('indexers-note').hidden = limited === rows.length;
+  /** @param {string} label @param {number} used @param {number | null} max */
   const meter = (label, used, max) => {
     if (!max)
       return `<div class="meter none"><div class="m-top"><span>${label}</span><span class="num">${num(used)}</span></div><div class="m-sub">no limit set</div></div>`;
@@ -130,16 +151,18 @@ export function renderIndexers(prowlarrs) {
 }
 
 // --------------------------------------------------------------------- recently added + imports
+/** @param {Answered[]} media @param {Answered[]} arrs */
 export function renderRecent(media, arrs) {
   const items = media
-    .flatMap(m => (m.data.recentlyAdded || []).map(x => ({ ...x, server: m.id })))
+    .flatMap(m => list(m.data.recentlyAdded).map(x => ({ ...x, server: m.id })))
     .sort((a, b) => b.addedAt - a.addedAt);
   const imports = arrs
-    .flatMap(a => (a.data.imports || []).map(x => ({ ...x, source: a.name })))
-    .filter(x => Date.now() - new Date(x.time) < 2 * 864e5)
-    .sort((a, b) => new Date(b.time) - new Date(a.time))
+    .flatMap(a => list(a.data.imports).map(x => ({ ...x, source: a.name })))
+    .filter(x => Date.now() - new Date(x.time).getTime() < 2 * 864e5)
+    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
     .slice(0, 8);
   $('recent-card').hidden = !items.length && !imports.length;
+  /** @param {any} m */
   const thumb = m => (m.thumb && !store.state?.demo ? thumbUrl(m.server, m.thumb) : null);
   setHTML(
     $('recent-posters'),
@@ -160,7 +183,7 @@ export function renderRecent(media, arrs) {
         () => {
           const div = Object.assign(document.createElement('div'), {
             className: 'ph',
-            textContent: img.dataset.fallback,
+            textContent: /** @type {HTMLElement} */ (img).dataset.fallback || '',
           });
           img.replaceWith(div);
         },
@@ -180,8 +203,9 @@ export function renderRecent(media, arrs) {
 }
 
 // --------------------------------------------------------------------- Seerr requests
+/** @param {Answered[]} seerrs */
 export function renderRequests(seerrs) {
-  const reqs = seerrs.flatMap(s => (s.data.requests || []).map(r => ({ ...r, svcId: s.id })));
+  const reqs = seerrs.flatMap(s => list(s.data.requests).map(r => ({ ...r, svcId: s.id })));
   $('requests-card').hidden = !seerrs.length;
   $('requests-count').textContent = reqs.length ? `${reqs.length} waiting` : 'none waiting';
   if (rollUp('requests-card', !reqs.length)) return;

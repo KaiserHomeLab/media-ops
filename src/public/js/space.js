@@ -2,7 +2,7 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // What's using space: biggest titles, recent downloads and cleanup candidates.
-import { $, bytes, esc, safeHref, setHTML, store } from './util.js';
+import { $, bytes, closest, esc, safeHref, setHTML, store } from './util.js';
 
 // --------------------------------------------------------------------- what's using space
 let spaceTab = 'biggest';
@@ -82,7 +82,7 @@ export function renderSpace(sp) {
   );
 }
 $('space-tabs').addEventListener('click', e => {
-  const b = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest?.('[data-space]'));
+  const b = closest(e, '[data-space]');
   if (!b) return;
   spaceTab = b.dataset.space || 'biggest';
   if (store.state) renderSpace(store.state.space);

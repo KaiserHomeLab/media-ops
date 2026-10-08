@@ -2,7 +2,7 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // The stream map: viewers on a world map with a line back to the server.
-import { $, esc, mbps, placeTip, rollUp, setHTML, tip } from './util.js';
+import { $, closest, esc, mbps, placeTip, rollUp, setHTML, tip } from './util.js';
 
 // --------------------------------------------------------------------- stream map
 // Remote viewers are placed by city (Plex GeoIP, looked up server-side); LAN viewers sit at
@@ -10,6 +10,7 @@ import { $, esc, mbps, placeTip, rollUp, setHTML, tip } from './util.js';
 const MAP_GRATICULE = (() => {
   if (!window.MapProjection) return '';
   const { project, LAT_TOP, LAT_BOTTOM } = MapProjection;
+  /** @param {[number, number][]} pts longitude, latitude */
   const line = pts =>
     'M' +
     pts
@@ -21,11 +22,13 @@ const MAP_GRATICULE = (() => {
       .join('L');
   let d = '';
   for (let lon = -180; lon <= 180; lon += 30) {
+    /** @type {[number, number][]} */
     const pts = [];
     for (let lat = LAT_BOTTOM; lat <= LAT_TOP; lat += 4) pts.push([lon, lat]);
     d += line(pts);
   }
   for (let lat = -30; lat <= 60; lat += 30) {
+    /** @type {[number, number][]} */
     const pts = [];
     for (let lon = -180; lon <= 180; lon += 5) pts.push([lon, lat]);
     d += line(pts);
@@ -33,13 +36,18 @@ const MAP_GRATICULE = (() => {
   return d;
 })();
 
+/** @typedef {{ x: number, y: number, geo: any, streams: any[] }} Cluster viewers in one place */
+/** @type {{ clusters: Cluster[], atHome: any[], home: any }} */
 let mapModel = { clusters: [], atHome: [], home: null };
+/** @param {any} g a geo lookup result */
 const place = g =>
   [g.city, g.region && g.region !== g.city ? g.region : null, g.code || g.country].filter(Boolean).join(', ');
+/** @param {any} s */
 const streamLine = s =>
   `<b>${esc(s.user)}</b> · ${esc(s.title)}${s.subtitle && s.type !== 'movie' ? ` <span class="muted">${esc(s.subtitle.split(' · ')[0])}</span>` : ''}`;
 
 // src: { streams, home, enabled } from util.js mapSource(), or null without a media server.
+/** @param {ReturnType<typeof import('./util.js').mapSource>} src */
 export function renderMap(src) {
   const show = !!src && src.enabled && !!window.WORLD_MAP;
   $('map-card').hidden = !show;
@@ -58,6 +66,7 @@ export function renderMap(src) {
   const unknown = streams.filter(s => !s.local && !s.geo);
 
   // Viewers within a few px of each other (same city) share one numbered dot.
+  /** @type {Cluster[]} */
   const clusters = [];
   for (const s of remote) {
     const [x, y] = project(s.geo.lon, s.geo.lat);
@@ -92,6 +101,7 @@ export function renderMap(src) {
   const mapEl = $('map');
   const tvFit = document.body.classList.contains('tv') && mapEl.clientHeight > 60 ? vh / mapEl.clientHeight : 0;
   const k = Math.max(vw / Math.max(240, mapEl.clientWidth || 800), tvFit) * 1.3;
+  /** @param {number} v */
   const f = v => v.toFixed(1);
   let svg = `<svg viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}" role="img" aria-label="World map: ${remote.length} remote and ${atHome.length} local streams">`;
   svg += `<path class="grat" d="${MAP_GRATICULE}"/><path class="land" d="${land}"/>`;
@@ -113,12 +123,16 @@ export function renderMap(src) {
     ...marks.map(m => [m.x - m.r, m.y - m.r, m.x + m.r, m.y + m.r]),
     ...(hp ? [[hp[0] - 7 * k, hp[1] - 7 * k, hp[0] + 7 * k, hp[1] + 7 * k]] : []),
   ];
+  /** @param {number[]} b a box: left, top, right, bottom */
   const overlaps = b => taken.some(t => b[0] < t[2] && b[2] > t[0] && b[1] < t[3] && b[3] > t[1]);
+  /** @param {number[]} b */
   const fits = b => b[0] >= vx && b[2] <= vx + vw && b[1] >= vy && b[3] <= vy + vh;
+  /** @param {number} x @param {number} y @param {number} r @param {string} text @param {string} [cls] */
   const label = (x, y, r, text, cls = '') => {
     const w = text.length * 6.4 * k,
       h = 13 * k,
       gap = 5 * k;
+    /** @type {[number, number, string, number, number][]} box left/top, text-anchor, text x/y */
     const spots = [
       [x + r + gap, y - h / 2, 'start', x + r + gap, y + 4 * k],
       [x - r - gap - w, y - h / 2, 'end', x - r - gap, y + 4 * k],
@@ -161,6 +175,7 @@ export function renderMap(src) {
     : 'nobody watching';
 
   // Side list doubles as the text alternative to the map.
+  /** @param {string} cls @param {any} s @param {string} where */
   const li = (cls, s, where) =>
     `<li><span class="sw ${cls}" aria-hidden="true"></span><span>${streamLine(s)}</span><span class="where">${where}</span></li>`;
   const rows = [
@@ -186,7 +201,7 @@ export function renderMap(src) {
 }
 
 $('map').addEventListener('mousemove', e => {
-  const hit = e.target.closest('.hit');
+  const hit = closest(e, '.hit');
   if (!hit) {
     tip.hidden = true;
     return;

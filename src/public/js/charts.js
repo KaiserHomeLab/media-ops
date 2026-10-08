@@ -2,25 +2,30 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // Charts: Tautulli plays per day and the 24-hour trends, with tooltips and table views.
-import { $, esc, mbps, n0, num, placeTip, rate, setHTML, store, sum, timeOf, tip } from './util.js';
+import { $, answered, closest, esc, mbps, n0, num, placeTip, rate, setHTML, store, sum, timeOf, tip } from './util.js';
 
 // --------------------------------------------------------------------- watch stats (stacked bar chart)
 const SERIES_CLASS = ['s1', 's2', 's3'];
 const SERIES_VAR = ['--series-1', '--series-2', '--series-3'];
 
 // Axis top = 4 × a "nice" step (1, 2, 5 × 10^n), so every gridline is a whole number.
+/** @param {number} v */
 function niceMax(v) {
   const raw = Math.max(1, v) / 4,
     p = 10 ** Math.floor(Math.log10(raw)),
     n = raw / p;
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p * 4;
 }
+/** @param {string} s YYYY-MM-DD */
 const shortDate = s => new Date(s + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
+/** @typedef {{ dates: string[], series: { name: string, data: number[] }[] }} PlaysByDate Tautulli's plays per day */
+
+/** @param {Answered | undefined} t Tautulli */
 export function renderWatch(t) {
   $('watch-card').hidden = !t;
   if (!t) return;
-  const { dates, series } = t.data.playsByDate;
+  const { dates, series } = /** @type {PlaysByDate} */ (t.data.playsByDate);
   const shown = series.slice(0, 3); // fixed slots: TV, Movies, Music
 
   setHTML(
@@ -42,7 +47,7 @@ export function renderWatch(t) {
   const max = niceMax(Math.max(...totals));
   const step = pw / dates.length,
     bw = Math.max(3, Math.min(22, step - 3));
-  const y = v => m.t + ph - (v / max) * ph;
+  const y = (/** @type {number} */ v) => m.t + ph - (v / max) * ph;
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Plays per day for the last 30 days, stacked by media type">`;
   for (let k = 0; k <= 4; k++) {
@@ -86,6 +91,7 @@ export function renderWatch(t) {
       .join('')}</tbody></table>`,
   );
 
+  /** @param {string} title @param {any[]} rows */
   const list = (title, rows) => {
     if (!rows?.length) return '';
     const top = rows[0].plays || 1;
@@ -113,14 +119,14 @@ export function renderWatch(t) {
 // Hover tooltips (chart + map). Delegated, so they survive re-renders.
 
 $('plays-chart').addEventListener('mousemove', e => {
-  const hit = e.target.closest('.hit');
-  const t = store.state?.services.find(s => s.kind === 'tautulli' && s.up);
+  const hit = closest(e, '.hit');
+  const t = store.state?.services.filter(answered).find(s => s.kind === 'tautulli');
   if (!hit || !t) {
     tip.hidden = true;
     return;
   }
   const i = Number(hit.dataset.i);
-  const { dates, series } = t.data.playsByDate;
+  const { dates, series } = /** @type {PlaysByDate} */ (t.data.playsByDate);
   const shown = series.slice(0, 3);
   tip.innerHTML =
     `<div style="margin-bottom:4px;color:var(--text-secondary)">${new Date(dates[i] + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>` +
@@ -139,11 +145,16 @@ $('plays-table-toggle').addEventListener('click', e => {
     showTable = table.hidden;
   table.hidden = !showTable;
   $('plays-chart').hidden = showTable;
-  e.target.textContent = showTable ? 'Show as chart' : 'Show as table';
+  /** @type {HTMLElement} */ (e.currentTarget).textContent = showTable ? 'Show as chart' : 'Show as table';
 });
 
 // --------------------------------------------------------------------- trends (last 24 h)
 // Small multiples, one measure each (never two y-scales on one chart). Gaps = no data.
+/**
+ * @typedef {{ key: string, title: string, fmt: (v: number) => string,
+ *   series: { name: string, col: string, cls: string, area?: boolean }[] }} TrendChart
+ */
+/** @type {TrendChart[]} */
 const TREND_CHARTS = [
   {
     key: 'streams',
@@ -168,17 +179,22 @@ const TREND_CHARTS = [
   },
 ];
 
+// One column of the trends from /api/history (5-minute steps; null = no data).
+/** @param {any} t @param {string} col @returns {(number | null)[]} */
+const colOf = (t, col) => (Array.isArray(t[col]) ? t[col] : []);
+
+/** @param {TrendChart} c @param {any} t the trends from /api/history */
 function trendChart(c, t) {
   const W = 360,
     H = 130,
     m = { l: 44, r: 6, t: 8, b: 20 };
   const pw = W - m.l - m.r,
     ph = H - m.t - m.b;
-  const n = t[c.series[0].col].length;
-  const max = niceMax(Math.max(1, ...c.series.flatMap(s => t[s.col].filter(v => v != null))));
-  const x = i => m.l + (i / Math.max(1, n - 1)) * pw;
-  const y = v => m.t + ph - (v / max) * ph;
-  const f = v => v.toFixed(1);
+  const n = colOf(t, c.series[0].col).length;
+  const max = niceMax(Math.max(1, ...c.series.flatMap(s => colOf(t, s.col).map(v => v ?? 0))));
+  const x = (/** @type {number} */ i) => m.l + (i / Math.max(1, n - 1)) * pw;
+  const y = (/** @type {number} */ v) => m.t + ph - (v / max) * ph;
+  const f = (/** @type {number} */ v) => v.toFixed(1);
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.title)} over the last 24 hours">`;
   for (let k = 0; k <= 2; k++) {
@@ -192,17 +208,18 @@ function trendChart(c, t) {
       svg += `<text class="axis" x="${f(x(i))}" y="${H - 5}" text-anchor="middle">${d.toLocaleTimeString(undefined, { hour: 'numeric' })}</text>`;
   }
   for (const s of c.series) {
-    const data = t[s.col];
+    const data = colOf(t, s.col);
     let line = '',
-      area = '',
-      run = [];
+      area = '';
+    /** @type {number[]} */
+    let run = [];
     const flush = () => {
       if (run.length) {
-        line += 'M' + run.map(i => `${f(x(i))} ${f(y(data[i]))}`).join('L');
+        line += 'M' + run.map(i => `${f(x(i))} ${f(y(data[i] ?? 0))}`).join('L');
         if (s.area)
           area +=
             `M${f(x(run[0]))} ${f(y(0))}L` +
-            run.map(i => `${f(x(i))} ${f(y(data[i]))}`).join('L') +
+            run.map(i => `${f(x(i))} ${f(y(data[i] ?? 0))}`).join('L') +
             `L${f(x(run[run.length - 1]))} ${f(y(0))}Z`;
       }
       run = [];
@@ -224,7 +241,7 @@ function trendChart(c, t) {
 export function renderTrends() {
   const t = store.hist?.trends;
   const card = $('trends-card');
-  if (!t || !t.streams.some(v => v != null)) {
+  if (!t || !colOf(t, 'streams').some(v => v != null)) {
     card.hidden = false;
     return setHTML(
       $('trends'),
@@ -242,8 +259,8 @@ export function renderTrends() {
 }
 
 $('trends').addEventListener('mousemove', e => {
-  const hit = e.target.closest('.t-hit');
-  const svg = e.target.closest('svg');
+  const hit = closest(e, '.t-hit');
+  const svg = closest(e, 'svg');
   $('trends')
     .querySelectorAll('.t-cross')
     .forEach(l => l.setAttribute('visibility', 'hidden'));
@@ -253,6 +270,7 @@ $('trends').addEventListener('mousemove', e => {
   }
   const t = store.hist.trends,
     c = TREND_CHARTS.find(x => x.key === hit.dataset.chart);
+  if (!svg || !c) return;
   const box = svg.getBoundingClientRect(),
     scale = Number(hit.dataset.vw) / box.width;
   const l = Number(hit.dataset.l),
@@ -260,16 +278,16 @@ $('trends').addEventListener('mousemove', e => {
     n = Number(hit.dataset.n);
   const i = Math.max(0, Math.min(n - 1, Math.round((((e.clientX - box.left) * scale - l) / w) * (n - 1))));
   const cross = svg.querySelector('.t-cross'),
-    cx = l + (i / Math.max(1, n - 1)) * w;
-  cross.setAttribute('x1', cx);
-  cross.setAttribute('x2', cx);
-  cross.setAttribute('visibility', 'visible');
+    cx = String(l + (i / Math.max(1, n - 1)) * w);
+  cross?.setAttribute('x1', cx);
+  cross?.setAttribute('x2', cx);
+  cross?.setAttribute('visibility', 'visible');
   tip.innerHTML =
     `<div style="margin-bottom:4px;color:var(--text-secondary)">${timeOf(t.start + i * t.step)}</div>` +
     c.series
       .map(
         s =>
-          `<div class="r"><span><i class="sw-${s.cls}"></i>${esc(s.name)}</span><b>${t[s.col][i] == null ? 'no data' : esc(c.fmt(t[s.col][i]))}</b></div>`,
+          `<div class="r"><span><i class="sw-${s.cls}"></i>${esc(s.name)}</span><b>${colOf(t, s.col)[i] == null ? 'no data' : esc(c.fmt(Number(colOf(t, s.col)[i])))}</b></div>`,
       )
       .join('');
   placeTip(e);

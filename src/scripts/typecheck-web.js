@@ -11,12 +11,18 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 
 const DONE = [
+  'public/js/charts.js',
+  'public/js/downloads.js',
+  'public/js/events.js',
   'public/js/layout.js',
   'public/js/main.js',
+  'public/js/map.js',
   'public/js/space.js',
   'public/js/status.js',
   'public/js/streams.js',
   'public/js/strip.js',
+  'public/js/summary.js',
+  'public/js/system.js',
   'public/js/tv.js',
   'public/js/util.js',
 ];

@@ -2,11 +2,12 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // The server itself: disks, host stats and containers, Unraid and TrueNAS.
-import { $, bytes, esc, n0, setHTML, store, uptime } from './util.js';
+import { $, bytes, esc, list, n0, setHTML, store, uptime } from './util.js';
 
 // --------------------------------------------------------------------- storage / host
 // Disks come from two places: what each *arr reports via its API, and the paths configured
 // under Settings (statfs inside this container). Merged by path.
+/** @param {number} days */
 const duration = days =>
   days < 14
     ? `${Math.max(1, Math.round(days))} days`
@@ -16,6 +17,7 @@ const duration = days =>
         ? `${Math.round(days / 30)} months`
         : `${(days / 365).toFixed(1)} years`;
 
+/** @param {Overview} d @param {Answered[]} arrs */
 export function renderDisks(d, arrs) {
   const map = new Map();
   for (const a of arrs)
@@ -67,9 +69,11 @@ export function renderDisks(d, arrs) {
 const vmNote =
   "On Windows and Mac, Docker runs containers inside a small Linux VM, so this is the VM's share, not the whole computer's. In Docker Desktop you can change it under Settings → Resources.";
 
+/** @param {any} h host stats @param {any} docker the container list, null, or { error } @param {any[]} [gpus] @param {{ plexCpu?: number, hostCpu?: number } | null} [plexRes] */
 export function renderHost(h, docker, gpus = [], plexRes = null) {
   $('host-name').textContent = h.hostname;
   const memPct = (h.memUsed / h.memTotal) * 100;
+  /** @param {string} k @param {string} v @param {number} [pct] @param {string} [title] */
   const cell = (k, v, pct, title = '') =>
     `<div class="h"${title ? ` title="${esc(title)}"` : ''}><div class="k">${k}</div><div class="v">${v}</div>${pct != null ? `<div class="bar"><i style="width:${Math.min(100, pct).toFixed(0)}%"></i></div>` : ''}</div>`;
   setHTML(
@@ -78,14 +82,19 @@ export function renderHost(h, docker, gpus = [], plexRes = null) {
       // On Windows and Mac containers run in a small VM; these numbers are the VM's.
       cell(h.vm ? 'CPU (Docker VM)' : 'CPU', h.cpu != null ? `${h.cpu}%` : '—', h.cpu, h.vm ? vmNote : ''),
       cell(h.vm ? 'Memory (Docker VM)' : 'Memory', `${bytes(h.memUsed)}`, memPct, h.vm ? vmNote : ''),
-      cell(`Load (${h.cpus} cores)`, h.load.map(l => l.toFixed(2)).join(' ')),
+      cell(
+        `Load (${h.cpus} cores)`,
+        list(h.load)
+          .map(l => l.toFixed(2))
+          .join(' '),
+      ),
       cell(h.vm ? 'VM uptime' : 'Uptime', uptime(h.uptime)),
       plexRes?.plexCpu != null &&
         cell(
           'Plex CPU',
           `${Math.round(plexRes.plexCpu)}%`,
           plexRes.plexCpu,
-          `Plex Media Server's own CPU use (host total ${Math.round(plexRes.hostCpu)}%)`,
+          `Plex Media Server's own CPU use (host total ${Math.round(plexRes.hostCpu ?? 0)}%)`,
         ),
       ...gpus.map(g =>
         cell(
@@ -111,7 +120,7 @@ export function renderHost(h, docker, gpus = [], plexRes = null) {
   if (docker.error) return setHTML($('docker'), `<div class="empty">Docker: ${esc(docker.error)}</div>`);
   setHTML(
     $('docker'),
-    docker
+    list(docker)
       .map(c => {
         const cls = c.state !== 'running' ? 'down' : c.health === 'unhealthy' ? 'warn' : 'up';
         return `<div class="ctr" title="${esc(c.image)}"><span class="dot ${cls}" aria-label="${esc(c.state)}"></span><span class="n">${esc(c.name)}</span><span class="s">${esc(c.status)}</span></div>`;
@@ -121,6 +130,7 @@ export function renderHost(h, docker, gpus = [], plexRes = null) {
 }
 
 // --------------------------------------------------------------------- Unraid
+/** @param {Answered | undefined} u */
 export function renderUnraid(u) {
   $('unraid-card').hidden = !u;
   if (!u) return;
@@ -137,7 +147,7 @@ export function renderUnraid(u) {
   );
   setHTML(
     $('unraid-disks'),
-    d.disks
+    list(d.disks)
       .map(k => {
         const pct = k.used != null && k.size ? (k.used / k.size) * 100 : null;
         const hot =
@@ -161,6 +171,7 @@ export function renderUnraid(u) {
 }
 
 // --------------------------------------------------------------------- TrueNAS
+/** @param {any} k a disk */
 const udiskTile = k => {
   const hot = k.temp != null && k.temp >= k.tempCrit ? 'crit' : k.temp != null && k.temp >= k.tempWarn ? 'warn' : '';
   return `<div class="udisk" title="${esc(`${k.name}${k.model ? ` · ${k.model}` : ''} · ${k.ssd ? 'SSD' : 'HDD'} · ${bytes(k.size)}${k.temp != null ? ` · ${k.temp} °C (warn ${k.tempWarn}, critical ${k.tempCrit})` : ''}`)}">
@@ -170,6 +181,7 @@ const udiskTile = k => {
   </div>`;
 };
 
+/** @param {Answered | undefined} t */
 export function renderTrueNAS(t) {
   $('truenas-card').hidden = !t;
   if (!t) return;
@@ -186,10 +198,10 @@ export function renderTrueNAS(t) {
 
   setHTML(
     $('truenas-pools'),
-    d.pools
+    list(d.pools)
       .map(p => {
         const pct = p.size ? (p.used / p.size) * 100 : null;
-        const fill = pct >= 90 ? 'crit' : pct >= 80 ? 'warn' : ''; // TrueNAS's own warning / critical levels
+        const fill = pct == null ? '' : pct >= 90 ? 'crit' : pct >= 80 ? 'warn' : ''; // TrueNAS's own warning / critical levels
         const sc = p.scan;
         const scanning = sc?.state === 'SCANNING';
         const scanLine = !sc
@@ -214,7 +226,7 @@ export function renderTrueNAS(t) {
 
   setHTML($('truenas-disks'), d.disks.map(udiskTile).join(''));
 
-  const apps = d.apps || [];
+  const apps = list(d.apps);
   const running = apps.filter(a => a.state === 'RUNNING').length;
   const notRunning = apps.filter(a => a.state !== 'RUNNING');
   const updates = apps.filter(a => a.upgrade).length;

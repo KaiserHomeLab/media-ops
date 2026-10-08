@@ -88,9 +88,9 @@ document.addEventListener('visibilitychange', () => {
 /** @param {Overview} d */
 export function render(d) {
   /** @param {string} kind */
-  const up = kind => d.services.filter(s => s.kind === kind && s.up);
+  const up = kind => d.services.filter(answered).filter(s => s.kind === kind);
   /** @param {string[]} kinds */
-  const all = kinds => d.services.filter(s => kinds.includes(s.kind) && s.up);
+  const all = kinds => d.services.filter(answered).filter(s => kinds.includes(s.kind));
   const arrs = all(['sonarr', 'radarr', 'lidarr', 'readarr']);
   const media = mediaServers(d.services);
   const streams = allStreams(d.services);
@@ -171,7 +171,7 @@ addEventListener('resize', () => {
   lastHTML.delete($('plays-chart'));
   lastHTML.delete($('map'));
   if (store.state) renderMap(mapSource(store.state.services));
-  if (store.state) renderWatch(store.state.services.find(s => s.kind === 'tautulli' && s.up));
+  if (store.state) renderWatch(store.state.services.filter(answered).find(s => s.kind === 'tautulli'));
 });
 
 if (new URLSearchParams(location.search).get('tv') === '1') setTvMode(true);

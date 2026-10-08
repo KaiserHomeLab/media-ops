@@ -39,6 +39,11 @@ module.exports = [
     rules,
   },
   {
+    // Browser tests and the screenshot script: Node code whose page.evaluate() callbacks run in the page.
+    files: ['test/browser/**/*.js', 'scripts/screenshots.js'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  {
     // Dashboard: native ES modules in the browser
     files: ['public/js/**/*.js'],
     languageOptions: {

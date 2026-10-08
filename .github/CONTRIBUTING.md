@@ -25,11 +25,15 @@ npm run lint          # ESLint
 npm run format        # Prettier (or format:check to only check)
 npm run typecheck     # TypeScript's checker on the JavaScript
 npm test              # unit and server tests
+npm run test:browser  # the pages in headless Chromium (once: npx playwright install chromium)
 ```
 
 CI runs the same checks on every pull request, and `main` only accepts changes that pass
 them. Please add or update a test for any change in behaviour, and add user-visible changes to
 `CHANGELOG.md` (at the top of the repo) under **Unreleased**.
+
+Changed how a page looks? `npm run screenshots` retakes the README screenshots in
+`docs/screenshots/` from demo mode.
 
 ## How the repo is laid out
 

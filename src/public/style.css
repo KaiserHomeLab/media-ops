@@ -283,6 +283,25 @@ body.tv .strip {
     display: inline;
   }
 }
+/* Cloudflare Tunnel badge (strip.js renderTunnel): always visible, unlike the strip. */
+.tunnel-pill[hidden] {
+  display: none;
+}
+.tunnel-pill.good .short {
+  color: var(--good);
+}
+.tunnel-pill.bad .short {
+  color: var(--critical);
+}
+@media (max-width: 640px) {
+  /* Phones: just the cloud, coloured by state (the title says what's wrong). */
+  .tunnel-pill.strip-item {
+    padding: 5px 8px;
+  }
+  .tunnel-pill .short {
+    display: none;
+  }
+}
 /* Jumps from the strip land below the sticky top bar. */
 .card,
 .kpis {

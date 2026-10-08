@@ -10,7 +10,7 @@ import { renderMap } from './map.js';
 import { renderSpace } from './space.js';
 import { renderStreams } from './streams.js';
 import { applyLayout } from './layout.js';
-import { renderStrip } from './strip.js';
+import { renderStrip, renderTunnel } from './strip.js';
 import { renderKpis, renderLibrary, renderServices } from './summary.js';
 import { renderDisks, renderHost, renderTrueNAS, renderUnraid } from './system.js';
 import { setTvMode } from './tv.js';
@@ -115,6 +115,7 @@ export function render(d) {
   renderAlerts(d);
   renderKpis(d, { streams, arrs, clients });
   renderStrip(d, { streams, clients });
+  renderTunnel(d);
   renderStreams(streams, d.demo);
   renderServices(d.services);
   renderMap(mapSource(d.services));

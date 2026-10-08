@@ -341,6 +341,7 @@ test('docker discovery: recognises apps by image and picks how to reach them', (
   assert.equal(kindOfImage('binhex/arch-qbittorrentvpn'), null, 'unknown image');
   assert.equal(kindOfImage('binhex/arch-sabnzbd'), 'sabnzbd');
   assert.equal(kindOfImage('plexinc/pms-docker'), 'plex');
+  assert.equal(kindOfImage('cloudflare/cloudflared:latest'), 'cloudflared');
   assert.equal(kindOfImage('sha256:0123'), null);
   const net = (...names) => ({ Networks: Object.fromEntries(names.map(n => [n, {}])) });
   const containers = [

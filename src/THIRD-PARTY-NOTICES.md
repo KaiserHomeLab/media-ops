@@ -56,6 +56,7 @@ dashboard depends on.
 | [Deluge](https://github.com/deluge-torrent/deluge) | GPL-3.0-or-later | transfer stats, torrents, torrent errors |
 | [Clonarr](https://github.com/ProphetSe7en/clonarr) | MIT | sync-profile stats via its widget API |
 | [TRaSH Guides](https://github.com/TRaSH-Guides/Guides) | MIT | (indirectly, through Clonarr) |
+| [cloudflared](https://github.com/cloudflare/cloudflared) | Apache-2.0 | tunnel connections and version from its metrics server |
 | Plex Media Server / plex.tv | proprietary | sessions, libraries, posters; GeoIP lookups for the stream map (`plex.tv/api/v2/geoip`) |
 | [Jellyfin](https://github.com/jellyfin/jellyfin) | GPL-2.0 | sessions, libraries, posters |
 | Emby Server | proprietary | sessions, libraries, posters |
@@ -64,7 +65,7 @@ dashboard depends on.
 
 Plex is a trademark of Plex, Inc. Jellyfin, Emby, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr,
 Tautulli, Seerr, Overseerr, Jellyseerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
-Unraid, TrueNAS and Docker
+Cloudflare, cloudflared, Unraid, TrueNAS and Docker
 are names or trademarks of their respective owners. They're used here only to say which
 apps Media Ops works with. Media Ops is an independent project, not affiliated with or
 endorsed by any of them. The colored app tiles on the Settings page are simple letter

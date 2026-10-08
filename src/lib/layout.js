@@ -55,6 +55,7 @@ const CARD_IDS = new Set(BLOCKS.flatMap(b => b.cards.map(c => c.id)));
 
 // Any input -> a complete, valid layout: known ids only, each once, and every block placed
 // (blocks missing from a saved order, such as cards added in a later version, go at the end).
+/** @param {any} input */
 function clean(input) {
   const order = [...new Set((Array.isArray(input?.order) ? input.order : []).map(String))].filter(id =>
     BLOCK_IDS.includes(id),

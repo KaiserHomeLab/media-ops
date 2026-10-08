@@ -18,7 +18,7 @@ function cpuPercent() {
     total = 0;
   now.forEach((c, i) => {
     const prev = lastCpu[i]?.times || c.times;
-    for (const k of Object.keys(c.times)) total += c.times[k] - prev[k];
+    for (const k of /** @type {(keyof typeof c.times)[]} */ (Object.keys(c.times))) total += c.times[k] - prev[k];
     idle += c.times.idle - prev.idle;
   });
   lastCpu = now;
@@ -32,6 +32,7 @@ function hostOs() {
 }
 
 // The most common setup mistake: inside a container, localhost is the container itself.
+/** @param {string} url */
 function loopbackNote(url) {
   let host;
   try {
@@ -64,6 +65,7 @@ function hostStats() {
 }
 
 // Free/total space for the paths listed under Settings → Disks (as seen inside the container).
+/** @param {string[]} [paths] */
 async function localDisks(paths = []) {
   const out = [];
   for (const p of paths) {
@@ -81,6 +83,7 @@ async function localDisks(paths = []) {
 // read-only socket proxy such as tecnativa/docker-socket-proxy. Read-only: one GET.
 // Docker's container list as it answers it, or null when Docker isn't set up (no socket
 // configured, or not mounted). Throws when Docker is set up but doesn't answer.
+/** @param {{ socket?: string } | undefined} cfg @returns {Promise<any[] | null>} */
 async function listContainers(cfg) {
   const where = cfg?.socket;
   if (!where) return null;
@@ -92,6 +95,7 @@ async function listContainers(cfg) {
   return Array.isArray(list) ? list : [];
 }
 
+/** @param {{ socket?: string } | undefined} cfg */
 async function dockerContainers(cfg) {
   try {
     const list = await listContainers(cfg);

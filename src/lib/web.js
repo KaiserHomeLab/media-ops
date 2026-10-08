@@ -30,6 +30,7 @@ const SECURITY_HEADERS = {
 // Writes must come from this page (blocks other websites from silently changing your settings).
 // Browsers send Origin on cross-site writes and Sec-Fetch-Site on everything; either one
 // pointing elsewhere is refused.
+/** @param {import('node:http').IncomingMessage} req */
 function sameOrigin(req) {
   const site = req.headers['sec-fetch-site'];
   if (site && site !== 'same-origin' && site !== 'none') return false;
@@ -42,6 +43,7 @@ function sameOrigin(req) {
   }
 }
 
+/** @param {import('node:http').IncomingMessage} req @param {number} [limit] @returns {Promise<any>} */
 async function readJson(req, limit = 64 * 1024) {
   if (!/^application\/json/.test(req.headers['content-type'] || ''))
     throw Object.assign(new Error('Expected JSON'), { status: 415 });
@@ -59,6 +61,7 @@ async function readJson(req, limit = 64 * 1024) {
   }
 }
 
+/** @param {import('node:http').ServerResponse} res @param {number} status @param {unknown} [body] */
 function send(res, status, body) {
   if (body === undefined) return res.writeHead(status).end();
   return reply(
@@ -73,12 +76,13 @@ function send(res, status, body) {
 // shrink to a fifth, which matters on phones and wall tablets on Wi-Fi.
 const gzip = promisify(zlib.gzip);
 const COMPRESSIBLE = /json|text|javascript|css|svg|manifest/;
+/** @param {import('node:http').ServerResponse} res @param {number} status @param {Record<string, string | number>} headers @param {Buffer} body */
 async function reply(res, status, headers, body) {
   const req = res.req;
   if (
     body.length > 1024 &&
     /\bgzip\b/.test(req.headers['accept-encoding'] || '') &&
-    COMPRESSIBLE.test(headers['Content-Type'] || '')
+    COMPRESSIBLE.test(String(headers['Content-Type'] || ''))
   ) {
     body = await gzip(body, { level: 6 });
     headers = { ...headers, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' };
@@ -87,6 +91,7 @@ async function reply(res, status, headers, body) {
   res.end(body);
 }
 
+/** @type {Record<string, string>} */
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript',
@@ -101,6 +106,7 @@ const MIME = {
 
 // file's mtime is checked (at most every 2 s) so edits during development still show up.
 const statics = new Map(); // file -> { body, etag, mtime, checked }
+/** @param {string} file */
 async function staticFile(file) {
   let hit = statics.get(file);
   if (hit && Date.now() - hit.checked < 2000) return hit;
@@ -134,6 +140,8 @@ async function staticFile(file) {
 // an HTML file into what's sent (the appearance settings); its `key()` changes whenever the
 // result would, and each version is cached like a static file.
 /**
+ * @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res
+ * @param {URL} url @param {string} root @param {Record<string, string>} pages
  * @param {{ key: () => string, apply: (html: string, file: string) => string } | null} [render]
  */
 async function serveStatic(req, res, url, root, pages, render = null) {

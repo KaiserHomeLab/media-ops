@@ -6,6 +6,7 @@ const { hintFor } = require('./hints');
 const crypto = require('node:crypto');
 
 const DAY = 864e5;
+/** @param {string} svcId @param {string} source @param {string} message @param {unknown} time */
 const keyOf = (svcId, source, message, time) =>
   crypto
     .createHash('sha1')
@@ -15,9 +16,12 @@ const keyOf = (svcId, source, message, time) =>
 
 // "Live" events describe a condition that's true right now (app down, failing health check,
 // stuck queue item). Log events are history with a timestamp.
+/** @param {import('./types').Polled[]} services @returns {any[]} */
 function collect(services) {
   const now = Date.now();
+  /** @type {any[]} */
   const out = [];
+  /** @param {import('./types').Polled} s @param {any} e an event from the app's collector */
   const push = (s, e) => {
     const t = e.live ? now : new Date(e.time).getTime();
     out.push({

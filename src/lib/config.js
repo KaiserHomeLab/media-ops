@@ -37,10 +37,10 @@ const mtime = () => {
 };
 
 // Fill in defaults and give every service a stable id (used by the UI and by dismissals).
-/** @returns {import('./types').Config} */
+/** @param {any} cfg parsed config.json @returns {import('./types').Config} */
 function normalize(cfg) {
   const out = { ...DEFAULTS, ...cfg };
-  out.services = (out.services || []).map(s => ({
+  out.services = /** @type {any[]} */ (out.services || []).map(s => ({
     ...s,
     id: s.id || crypto.randomUUID(),
     name: s.name || BY_KIND[s.kind]?.label || s.kind,
@@ -73,6 +73,7 @@ function load() {
   return current;
 }
 
+/** @param {any} next */
 function save(next) {
   current = normalize(next);
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
@@ -84,9 +85,11 @@ function save(next) {
   return current;
 }
 
+/** @param {(cfg: import('./types').Config) => any} fn the next config, made from a copy of the current one */
 const update = fn => save(fn(structuredClone(load())));
 
 // What the browser is allowed to see: secrets become a "saved" flag, never the value.
+/** @param {import('./types').Service} s */
 function publicService(s) {
   const out = { ...s };
   for (const k of secretKeys(s.kind)) {
@@ -97,6 +100,7 @@ function publicService(s) {
 }
 
 // Origin (scheme + host + port) of an address, for "is this still the same server?".
+/** @param {string} u */
 const originOf = u => {
   try {
     return new URL(u).origin;
@@ -108,6 +112,7 @@ const originOf = u => {
 // A saved secret is only ever sent to the address it was saved for. Changing the address
 // without re-entering it would let anyone who can edit settings point an app at their own
 // server and receive the stored key.
+/** @param {string} existing @param {string} oldUrl @param {string} newUrl @param {string} label */
 function keepSecret(existing, oldUrl, newUrl, label) {
   if (existing && oldUrl && originOf(oldUrl) !== originOf(newUrl))
     throw new Error(
@@ -115,6 +120,7 @@ function keepSecret(existing, oldUrl, newUrl, label) {
     );
   return existing;
 }
+/** @param {unknown} v */
 const safeLink = v => {
   const link = String(v || '').trim();
   if (link && !/^https?:\/\/[^\s]+$/i.test(link)) throw new Error('Link must start with http:// or https://');
@@ -122,6 +128,7 @@ const safeLink = v => {
 };
 
 // Merge a form submission onto the stored service; a blank secret means "keep the saved one".
+/** @param {import('./types').Service | null | undefined} existing @param {any} input @returns {import('./types').Service} */
 function mergeService(existing, input) {
   const kind = input.kind || existing?.kind;
   const def = BY_KIND[kind];
@@ -131,6 +138,7 @@ function mergeService(existing, input) {
     .replace(/\/+$/, '');
   if (!/^https?:\/\/[^\s/]+/i.test(url))
     throw new Error('Address must start with http:// or https:// — e.g. http://192.168.1.10:8989');
+  /** @type {import('./types').Service} */
   const out = {
     id: existing?.id || crypto.randomUUID(),
     kind,
@@ -154,6 +162,7 @@ function mergeService(existing, input) {
 }
 
 // ---- settings password (scrypt, never stored in plain text)
+/** @param {string} pw */
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
   return { salt, hash: crypto.scryptSync(pw, salt, 64).toString('hex') };
@@ -161,6 +170,7 @@ function hashPassword(pw) {
 // Constant-time comparison. Always true when no password is set. Async: scrypt takes ~50 ms of
 // CPU, and the sync version would freeze the whole server for every guess.
 const scrypt = require('node:util').promisify(crypto.scrypt);
+/** @param {string} pw */
 async function checkPassword(pw) {
   const a = load().auth;
   if (!a) return true;

@@ -12,8 +12,10 @@ const http = require('node:http');
 const { AsyncLocalStorage } = require('node:async_hooks');
 
 const trace = new AsyncLocalStorage();
+/** @param {string} base @param {string} p */
 const join = (base, p) => base.replace(/\/+$/, '') + p;
 // HTTP Basic auth header, or none when there's no username.
+/** @param {string} [user] @param {string} [pass] @returns {Record<string, string>} */
 const basicAuth = (user, pass) => {
   /** @type {Record<string, string>} */
   const h = {};
@@ -23,6 +25,7 @@ const basicAuth = (user, pass) => {
 
 // ------------------------------------------------------------------ redaction (for diagnostics)
 const SECRET_PARAM = /([?&](?:apikey|api_key|token|x-plex-token|password|key)=)[^&]*/gi;
+/** @param {string} url */
 const redactUrl = url => {
   try {
     const u = new URL(url);
@@ -34,6 +37,7 @@ const redactUrl = url => {
 // Keys whose values are secrets or personal: tokens, keys, IPs, emails, people's names.
 const SECRET_KEY =
   /(key|token|password|secret|cookie|auth|email|address|endpoint|device_?(id|name)|ip$|^ip|username|friendly_?name|^user$|displayname|plexusername|serial)/i;
+/** @param {unknown} v @param {number} [depth] @returns {unknown} */
 function redactValue(v, depth = 0) {
   if (Array.isArray(v))
     return v
@@ -42,6 +46,7 @@ function redactValue(v, depth = 0) {
       .concat(v.length > 5 ? [`… ${v.length - 5} more`] : []);
   if (v && typeof v === 'object') {
     if (depth > 6) return '…';
+    /** @type {Record<string, unknown>} */
     const out = {};
     for (const [k, x] of Object.entries(v)) {
       // Plex puts the viewer in a `User` object; drop it whole.
@@ -51,6 +56,7 @@ function redactValue(v, depth = 0) {
   }
   return v;
 }
+/** @param {string} text */
 function sampleOf(text) {
   try {
     return JSON.stringify(redactValue(JSON.parse(text)), null, 2).slice(0, 3000);
@@ -66,6 +72,7 @@ function sampleOf(text) {
 // Biggest reply accepted from an app. A large Radarr's movie list is ~13 MB; anything past
 // this is refused instead of being buffered into memory.
 const MAX_REPLY = 128 * 1024 * 1024;
+/** @param {Response} res */
 async function readText(res) {
   if (Number(res.headers.get('content-length')) > MAX_REPLY) {
     res.body?.cancel();
@@ -126,6 +133,7 @@ async function req(url, { headers = {}, timeout = 8000, method = 'GET', body, as
 }
 
 // GET over a unix socket (Docker Engine API).
+/** @param {string} socketPath @param {string} path @param {number} [timeout] @returns {Promise<any>} */
 function unixGet(socketPath, path, timeout = 4000) {
   return new Promise((resolve, reject) => {
     const r = http.get({ socketPath, path, timeout }, res => {
@@ -149,6 +157,7 @@ function unixGet(socketPath, path, timeout = 4000) {
 }
 
 // Run fn and return [result, milliseconds]; used for the latency shown on each service.
+/** @template T @param {() => Promise<T> | T} fn @returns {Promise<[T, number]>} */
 async function timed(fn) {
   const t = performance.now();
   const r = await fn();
@@ -158,6 +167,7 @@ async function timed(fn) {
 // Tiny TTL memo so slow, rarely-changing calls (library counts) don't run every poll.
 // Skipped during a diagnostics run, which should always show live answers.
 const memo = new Map();
+/** @template T @param {string} key @param {number} ttlMs @param {() => Promise<T>} fn @returns {Promise<T>} */
 async function cached(key, ttlMs, fn) {
   if (trace.getStore()) return fn();
   const hit = memo.get(key);
@@ -172,6 +182,7 @@ async function cached(key, ttlMs, fn) {
 // background when it's older than ttlMs. A failed refresh keeps the old value and retries in
 // 5 minutes. During a diagnostics run it waits, so the report shows the real call.
 const refreshing = new Map();
+/** @template T @param {string} key @param {number} ttlMs @param {() => Promise<T>} fn @returns {Promise<T | null>} */
 async function background(key, ttlMs, fn) {
   if (trace.getStore()) return fn();
   const hit = memo.get(key);

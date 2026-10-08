@@ -60,9 +60,11 @@ The code is plain JavaScript, checked by TypeScript (`npm run typecheck`) using 
 nothing is compiled. Shared shapes (a saved app, the config, request options) live in
 `lib/types.d.ts`; use them like `/** @param {import('./types').Service} svc */`.
 
-It's being tightened step by step. Today the server code (`server.js`, `lib/`) is checked in
-strict mode, except that parameters may still be untyped (`noImplicitAny` is off). Next: add
-JSDoc types to every parameter and turn that on, then bring in `public/js/`.
+It's being tightened step by step. Strict mode is on for the server code (`server.js`, `lib/`)
+except `noImplicitAny`, which is being turned on file by file: `scripts/typecheck-strict.js` (run
+by `npm run typecheck`) checks the files it lists with it on, so a typed file can't slip back.
+Typing a file means adding JSDoc types to its parameters; add it to that list in the same PR.
+Once every file is listed, `noImplicitAny` goes on in `tsconfig.json`, then `public/js/` comes in.
 
 ## Rules that keep it safe
 

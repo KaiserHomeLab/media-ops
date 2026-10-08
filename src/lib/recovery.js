@@ -16,7 +16,9 @@ const FILE = path.join(path.dirname(config.FILE), 'password-reset.txt');
 /** @type {{ hash: Buffer, expires: number, tries: number, at: number } | null} */
 let pending = null;
 
+/** @param {string} s */
 const sha = s => crypto.createHash('sha256').update(s).digest();
+/** @param {unknown} code */
 const normalize = code =>
   String(code || '')
     .toUpperCase()
@@ -71,6 +73,7 @@ function request() {
 }
 
 // Returns null when the code is good (and consumes it), otherwise an error message.
+/** @param {unknown} code */
 function verify(code) {
   if (!pending) return 'No active code (it was used, expired, or the server restarted). Request a new one.';
   if (Date.now() > pending.expires) {

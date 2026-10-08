@@ -13,6 +13,7 @@ const EVERY = 6 * 60 * 60e3;
 /** @type {{ at: number, latest: string | null, pending: Promise<void> | null }} */
 let last = { at: 0, latest: null, pending: null };
 
+/** @param {string} a @param {string} b */
 const newer = (a, b) => {
   const pa = String(a).split('.').map(Number),
     pb = String(b).split('.').map(Number);
@@ -21,6 +22,7 @@ const newer = (a, b) => {
 };
 
 // "v1.15.1" -> "1.15.1"; anything that isn't a plain version (or is a pre-release) -> null.
+/** @param {any} release GitHub's latest-release reply */
 function versionOf(release) {
   const m = /^v?(\d+\.\d+\.\d+)$/.exec(String(release?.tag_name ?? ''));
   return m && !release.prerelease && !release.draft ? m[1] : null;
@@ -28,6 +30,7 @@ function versionOf(release) {
 
 // Returns the newer version, or null. Never waits on the network: the first call starts a
 // check in the background and later calls see its result.
+/** @param {import('./types').Config} cfg @returns {string | null} */
 function latest(cfg) {
   if (cfg.checkUpdates === false) return null;
   if (Date.now() - last.at > EVERY && !last.pending) {

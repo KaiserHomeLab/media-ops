@@ -18,6 +18,7 @@ const os = require('node:os');
 const { BY_KIND } = require('./kinds');
 
 // Last part of the image name (without registry, owner, tag or digest) -> kind.
+/** @type {Record<string, string>} */
 const IMAGE_KIND = {
   plex: 'plex',
   'pms-docker': 'plex',
@@ -44,6 +45,7 @@ const IMAGE_KIND = {
   clonarr: 'clonarr',
 };
 
+/** @param {string} image */
 function kindOfImage(image) {
   const name = String(image || '')
     .split('@')[0] // digest
@@ -57,6 +59,7 @@ function kindOfImage(image) {
 }
 
 // Docker's default bridge network has no name lookup between containers, so it doesn't count.
+/** @param {any} c a container from Docker's list @returns {string[]} */
 const userNetworks = c => Object.keys(c.NetworkSettings?.Networks || {}).filter(n => n !== 'bridge');
 
 /**
@@ -74,7 +77,7 @@ function findApps(containers, self = os.hostname()) {
       if (!kind) return [];
       const def = BY_KIND[kind];
       const container = String(c.Names?.[0] || '').replace(/^\//, '');
-      const tcp = (c.Ports || []).filter(p => p.Type === 'tcp');
+      const tcp = /** @type {any[]} */ (c.Ports || []).filter(p => p.Type === 'tcp');
       // Its usual port if the container exposes it, else the first port it exposes.
       const port = tcp.find(p => p.PrivatePort === def.port) || tcp.find(p => p.PublicPort) || tcp[0];
       const shared = userNetworks(c).find(n => myNetworks.has(n));

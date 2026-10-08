@@ -17,8 +17,8 @@ const MAX_PER_HOUR = 3;
 const HOUR = 60 * 60e3;
 
 const state = {
-  stuck: new Map(), // "<app id>:<queue id>" -> { since, retried }
-  removals: new Map(), // app id -> times of recent removals
+  stuck: /** @type {Map<string, { since: number, retried: boolean }>} */ (new Map()), // "<app id>:<queue id>"
+  removals: /** @type {Map<string, number[]>} */ (new Map()), // app id -> times of recent removals
   log: /** @type {{ at: number, app: string, title: string, reason: string, ok: boolean, error?: string }[]} */ ([]),
 };
 
@@ -27,14 +27,16 @@ const settingsOf = cfg => ({
   enabled: !!cfg.autoFix?.enabled,
   minutes: Math.min(1440, Math.max(15, Math.round(Number(cfg.autoFix?.minutes)) || 60)),
 });
+/** @param {any} input */
 const clean = input => settingsOf({ autoFix: input });
 
+/** @param {number} ms */
 const ago = ms => (ms >= 2 * HOUR ? `${Math.round(ms / HOUR)} h` : `${Math.round(ms / 60e3)} min`);
 
 /**
  * One monitor tick. Tracks stuck items even while off (so the clock is right when it's turned
  * on) and acts only when on. Returns notification lines for lib/notify.js.
- * @param {any} raw the poll result @param {any} cfg
+ * @param {{ services: import('./types').Polled[] }} raw the poll result @param {import('./types').Config} cfg
  * @param {number} [now] @param {Pick<typeof actions, 'queueRetry' | 'queueRemove'>} [act]
  */
 async function tick(raw, cfg, now = Date.now(), act = actions) {
@@ -85,6 +87,7 @@ async function tick(raw, cfg, now = Date.now(), act = actions) {
   return out;
 }
 
+/** @param {(typeof state.log)[number]} entry */
 function note(entry) {
   state.log.unshift(entry);
   state.log.length = Math.min(state.log.length, 20);

@@ -24,7 +24,7 @@ const FILE = path.join(path.dirname(config.FILE), 'history.json');
  * uptime: service id -> { 15-minute bucket start (ms) -> [polls up, polls total] }; metrics:
  * [time, streams, transcodes, kbps, download bytes/s] per minute; daily and disks: per-day
  * samples; meta: digest bookkeeping.
- * @type {{ v: number, uptime: Record<string, Record<string, [number, number]>>, metrics: number[][], daily: Record<string, any>, disks: Record<string, any>, meta: Record<string, any> }}
+ * @type {{ v: number, uptime: Record<string, Record<string, [number, number]>>, metrics: number[][], daily: Record<string, any>, disks: Record<string, [string, number, number][]>, meta: Record<string, any> }}
  */
 let h = { v: 1, uptime: {}, metrics: [], daily: {}, disks: {}, meta: {} };
 let dirty = false;
@@ -50,9 +50,11 @@ function save() {
   }
 }
 
+/** @param {number} t */
 const dayKey = t => new Date(t).toLocaleDateString('en-CA'); // YYYY-MM-DD in server-local time
 
 // Same merge as the Storage panel: what the *arrs report plus the configured paths.
+/** @param {{ services: import('./types').Polled[], disks?: any[] }} raw @returns {{ path: string, total: number, free: number }[]} */
 function diskList(raw) {
   const map = new Map();
   for (const s of raw.services)
@@ -62,6 +64,7 @@ function diskList(raw) {
   return [...map.values()];
 }
 
+/** @param {{ services: import('./types').Polled[], disks?: any[] }} raw */
 function record(raw) {
   const now = Date.now();
 
@@ -82,7 +85,7 @@ function record(raw) {
     streams.length,
     streams.filter(s => s.decision?.startsWith('Transcode')).length,
     streams.reduce((a, s) => a + (s.bandwidth || 0), 0), // kbps
-    dl.reduce((a, s) => a + (s.data.downBps || 0), 0), // bytes/s
+    dl.reduce((a, s) => a + (s.data?.downBps || 0), 0), // bytes/s
   ];
   const last = h.metrics[h.metrics.length - 1];
   if (last && last[0] === row[0]) for (let i = 1; i < row.length; i++) last[i] = Math.max(last[i], row[i]);
@@ -97,6 +100,7 @@ function record(raw) {
   for (const d of diskList(raw)) {
     const series = (h.disks[d.path] ||= []);
     const k = dayKey(now);
+    /** @type {[string, number, number]} */
     const entry = [k, d.total - d.free, d.total];
     if (series.length && series[series.length - 1][0] === k) series[series.length - 1] = entry;
     else series.push(entry);
@@ -106,6 +110,7 @@ function record(raw) {
   dirty = true;
 }
 
+/** @param {number} now */
 function prune(now) {
   for (const u of Object.values(h.uptime)) for (const t of Object.keys(u)) if (now - Number(t) > 8 * DAY) delete u[t];
   while (h.metrics.length && now - h.metrics[0][0] > DAY) h.metrics.shift();
@@ -114,8 +119,10 @@ function prune(now) {
 }
 
 // Uptime for one app: 48 half-hour cells for the last 24 h (null = no data) + percentages.
+/** @param {string} id @param {number} [now] */
 function uptime(id, now = Date.now()) {
   const u = h.uptime[id] || {};
+  /** @param {number} since */
   const sum = since => {
     let up = 0,
       total = 0;
@@ -160,6 +167,7 @@ function trends(now = Date.now()) {
 }
 
 // Least-squares growth over the last 30 daily samples -> days until full.
+/** @param {string} diskPath */
 function forecast(diskPath) {
   const series = (h.disks[diskPath] || []).slice(-30);
   if (series.length < 2) return { status: 'collecting', days: series.length };
@@ -185,7 +193,9 @@ function forecast(diskPath) {
 const diskPaths = () => Object.keys(h.disks);
 
 // Approximate minutes each app was down since `since` (from the 15-minute buckets).
+/** @param {number} since @returns {Record<string, number>} */
 function outages(since) {
+  /** @type {Record<string, number>} */
   const out = {};
   for (const [id, u] of Object.entries(h.uptime)) {
     let down = 0;
@@ -202,8 +212,10 @@ function diskGrowth() {
     .map(([p, s]) => ({ path: p, delta: s[s.length - 1][1] - s[s.length - 2][1] }));
 }
 
+/** @param {string} key */
 const dayStats = key => h.daily[key] || null;
 // meta(k) reads a value, meta(k, v) stores one (and marks the file for saving).
+/** @param {string} k @param {any} [v] */
 function meta(k, v) {
   if (v === undefined) return h.meta?.[k];
   (h.meta ||= {})[k] = v;

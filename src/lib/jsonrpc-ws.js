@@ -16,8 +16,12 @@ const https = require('node:https');
 const crypto = require('node:crypto');
 const { trace, sampleOf } = require('./http');
 
+/** @param {number} opcode @param {Buffer | string} payload */
 function frame(opcode, payload) {
-  const len = payload.length;
+  // The length is in bytes: a string's .length counts characters, which differs for anything
+  // outside ASCII (an "é" in a name would have produced a malformed frame).
+  const body = Buffer.from(payload);
+  const len = body.length;
   const head =
     len < 126
       ? Buffer.from([0x80 | opcode, 0x80 | len])
@@ -32,7 +36,6 @@ function frame(opcode, payload) {
             })(),
           ]);
   const mask = crypto.randomBytes(4);
-  const body = Buffer.from(payload);
   for (let i = 0; i < body.length; i++) body[i] ^= mask[i & 3];
   return Buffer.concat([head, mask, body]);
 }
@@ -41,15 +44,19 @@ function frame(opcode, payload) {
 const MAX_MESSAGE = 64 * 1024 * 1024;
 
 class Connection {
+  /** @param {import('node:tls').TLSSocket} socket @param {string} label */
   constructor(socket, label) {
     this.socket = socket;
     this.label = label;
     this.fingerprint = socket.getPeerCertificate?.()?.fingerprint256 || null;
+    /** @type {Buffer[]} */
     this.chunks = []; // received bytes not yet parsed, concatenated only when a frame is complete
     this.buffered = 0;
+    /** @type {Buffer[]} */
     this.parts = [];
     this.partsLength = 0;
     this.nextId = 1;
+    /** @type {Map<number, { timer: NodeJS.Timeout, reject: (e: Error) => void, done: (msg: any, bytes: number) => void }>} */
     this.pending = new Map();
     this.closed = false;
     socket.on('data', d => this.onData(d));
@@ -57,6 +64,7 @@ class Connection {
     socket.on('error', e => this.fail(e));
   }
 
+  /** @param {Buffer} d */
   onData(d) {
     this.chunks.push(d);
     this.buffered += d.length;
@@ -116,13 +124,15 @@ class Connection {
 
   // Put back what's left of the buffer until more data arrives.
   keep() {
-    if (this.buf.length) {
-      this.chunks.unshift(this.buf);
-      this.buffered = this.buf.length;
+    const buf = this.buf;
+    if (buf?.length) {
+      this.chunks.unshift(buf);
+      this.buffered = buf.length;
     } else this.buffered = 0;
     this.buf = null;
   }
 
+  /** @param {string} text */
   onMessage(text) {
     let msg;
     try {
@@ -138,6 +148,7 @@ class Connection {
   }
 
   // call(method, params, { record: false }) keeps the call out of diagnostics (used for login).
+  /** @param {string} method @param {any[]} [params] @param {{ timeout?: number, record?: boolean }} [options] @returns {Promise<any>} */
   call(method, params = [], { timeout = 10000, record = true } = {}) {
     if (this.closed) return Promise.reject(new Error('Not connected to TrueNAS'));
     const store = record && trace.getStore();
@@ -172,6 +183,7 @@ class Connection {
     });
   }
 
+  /** @param {Error} err */
   fail(err) {
     if (this.closed) return;
     this.closed = true;
@@ -197,6 +209,7 @@ class Connection {
 // Open a wss:// connection. TrueNAS uses a self-signed certificate out of the box, so it isn't
 // verified: this talks to a box on your own LAN, and what matters is that the key is never sent
 // over plain http (TrueNAS revokes API keys that are).
+/** @param {string} host @param {number} port @param {string} [path] @param {number} [timeout] @returns {Promise<Connection>} */
 function connect(host, port, path = '/api/current', timeout = 8000) {
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -216,7 +229,10 @@ function connect(host, port, path = '/api/current', timeout = 8000) {
     req.on('upgrade', (res, socket, head) => {
       socket.setTimeout(0);
       socket.setNoDelay(true);
-      const c = new Connection(socket, `wss://${host}${port === 443 ? '' : `:${port}`}${path}`);
+      const c = new Connection(
+        /** @type {import('node:tls').TLSSocket} */ (socket),
+        `wss://${host}${port === 443 ? '' : `:${port}`}${path}`,
+      );
       if (head?.length) c.onData(head);
       resolve(c);
     });

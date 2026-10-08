@@ -18,6 +18,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 - On phones the live summary took the title's space even before it appeared.
 - Jellyfin and Emby had grey icons in Settings; they have their own colors now.
+- TrueNAS: a request containing text outside ASCII (an accented username, say) was sent as a
+  malformed WebSocket frame, because its length was counted in characters instead of bytes.
 
 ## [1.17.0] - 2026-10-08
 

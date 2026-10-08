@@ -11,9 +11,11 @@ const config = require('./config');
 const sessions = new Map(); // token -> expiry
 const SESSION_DAYS = 30;
 
+/** @param {import('node:http').IncomingMessage} req @param {string} name */
 function cookie(req, name) {
   return new RegExp(`(?:^|;\\s*)${name}=([^;]+)`).exec(req.headers.cookie || '')?.[1];
 }
+/** @param {import('node:http').IncomingMessage} req */
 function loggedIn(req) {
   if (!config.load().auth) return true;
   const t = cookie(req, 'mo_session');
@@ -21,11 +23,13 @@ function loggedIn(req) {
   return !!exp && exp > Date.now();
 }
 // Served over https (directly or behind a reverse proxy): the cookie is then marked Secure.
+/** @param {import('node:http').IncomingMessage} req */
 const isHttps = req =>
-  req.socket.encrypted ||
+  /** @type {import('node:tls').TLSSocket} */ (req.socket).encrypted ||
   String(req.headers['x-forwarded-proto'] || '')
     .split(',')[0]
     .trim() === 'https';
+/** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res */
 function startSession(req, res) {
   const now = Date.now();
   for (const [t, exp] of sessions) if (exp <= now) sessions.delete(t);
@@ -43,12 +47,15 @@ function startSession(req, res) {
 const FAIL_WINDOW = 15 * 60e3,
   FAIL_MAX = 10;
 const failures = new Map(); // ip -> { n, since }
+/** @param {import('node:http').IncomingMessage} req */
 const clientIp = req => req.socket.remoteAddress || '?';
+/** @param {import('node:http').IncomingMessage} req */
 function lockedOut(req) {
   const f = failures.get(clientIp(req));
   if (!f || Date.now() - f.since > FAIL_WINDOW) return 0;
   return f.n >= FAIL_MAX ? Math.ceil((f.since + FAIL_WINDOW - Date.now()) / 60e3) : 0;
 }
+/** @param {import('node:http').IncomingMessage} req */
 function noteFailure(req) {
   const ip = clientIp(req),
     now = Date.now();

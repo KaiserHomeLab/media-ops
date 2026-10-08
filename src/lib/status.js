@@ -11,9 +11,13 @@ const history = require('./history');
 
 // Preselected the first time the page is turned on: what the people watching care about.
 const AUDIENCE_KINDS = new Set(['plex', 'jellyfin', 'emby', 'seerr', 'overseerr', 'jellyseerr']);
+/** @param {import('./types').Service[]} services */
 const defaultServices = services => services.filter(s => AUDIENCE_KINDS.has(s.kind)).map(s => s.id);
 
-/** @param {any} cfg */
+/**
+ * @param {any} cfg
+ * @returns {{ enabled: boolean, title: string, notice: string, services: string[] }}
+ */
 const settingsOf = cfg => ({
   enabled: !!cfg.statusPage?.enabled,
   title: cfg.statusPage?.title || '',
@@ -22,27 +26,34 @@ const settingsOf = cfg => ({
 });
 
 // Settings form -> what's saved. Throws a message for the form on bad input.
+/** @param {any} input @param {import('./types').Service[]} services */
 function clean(input, services) {
   const title = String(input.title ?? '').trim();
   const notice = String(input.notice ?? '').trim();
   if (title.length > 80) throw new Error('Title is too long (80 characters at most)');
   if (notice.length > 500) throw new Error('Notice is too long (500 characters at most)');
   const known = new Set(services.map(s => s.id));
-  const chosen = Array.isArray(input.services) ? input.services.map(String).filter(id => known.has(id)) : [];
+  const chosen = Array.isArray(input.services)
+    ? /** @type {unknown[]} */ (input.services).map(String).filter(id => known.has(id))
+    : [];
   return { enabled: !!input.enabled, title, notice, services: [...new Set(chosen)] };
 }
 
 /**
  * What /api/status returns. `raw` is the last background poll (null right after a restart or a
  * settings change, until the next poll finishes).
- * @param {any} cfg @param {any} raw @param {(id: string) => any} [uptimeOf]
+ * @param {{ services: import('./types').Service[], statusPage?: any }} cfg
+ * @param {{ services: import('./types').Polled[], generatedAt?: number } | null} raw
+ * @param {(id: string) => any} [uptimeOf]
  */
 function payload(cfg, raw, uptimeOf = history.uptime) {
   const st = settingsOf(cfg);
   const polled = new Map((raw?.services || []).map(s => [s.id, s]));
   const services = st.services
-    .map(id => cfg.services.find(s => s.id === id))
-    .filter(s => s && s.enabled !== false)
+    .flatMap(id => {
+      const s = cfg.services.find(x => x.id === id);
+      return s && s.enabled !== false ? [s] : [];
+    })
     .map(s => {
       const u = uptimeOf(s.id);
       const now = polled.get(s.id);

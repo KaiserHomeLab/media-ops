@@ -455,6 +455,13 @@ h3 {
 .card.collapsed h2 {
   margin-bottom: 0;
 }
+/* Turned off under Settings → Dashboard. A pair with one card off gives the other the row. */
+.user-off {
+  display: none !important;
+}
+.grid.two:has(> .user-off) {
+  grid-template-columns: minmax(0, 1fr);
+}
 /* A rolled-up card in a side-by-side row: it becomes a full-width bar and its neighbour
    takes the whole row, instead of leaving a tall empty box beside it. */
 .grid.two:has(> .card.collapsed) {
@@ -2191,7 +2198,8 @@ body.tv .alerts > :nth-child(n + 3) {
 }
 #tv-left > #now-playing:only-child,
 #tv-left > #now-playing:has(+ #map-card.collapsed),
-#tv-left > #now-playing:has(+ #map-card[hidden]) {
+#tv-left > #now-playing:has(+ #map-card[hidden]),
+#tv-left > #now-playing:has(+ #map-card.user-off) {
   max-height: none;
 }
 body.tv #map-card .map-wrap {
@@ -2218,7 +2226,7 @@ body.tv main {
   width: 100%;
 }
 /* Nobody watching: the left column only has "Nothing playing", so give the right more room. */
-#tv-cols:has(#map-card.collapsed, #map-card[hidden]) {
+#tv-cols:has(#map-card.collapsed, #map-card[hidden], #map-card.user-off) {
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
 }
 /* Compact pieces: services as name tiles (details only when one is down), streams two across,
@@ -3015,4 +3023,37 @@ body.tv .rq-acts {
   font-size: 12px;
   color: var(--text-muted);
   text-align: center;
+}
+
+/* settings: dashboard layout */
+.layout-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.layout-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.layout-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  flex: 1;
+  min-width: 0;
+}
+.layout-move {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.layout-move .icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }

@@ -54,6 +54,11 @@ memory, GPU load and your Docker containers.
 - A forecast of when each disk will be full
 - Buttons to stop a stream, retry a stuck download, or swap it for another release
 
+## Make it yours
+
+**Settings → Dashboard** lets you turn off the cards you never look at and change the order of
+the rest. Every screen, TV mode included, uses the same layout.
+
 ## TV mode
 
 A full-screen view for a spare tablet or TV. It sticks to what's worth seeing at a glance and

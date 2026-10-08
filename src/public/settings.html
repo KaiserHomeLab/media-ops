@@ -118,6 +118,14 @@
         </form>
       </section>
 
+      <section class="card" id="dashboard-layout">
+        <h2>Dashboard</h2>
+        <p class="hint">Choose which cards the dashboard shows and the order of the rows. Cards side by side move together. Cards with nothing to show fold away on their own, so you only need to turn off the ones you never want.</p>
+        <ol class="layout-list" id="layout-list"></ol>
+        <div class="form-error" id="layout-error" hidden></div>
+        <div class="actions"><button class="btn ghost" type="button" id="layout-reset">Reset to default</button><span class="spacer"></span><span class="saved" id="layout-saved" hidden>✓ Saved</span><button class="btn primary" type="button" id="layout-save">Save</button></div>
+      </section>
+
       <section class="card" id="status-page">
         <h2>Status page</h2>
         <p class="hint">A simple page you can share with the people who use your server, so they can check whether Plex is up without asking you. It shows only the apps you pick, whether each is up, and its uptime over the last day: no addresses, versions or errors. Anyone who can reach Media Ops can open it, even when the dashboard needs a login.</p>

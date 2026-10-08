@@ -49,9 +49,9 @@
     </div>
     <section id="alerts" class="alerts" hidden></section>
 
-    <section class="kpis" id="kpis"></section>
+    <section class="kpis" id="kpis" data-block="summary"></section>
 
-    <div class="grid two">
+    <div class="grid two" data-block="playing">
       <section class="card" id="now-playing">
         <h2>Now playing <span class="count" id="np-count"></span></h2>
         <div id="streams" class="streams"></div>
@@ -62,7 +62,7 @@
       </section>
     </div>
 
-    <section class="card" id="map-card" hidden>
+    <section class="card" id="map-card" data-block="map" hidden>
       <h2>Stream map <span class="count" id="map-count"></span>
         <button class="linkish roll-toggle" type="button" data-roll="map-card" aria-controls="map-wrap" hidden></button></h2>
       <div class="map-wrap roll-body" id="map-wrap">
@@ -74,7 +74,7 @@
       </div>
     </section>
 
-    <section class="card" id="events-card">
+    <section class="card" id="events-card" data-block="events">
       <h2>Errors &amp; warnings <span class="count" id="ev-count"></span>
         <button class="linkish roll-toggle" type="button" data-roll="events-card" aria-controls="events-body" hidden></button></h2>
       <div class="roll-body" id="events-body">
@@ -84,13 +84,13 @@
       </div>
     </section>
 
-    <section class="card" data-tv-hide>
+    <section class="card" id="library-card" data-block="library" data-tv-hide>
       <h2>Library</h2>
       <div id="libraries" class="libs"></div>
       <div id="arr-stats" class="arr-stats"></div>
     </section>
 
-    <div class="grid two even">
+    <div class="grid two even" data-block="downloads">
       <section class="card" id="downloads-card">
         <h2>Downloads <span class="count" id="downloads-count"></span>
           <button class="linkish roll-toggle" type="button" data-roll="downloads-card" aria-controls="downloads-body" hidden></button></h2>
@@ -99,19 +99,19 @@
           <div id="queue" class="queue"></div>
         </div>
       </section>
-      <section class="card" data-tv-hide>
+      <section class="card" id="upcoming-card" data-tv-hide>
         <h2>Coming up</h2>
         <div id="upcoming" class="upcoming"></div>
       </section>
     </div>
 
-    <section class="card" id="indexers-card" data-tv-hide hidden>
+    <section class="card" id="indexers-card" data-block="indexers" data-tv-hide hidden>
       <h2>Indexer limits <span class="count" id="indexers-sub"></span></h2>
       <div id="indexers" class="indexers"></div>
       <p class="muted small-note" id="indexers-note" hidden>Set each indexer's limits in Prowlarr (Indexers → edit → Show Advanced → Query Limit / Grab Limit) to get a bar and a warning before it runs out.</p>
     </section>
 
-    <div class="grid two even" data-tv-hide>
+    <div class="grid two even" data-block="recent" data-tv-hide>
       <section class="card" id="recent-card" hidden>
         <h2>Recently added</h2>
         <div class="posters" id="recent-posters"></div>
@@ -125,7 +125,7 @@
       </section>
     </div>
 
-    <section class="card" id="space-card" data-tv-hide hidden>
+    <section class="card" id="space-card" data-block="space" data-tv-hide hidden>
       <h2>What's using space <span class="count" id="space-sub"></span></h2>
       <div class="seg" id="space-tabs" role="tablist" aria-label="Space views">
         <button type="button" role="tab" data-space="biggest">Biggest</button>
@@ -136,25 +136,25 @@
       <ol class="space-list" id="space-list"></ol>
     </section>
 
-    <section class="card" id="unraid-card" hidden>
+    <section class="card" id="unraid-card" data-block="unraid" hidden>
       <h2>Unraid <span class="count" id="unraid-sub"></span></h2>
       <div id="unraid-parity" class="parity"></div>
       <div id="unraid-disks" class="udisks"></div>
     </section>
 
-    <section class="card" id="truenas-card" hidden>
+    <section class="card" id="truenas-card" data-block="truenas" hidden>
       <h2>TrueNAS <span class="count" id="truenas-sub"></span></h2>
       <div id="truenas-pools" class="pools"></div>
       <div id="truenas-disks" class="udisks"></div>
       <div id="truenas-apps" class="tn-apps"></div>
     </section>
 
-    <section class="card" id="trends-card" data-tv-hide>
+    <section class="card" id="trends-card" data-block="trends" data-tv-hide>
       <h2>Trends <span class="count" id="trends-sub">last 24 hours</span></h2>
       <div class="trends" id="trends"></div>
     </section>
 
-    <section class="card" id="watch-card" data-tv-hide hidden>
+    <section class="card" id="watch-card" data-block="watch" data-tv-hide hidden>
       <h2>Watch stats <span class="count">last 30 days · Tautulli</span></h2>
       <div class="watch">
         <div class="chart-wrap">
@@ -169,12 +169,12 @@
       </div>
     </section>
 
-    <div class="grid two even" data-tv-hide>
-      <section class="card">
+    <div class="grid two even" data-block="system" data-tv-hide>
+      <section class="card" id="storage-card">
         <h2>Storage</h2>
         <div id="disks" class="disks"></div>
       </section>
-      <section class="card">
+      <section class="card" id="host-card">
         <h2>Host <span class="count" id="host-name"></span></h2>
         <div id="host" class="host"></div>
         <div id="docker" class="docker"></div>

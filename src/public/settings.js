@@ -58,6 +58,7 @@ async function load() {
   loadFound();
   renderNotifs();
   renderGeneral();
+  renderLayout(S.layout);
   renderSecurity();
   loadStatus();
   // The page fills in after loading, so jump to a #section (e.g. #security from the dashboard) now.
@@ -867,6 +868,64 @@ $('general-form').addEventListener('submit', async e => {
     flash($('general-saved'));
   } catch (err) {
     showError($('general-error'), err.message);
+  }
+});
+
+// --------------------------------------------------------------------- dashboard layout
+// Rows in order, each with ↑ ↓ and a checkbox per card. Works on a copy until Save.
+let layoutDraft = null;
+function renderLayout(layout) {
+  layoutDraft = { order: [...layout.order], hidden: [...layout.hidden] };
+  drawLayout();
+}
+function drawLayout() {
+  const byId = Object.fromEntries(S.layoutBlocks.map(b => [b.id, b]));
+  const off = new Set(layoutDraft.hidden);
+  const last = layoutDraft.order.length - 1;
+  $('layout-list').innerHTML = layoutDraft.order
+    .map((id, i) => {
+      const cards = byId[id].cards
+        .map(
+          c =>
+            `<label class="check"><input type="checkbox" data-card="${esc(c.id)}" ${off.has(c.id) ? '' : 'checked'}><span>${esc(c.label)}</span></label>`,
+        )
+        .join('');
+      return `<li data-row="${esc(id)}"><span class="layout-cards">${cards}</span>
+        <span class="layout-move"><button class="icon-btn" type="button" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button class="icon-btn" type="button" data-move="1" ${i === last ? 'disabled' : ''} aria-label="Move down">↓</button></span></li>`;
+    })
+    .join('');
+}
+$('layout-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-move]');
+  if (!b) return;
+  const id = b.closest('[data-row]').dataset.row;
+  const i = layoutDraft.order.indexOf(id);
+  const j = i + Number(b.dataset.move);
+  if (j < 0 || j >= layoutDraft.order.length) return;
+  [layoutDraft.order[i], layoutDraft.order[j]] = [layoutDraft.order[j], layoutDraft.order[i]];
+  drawLayout();
+  $('layout-list')
+    .querySelector(`[data-row="${CSS.escape(id)}"] [data-move="${b.dataset.move}"]`)
+    ?.focus();
+});
+$('layout-list').addEventListener('change', e => {
+  const box = e.target.closest('[data-card]');
+  if (!box) return;
+  const set = new Set(layoutDraft.hidden);
+  box.checked ? set.delete(box.dataset.card) : set.add(box.dataset.card);
+  layoutDraft.hidden = [...set];
+});
+$('layout-reset').addEventListener('click', () => {
+  renderLayout({ order: S.layoutBlocks.map(b => b.id), hidden: [] });
+});
+$('layout-save').addEventListener('click', async () => {
+  showError($('layout-error'), '');
+  try {
+    S.layout = (await api('/layout', { method: 'PUT', body: layoutDraft })).layout;
+    renderLayout(S.layout);
+    flash($('layout-saved'));
+  } catch (err) {
+    showError($('layout-error'), err.message);
   }
 });
 

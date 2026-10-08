@@ -214,6 +214,11 @@ body.strip-on .strip {
   opacity: 1;
   visibility: visible;
 }
+@media (prefers-reduced-motion: reduce) {
+  .strip {
+    transition: none;
+  }
+}
 /* Takes no room until it shows, so the title has the space (it matters on phones). */
 body:not(.strip-on) .strip {
   flex: 0 1 0;

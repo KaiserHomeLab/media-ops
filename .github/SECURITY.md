@@ -45,8 +45,8 @@ there as soon as I can.
 - The dashboard view is open on your LAN by default. Turn on **Settings → Security → Also require
   the password to view the dashboard** before exposing it more widely, or put it behind your
   reverse proxy's login (Authelia, Authentik, etc.).
-- **Update check**: every 6 hours Media Ops reads its own `package.json` from GitHub
-  (`raw.githubusercontent.com`) to see if a newer version is out. It's a plain download; nothing
+- **Update check**: every 6 hours Media Ops asks GitHub (`api.github.com`) for its latest
+  release to see if a newer version is out. It's a plain download; nothing
   about your server is sent. Turn it off under Settings → General.
 - Diagnostics reports are redacted (keys, tokens, IPs, emails and usernames removed) so they can
   be shared.

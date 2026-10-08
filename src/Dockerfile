@@ -4,6 +4,7 @@
 #
 # Media Ops image, built the linuxserver.io way: their Alpine base (s6-overlay, PUID/PGID,
 # UMASK, TZ, Docker Mods) plus Node.js and this app. See THIRD-PARTY-NOTICES.md.
+# Build from the top of the repo (it needs LICENSE from there): docker build -f src/Dockerfile .
 
 # Pinned to an exact build (the digest) so every image is built from the same base; Dependabot
 # opens a PR when linuxserver.io publishes a newer one (they rebuild weekly with security fixes).
@@ -34,13 +35,13 @@ RUN \
     /tmp/*
 
 # app
-COPY package.json server.js LICENSE THIRD-PARTY-NOTICES.md /app/media-ops/
-COPY lib/ /app/media-ops/lib/
-COPY bin/ /app/media-ops/bin/
-COPY public/ /app/media-ops/public/
+COPY LICENSE src/package.json src/server.js src/THIRD-PARTY-NOTICES.md /app/media-ops/
+COPY src/lib/ /app/media-ops/lib/
+COPY src/bin/ /app/media-ops/bin/
+COPY src/public/ /app/media-ops/public/
 
 # add local files
-COPY root/ /
+COPY src/root/ /
 # in case the repo was uploaded without exec bits (e.g. via GitHub's web UI), or checked out
 # on Windows with CRLF line endings (s6 can't run a script whose first line ends in \r)
 RUN \

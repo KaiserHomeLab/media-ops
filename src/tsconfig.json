@@ -1,6 +1,6 @@
 {
   // Type checking only (npm run typecheck): the code stays plain JavaScript with JSDoc types,
-  // nothing is compiled. Being turned on gradually; see CONTRIBUTING.md → Types.
+  // nothing is compiled. Being turned on gradually; see .github/CONTRIBUTING.md → Types.
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,

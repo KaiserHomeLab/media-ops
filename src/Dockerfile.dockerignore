@@ -1,0 +1,11 @@
+# Only what the Dockerfile copies is sent to the builder (the build runs from the top of the
+# repo, so Docker reads this file instead of a .dockerignore there).
+*
+!LICENSE
+!src/package.json
+!src/server.js
+!src/THIRD-PARTY-NOTICES.md
+!src/lib/
+!src/bin/
+!src/public/
+!src/root/

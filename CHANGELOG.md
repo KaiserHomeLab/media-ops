@@ -9,6 +9,15 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Changed
+
+- The update check now asks GitHub for the latest release instead of reading the code on the
+  main branch, so it only offers versions that have actually been released. Versions 1.15.1
+  and older look in the old place and won't show the "new version" notice any more; update
+  once (or let your usual update tool do it) and it works again.
+- The repository is reorganised: the source code is in `src/`, and the top level only has
+  what you need to install Media Ops.
+
 ## [1.15.1] - 2026-10-08
 
 ### Security
@@ -25,7 +34,7 @@ To stay on one version instead of `latest`, use a version tag such as
 
 - Versioned images: `:1.15.0` and `:1.15` next to `latest`, so you can pin a version or roll back.
 - Every release has notes on GitHub, and every image carries a signed record of how it was built
-  (provenance) and a list of everything inside it (SBOM). See [SECURITY.md](SECURITY.md).
+  (provenance) and a list of everything inside it (SBOM). See [SECURITY.md](.github/SECURITY.md).
 
 ### Changed
 

@@ -92,7 +92,7 @@ including Synology, QNAP, Portainer and Proxmox. The short versions:
 Container**, pick **media-ops** and click **Apply**.
 
 **TrueNAS (24.10 or newer).** Go to **Apps → Discover Apps → ⋮ → Install via YAML** and paste in
-[`truenas-compose.yml`](truenas-compose.yml), with `tank` changed to your pool's name.
+[`truenas-compose.yml`](docs/truenas-compose.yml), with `tank` changed to your pool's name.
 [More detail](docs/install.md#truenas).
 
 **Linux.**
@@ -190,7 +190,7 @@ You'll need access to the server itself. Any of these works:
 - **Media Ops checks GitHub every 6 hours** to see if there's a newer version. Nothing about
   your server is sent. You can turn this off under Settings → General.
 
-More details are in [SECURITY.md](SECURITY.md).
+More details are in [SECURITY.md](.github/SECURITY.md).
 
 ### Container options
 
@@ -207,6 +207,16 @@ options work:
 | `PORT` | `8484` | The port inside the container. |
 | `DEMO` | | Set to `1` to see the dashboard with made-up data. |
 
+## What's in this repo
+
+| | |
+|---|---|
+| [`docs/install.md`](docs/install.md) | Step-by-step install for every system |
+| [`docker-compose.yml`](docker-compose.yml) | Compose file that works anywhere |
+| [`unraid-template.xml`](unraid-template.xml) | Unraid template |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version |
+| [`src/`](src/) | The source code and the Dockerfile (see [CONTRIBUTING](.github/CONTRIBUTING.md) to work on it) |
+
 ## License and thanks
 
 Media Ops is free and open source under the [MIT License](LICENSE).
@@ -215,7 +225,7 @@ It's only possible because of the apps it talks to: Plex, Sonarr, Radarr, Lidarr
 Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, qBittorrent, Clonarr, TRaSH Guides, Unraid and
 TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
 APIs and doesn't include any of their code. Licenses and links are in
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+[THIRD-PARTY-NOTICES.md](src/THIRD-PARTY-NOTICES.md).
 
 Plex and the other app names are trademarks of their owners. Media Ops is an independent
 project and isn't affiliated with or endorsed by any of them.

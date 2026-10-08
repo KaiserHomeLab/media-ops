@@ -10,7 +10,7 @@
 #           ghcr.io/<owner>/media-ops with a signed provenance attestation. Only runs when
 #           lint and test passed.
 #   release on a version tag (v1.2.3): creates the GitHub release, with the notes from
-#           CHANGELOG.md. See CONTRIBUTING.md → Releasing.
+#           CHANGELOG.md. See .github/CONTRIBUTING.md → Releasing.
 name: CI
 
 on:
@@ -30,6 +30,11 @@ concurrency:
 permissions:
   contents: read
 
+# The app lives in src/; run commands there unless a step says otherwise.
+defaults:
+  run:
+    working-directory: src
+
 jobs:
   lint:
     name: lint
@@ -40,6 +45,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: src/package-lock.json
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
@@ -53,6 +59,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: src/package-lock.json
       - run: npm ci
       - run: npm run typecheck
 
@@ -73,6 +80,9 @@ jobs:
 
   build:
     name: build
+    defaults:
+      run:
+        working-directory: .
     needs: [lint, types, test]
     runs-on: ubuntu-latest
     permissions:
@@ -85,7 +95,7 @@ jobs:
       - name: Version tag matches package.json
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          want="v$(jq -r .version package.json)"
+          want="v$(jq -r .version src/package.json)"
           [ "$GITHUB_REF_NAME" = "$want" ] || { echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json ($want)"; exit 1; }
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -107,12 +117,13 @@ jobs:
       - id: info
         run: |
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-          echo "version=$(jq -r .version package.json)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r .version src/package.json)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       # Smoke test: build the image for this machine, start it, and check it answers and serves
       # a dashboard before anything is published. Uses the demo data, so no apps are needed.
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          file: src/Dockerfile
           load: true
           tags: media-ops:smoke
           cache-from: type=gha
@@ -132,6 +143,7 @@ jobs:
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
+          file: src/Dockerfile
           build-args: |
             BUILD_DATE=${{ steps.info.outputs.date }}
             VERSION=${{ steps.info.outputs.version }}
@@ -155,6 +167,9 @@ jobs:
 
   release:
     name: release
+    defaults:
+      run:
+        working-directory: .
     needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest

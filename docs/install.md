@@ -39,7 +39,7 @@ TrueNAS 24.10 or newer.
 1. Make a dataset for Media Ops' settings, for example `tank/apps/media-ops`, and give the
    `apps` user (ID 568) permission to write to it.
 2. Go to **Apps → Discover Apps → ⋮ → Install via YAML** and paste in
-   [`truenas-compose.yml`](../truenas-compose.yml). Change `tank` to your pool's name.
+   [`truenas-compose.yml`](truenas-compose.yml). Change `tank` to your pool's name.
 3. Open `http://<your-truenas-ip>:8484`. Under **Settings → General → Disks to show**, enter
    your pool, like `/mnt/tank`.
 

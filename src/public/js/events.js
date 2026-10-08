@@ -4,11 +4,13 @@
 // The errors & warnings feed, plus the buttons that act on apps (dismiss, clear, re-check,
 // stop a stream, retry a download, approve a request) and the toast that reports back.
 import { refresh } from './main.js';
-import { $, ago, esc, lastHTML, rollUp, setHTML, store } from './util.js';
+import { $, ago, closest, esc, lastHTML, rollUp, setHTML, store } from './util.js';
 
 // --------------------------------------------------------------------- errors & warnings feed
+/** @type {{ svc: string, level: string, showDismissed: boolean, [key: string]: string | boolean }} */
 const evFilter = { svc: 'all', level: 'all', showDismissed: false };
 
+/** @param {Overview} d */
 export function renderEvents(d) {
   const active = d.events.filter(e => !e.dismissed);
   const dismissedN = d.events.length - active.length;
@@ -22,6 +24,7 @@ export function renderEvents(d) {
   const bySvc = new Map();
   for (const e of active) bySvc.set(e.svcId, (bySvc.get(e.svcId) || 0) + 1);
   if (evFilter.svc !== 'all' && !names.has(evFilter.svc)) evFilter.svc = 'all';
+  /** @param {string} kind @param {string} val @param {string} label @param {number} [n] */
   const btn = (kind, val, label, n) =>
     `<button type="button" data-${kind}="${esc(val)}" aria-pressed="${evFilter[kind] === val}">${esc(label)}${n != null ? `<span class="n">${n}</span>` : ''}</button>`;
   setHTML(
@@ -34,22 +37,23 @@ export function renderEvents(d) {
       ...[...bySvc].map(([id, n]) => btn('svc', id, names.get(id) || id, n)),
       // keep the selected app's chip even once its errors are all dismissed
       ...(evFilter.svc !== 'all' && !bySvc.has(evFilter.svc)
-        ? [btn('svc', evFilter.svc, names.get(evFilter.svc), 0)]
+        ? [btn('svc', evFilter.svc, names.get(evFilter.svc) || 'app', 0)]
         : []),
     ].join(''),
   );
 
+  /** @param {any} e */
   const inFilter = e =>
     (evFilter.level === 'all' || e.level === evFilter.level) && (evFilter.svc === 'all' || e.svcId === evFilter.svc);
   const shownActive = active.filter(inFilter);
   const shown = (evFilter.showDismissed ? d.events : active).filter(inFilter).slice(0, 150);
 
   // Action bar: app actions on the left (when one app is selected), feed actions on the right.
-  const sel = evFilter.svc !== 'all' && d.services.find(s => s.id === evFilter.svc);
+  const sel = evFilter.svc === 'all' ? undefined : d.services.find(s => s.id === evFilter.svc);
   const left = sel
     ? [
-        `<button class="btn small" type="button" data-recheck="${esc(sel.id)}" title="${sel.actions.recheck === 'health' ? `Run ${esc(sel.name)}'s health checks now` : `Poll ${esc(sel.name)} again now`}">↻ Re-check ${esc(sel.name)}</button>`,
-        sel.actions.clear
+        `<button class="btn small" type="button" data-recheck="${esc(sel.id)}" title="${sel.actions?.recheck === 'health' ? `Run ${esc(sel.name)}'s health checks now` : `Poll ${esc(sel.name)} again now`}">↻ Re-check ${esc(sel.name)}</button>`,
+        sel.actions?.clear
           ? `<button class="btn small danger ghost" type="button" data-clear="${esc(sel.id)}">Clear ${esc(sel.name)}'s log…</button>`
           : '',
       ]
@@ -79,7 +83,7 @@ export function renderEvents(d) {
   }
 
   // Keep expanded rows expanded across refreshes.
-  const open = new Set([...el.querySelectorAll('details[open]')].map(x => x.dataset.key));
+  const open = new Set([...el.querySelectorAll('details[open]')].map(x => /** @type {HTMLElement} */ (x).dataset.key));
   setHTML(
     el,
     shown
@@ -111,7 +115,7 @@ export function renderEvents(d) {
 }
 
 $('ev-filters').addEventListener('click', e => {
-  const b = e.target.closest('button');
+  const b = closest(e, 'button');
   if (!b) return;
   if (b.dataset.level) evFilter.level = b.dataset.level;
   if (b.dataset.svc) evFilter.svc = b.dataset.svc;
@@ -119,15 +123,19 @@ $('ev-filters').addEventListener('click', e => {
 });
 
 // --------------------------------------------------------------------- dismiss / clear / re-check
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let toastTimer;
+/** @param {string} msg already-escaped HTML @param {string} [kind] */
 function toast(msg, kind = 'ok') {
   const t = $('toast');
   t.innerHTML = msg;
   t.className = `toast ${kind}`;
   t.hidden = false;
-  clearTimeout(t._t);
-  t._t = setTimeout(() => (t.hidden = true), kind === 'bad' ? 7000 : 3500);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), kind === 'bad' ? 7000 : 3500);
 }
 
+/** @param {string} path @param {object} [body] */
 async function post(path, body = {}) {
   const r = await fetch(`/api/events${path}`, {
     method: 'POST',
@@ -139,7 +147,9 @@ async function post(path, body = {}) {
   return data;
 }
 
-async function runAction(btn, fn) {
+/** @param {HTMLElement} el the clicked button @param {() => Promise<any>} fn */
+async function runAction(el, fn) {
+  const btn = /** @type {HTMLButtonElement} */ (el);
   btn.disabled = true;
   const label = btn.innerHTML;
   if (!btn.classList.contains('icon-btn')) btn.textContent = 'Working…';
@@ -160,27 +170,30 @@ async function runAction(btn, fn) {
 }
 
 document.addEventListener('click', e => {
-  const b = e.target.closest(
+  const b = closest(
+    e,
     '[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed],[data-stop],[data-qretry],[data-qremove],[data-rq]',
   );
   if (!b) return;
   e.preventDefault(); // buttons inside <summary> must not toggle the row
   e.stopPropagation();
+  /** @param {string | undefined} id */
   const name = id => store.state?.services.find(s => s.id === id)?.name || 'app';
   if ('dismiss' in b.dataset) return runAction(b, () => post('/dismiss', { keys: [b.dataset.dismiss] }));
   if ('dismissAll' in b.dataset)
     return runAction(b, () => post('/dismiss', evFilter.svc === 'all' ? { all: true } : { svcId: evFilter.svc }));
   if ('restore' in b.dataset) return runAction(b, () => post('/restore'));
   if ('recheck' in b.dataset)
-    return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.recheck)}/recheck`));
+    return runAction(b, () => post(`/services/${encodeURIComponent(String(b.dataset.recheck))}/recheck`));
   if ('toggleDismissed' in b.dataset) {
     evFilter.showDismissed = !evFilter.showDismissed;
-    return renderEvents(store.state);
+    if (store.state) renderEvents(store.state);
+    return;
   }
   if ('rq' in b.dataset) {
     if (b.dataset.rq === 'decline' && !confirm(`Decline the request for ${b.dataset.title}?`)) return;
     return runAction(b, () =>
-      post(`/services/${encodeURIComponent(b.dataset.svc)}/request-${b.dataset.rq}`, {
+      post(`/services/${encodeURIComponent(String(b.dataset.svc))}/request-${b.dataset.rq}`, {
         requestId: Number(b.dataset.id),
       }),
     );
@@ -192,23 +205,25 @@ document.addEventListener('click', e => {
     );
     if (reason === null) return;
     return runAction(b, () =>
-      post(`/services/${encodeURIComponent(b.dataset.svc)}/stop`, { sessionId: b.dataset.stop, reason }),
+      post(`/services/${encodeURIComponent(String(b.dataset.svc))}/stop`, { sessionId: b.dataset.stop, reason }),
     );
   }
   if ('qretry' in b.dataset)
-    return runAction(b, () => post(`/services/${encodeURIComponent(b.dataset.qretry)}/queue-retry`));
+    return runAction(b, () => post(`/services/${encodeURIComponent(String(b.dataset.qretry))}/queue-retry`));
   if ('qremove' in b.dataset) {
     if (
       !confirm(`Remove this download, blocklist the release, and have ${name(b.dataset.qremove)} search for another?`)
     )
       return;
     return runAction(b, () =>
-      post(`/services/${encodeURIComponent(b.dataset.qremove)}/queue-remove`, { queueId: Number(b.dataset.qid) }),
+      post(`/services/${encodeURIComponent(String(b.dataset.qremove))}/queue-remove`, {
+        queueId: Number(b.dataset.qid),
+      }),
     );
   }
   if ('clear' in b.dataset) {
-    const svc = store.state.services.find(s => s.id === b.dataset.clear);
-    if (!confirm(`Clear ${name(svc.id)}'s log?\n\n${svc.actions.clear}`)) return;
+    const svc = store.state?.services.find(s => s.id === b.dataset.clear);
+    if (!svc || !confirm(`Clear ${name(svc.id)}'s log?\n\n${svc.actions?.clear}`)) return;
     return runAction(b, () => post(`/services/${encodeURIComponent(svc.id)}/clear`));
   }
 });

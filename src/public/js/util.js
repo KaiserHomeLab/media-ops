@@ -14,6 +14,10 @@ export const store = { state: null, hist: null }; // latest /api/overview and /a
 export const $ = id => /** @type {HTMLElement} */ (document.getElementById(id));
 /** @type {Record<string, string>} */
 const ENTITY = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+// The element matching `selector` that an event happened in (event delegation), or null.
+/** @param {Event} e @param {string} selector @returns {HTMLElement | null} */
+export const closest = (e, selector) =>
+  e.target instanceof Element ? /** @type {HTMLElement | null} */ (e.target.closest(selector)) : null;
 /** @param {unknown} s */
 export const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ENTITY[c]);
 /** @param {unknown} n */
@@ -105,7 +109,7 @@ export function rollUp(cardId, idle) {
   return collapsed;
 }
 document.addEventListener('click', e => {
-  const b = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest?.('[data-roll]'));
+  const b = closest(e, '[data-roll]');
   if (!b) return;
   const id = b.dataset.roll || '';
   rollPeek.has(id) ? rollPeek.delete(id) : rollPeek.add(id);

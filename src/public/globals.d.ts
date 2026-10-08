@@ -60,3 +60,6 @@ interface Overview {
   layout: { order: string[]; hidden: string[]; blocks: Record<string, string[]> };
   [key: string]: any;
 }
+
+/** An app that answered (util.js answered()), so it has data. */
+type Answered = ServiceState & { data: { [key: string]: any } };

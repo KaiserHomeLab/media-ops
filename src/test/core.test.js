@@ -329,3 +329,21 @@ test('docker discovery: recognises apps by image and picks how to reach them', (
     'without our own container, only published ports',
   );
 });
+
+test('dashboard layout: only known rows and cards, every row placed, ids match index.html', () => {
+  const layout = require('../lib/layout');
+  const all = layout.BLOCKS.map(b => b.id);
+  assert.deepEqual(layout.clean(null), { order: all, hidden: [] });
+  const c = layout.clean({ order: ['system', 'nope', 'system', 'map'], hidden: ['host-card', 'x', 'host-card'] });
+  assert.deepEqual(c.order.slice(0, 2), ['system', 'map']);
+  assert.equal(c.order.length, all.length, 'rows missing from the saved order are added at the end');
+  assert.deepEqual(c.hidden, ['host-card']);
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  for (const b of layout.BLOCKS) {
+    const single = b.cards.length === 1;
+    assert.match(html, new RegExp(`data-block="${b.id}"`), `row ${b.id} in index.html`);
+    for (const card of b.cards) assert.match(html, new RegExp(`id="${card.id}"`), `card ${card.id} in index.html`);
+    if (single)
+      assert.match(html, new RegExp(`id="${b.cards[0].id}"[^>]*data-block="${b.id}"`), `${b.id} is the card itself`);
+  }
+});

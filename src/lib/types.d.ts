@@ -50,6 +50,8 @@ export interface Config {
   dismissed: { before: Record<string, number>; items: any[] };
   /** Public /status page (lib/status.js); null until first saved. */
   statusPage?: { enabled: boolean; title: string; notice: string; services: string[] } | null;
+  /** Dashboard rows in order and the cards turned off (lib/layout.js); null = the default. */
+  layout?: { order: string[]; hidden: string[] } | null;
   [key: string]: any;
 }
 

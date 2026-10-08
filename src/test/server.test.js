@@ -261,6 +261,18 @@ test('apps found in Docker: read through the configured socket proxy; none when 
   await general(g.dockerSocket);
 });
 
+test('dashboard layout: saved in Settings, sent with the overview, cleaned of unknown ids', async () => {
+  let o = await (await fetch(`${base}/api/overview`)).json();
+  assert.equal(o.layout.order[0], 'summary', 'default order');
+  assert.deepEqual(o.layout.blocks.system, ['storage-card', 'host-card']);
+  const r = await json('PUT', '/api/settings/layout', { order: ['events', 'summary'], hidden: ['map-card', '<img>'] });
+  assert.deepEqual((await r.json()).layout.hidden, ['map-card']);
+  o = await (await fetch(`${base}/api/overview`)).json();
+  assert.deepEqual(o.layout.order.slice(0, 2), ['events', 'summary']);
+  assert.deepEqual(o.layout.hidden, ['map-card']);
+  await json('PUT', '/api/settings/layout', {});
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

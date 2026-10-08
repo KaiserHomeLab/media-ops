@@ -9,6 +9,7 @@ import { renderEvents } from './events.js';
 import { renderMap } from './map.js';
 import { renderSpace } from './space.js';
 import { renderStreams } from './streams.js';
+import { applyLayout } from './layout.js';
 import { renderKpis, renderLibrary, renderServices } from './summary.js';
 import { renderDisks, renderHost, renderTrueNAS, renderUnraid } from './system.js';
 import { setTvMode } from './tv.js';
@@ -88,6 +89,7 @@ export function render(d) {
   const streams = plex?.data.streams || [];
   const clients = d.services.filter(s => s.up && s.data?.client); // download clients
 
+  applyLayout(d.layout);
   $('demo-badge').hidden = !d.demo;
   $('lock-nudge').hidden = d.demo || d.settingsLocked !== false || nudgeHidden();
   $('self-update').hidden = !d.latestVersion;

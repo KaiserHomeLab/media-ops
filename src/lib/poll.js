@@ -19,6 +19,7 @@ const gpu = require('./gpu');
 const space = require('./space');
 const selfupdate = require('./selfupdate');
 const status = require('./status');
+const layout = require('./layout');
 const { hostStats, localDisks, dockerContainers } = require('./host');
 const pkg = require('../package.json');
 
@@ -123,6 +124,7 @@ async function overview() {
     version: pkg.version,
     latestVersion: DEMO ? null : selfupdate.latest(cfg),
     settingsLocked: !!cfg.auth,
+    layout: layout.forDashboard(cfg),
   };
 }
 

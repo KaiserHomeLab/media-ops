@@ -18,6 +18,7 @@ const DEFAULTS = {
   map: { enabled: true, home: '' }, // stream map; home = optional "lat, lon" override
   notifications: { diskThreshold: 90, targets: [] }, // see lib/notify.js
   statusPage: null, // public /status page, see lib/status.js
+  layout: null, // dashboard card order and which cards are off, see lib/layout.js
   dismissed: { before: {}, items: [] }, // errors feed: what's been dismissed (see lib/events.js)
 };
 

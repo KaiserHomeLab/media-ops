@@ -21,6 +21,8 @@ To stay on one version instead of `latest`, use a version tag such as
 - Settings finds your apps in Docker: supported apps running in containers are listed under
   Apps, and clicking one opens the form with its name and address filled in. Uses the same
   Docker access as the containers panel.
+- Settings → Dashboard: turn cards off and change the order of the rows. Saved on the server,
+  so every screen and TV mode use the same layout.
 - Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
   list and in "failed or stuck downloads" notifications, for every torrent client.
 

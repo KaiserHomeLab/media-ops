@@ -14,6 +14,7 @@ const recovery = require('./recovery');
 const geo = require('./geo');
 const notify = require('./notify');
 const status = require('./status');
+const layout = require('./layout');
 const diagnostics = require('./diagnostics');
 const digest = require('./digest');
 const pins = require('./pins');
@@ -60,6 +61,8 @@ function settingsPayload(req) {
     notifyTypes: notify.TYPES,
     notifyEvents: notify.EVENTS,
     statusPage: status.settingsOf(cfg),
+    layout: layout.clean(cfg.layout),
+    layoutBlocks: layout.BLOCKS,
   };
 }
 
@@ -330,6 +333,13 @@ async function saveGeneral(req, res) {
   return send(res, 200, { ok: true });
 }
 
+// ---------------------------------------------------------------- dashboard layout
+async function saveLayout(req, res) {
+  const next = layout.clean(await readJson(req));
+  config.update(c => ({ ...c, layout: next }));
+  return send(res, 200, { ok: true, layout: next });
+}
+
 // ---------------------------------------------------------------- apps found in Docker
 async function discoverApps(req, res) {
   if (DEMO) return send(res, 200, { docker: false, apps: [] });
@@ -423,6 +433,7 @@ async function restore(req, res) {
     checkUpdates: incoming.checkUpdates !== false,
     dashboardAuth: !!incoming.dashboardAuth && !!(auth || c.auth),
     statusPage: incoming.statusPage ? safeStatusPage(incoming.statusPage, services) : null,
+    layout: incoming.layout ? layout.clean(incoming.layout) : null,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -471,6 +482,7 @@ const ROUTE_LIST = [
   ['PUT', '/notification-options', saveNotificationOptions],
   ['PUT', '/status-page', saveStatusPage],
   ['GET', '/discover', discoverApps],
+  ['PUT', '/layout', saveLayout],
   ['POST', '/digest-test', sendTestDigest],
   ['GET', '/backup', backup],
   ['POST', '/restore', restore],

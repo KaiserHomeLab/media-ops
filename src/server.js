@@ -11,6 +11,7 @@
 //   POST /api/events/services/:id/recheck  re-run an app's health checks
 //   *    /api/settings/…                   apps, general options, password, password reset
 //   GET  /api/status                       the public status page's data (only when turned on)
+//   GET  /branding/logo                    the logo uploaded under Settings → Appearance
 //   GET  /healthz                          liveness probe
 //
 // This file only routes and starts things. The work lives in lib/:
@@ -24,6 +25,7 @@
 const http = require('node:http');
 const path = require('node:path');
 const config = require('./lib/config');
+const appearance = require('./lib/appearance');
 const history = require('./lib/history');
 const { loggedIn } = require('./lib/auth');
 const { SECURITY_HEADERS, sameOrigin, send, serveStatic } = require('./lib/web');
@@ -40,6 +42,7 @@ const PAGES = { '/': '/index.html', '/settings': '/settings.html', '/status': '/
 const STATUS_PAGE = new Set(['/status', '/status.html', '/api/status']);
 const ALWAYS_OPEN = new Set([
   ...STATUS_PAGE,
+  '/branding/logo', // shown on the login page and the status page
   '/js/status.js',
   '/healthz',
   '/settings',
@@ -58,6 +61,33 @@ function dashboardLocked(req, pathname) {
   if (!cfg.dashboardAuth || !cfg.auth || ALWAYS_OPEN.has(pathname) || pathname.startsWith('/api/settings'))
     return false;
   return !loggedIn(req);
+}
+
+// Pages get the appearance settings written in (lib/appearance.js).
+const PAGE_OF = { 'index.html': 'dashboard', 'settings.html': 'settings', 'status.html': 'status' };
+const PAGE_RENDER = {
+  key: () => appearance.pageKey(config.load()),
+  apply: (html, file) => appearance.renderPage(html, config.load(), PAGE_OF[path.basename(file)] || 'other'),
+};
+function brandingLogo(res) {
+  const saved = config.load().appearance?.logo;
+  if (!saved?.data) return send(res, 404);
+  // Re-checked on the way out: the type comes from the image's own bytes, never from
+  // config.json, so a hand-edited file can't make this serve HTML from our origin.
+  let logo;
+  try {
+    logo = appearance.logoFrom(saved.data);
+  } catch {
+    return send(res, 404);
+  }
+  const body = Buffer.from(logo.data, 'base64');
+  // The URL carries the image's hash (?v=…), so it can be cached for good.
+  res.writeHead(200, {
+    'Content-Type': logo.type,
+    'Content-Length': body.length,
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
+  return res.end(body);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -82,6 +112,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/media/thumb')
       return mediaThumb(res, url.searchParams.get('s'), url.searchParams.get('p'));
     if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
+    if (url.pathname === '/branding/logo') return brandingLogo(res);
     if (url.pathname.startsWith('/api/events/')) {
       if (!sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });
       return await eventsApi(req, res, url.pathname.slice('/api/events'.length));
@@ -90,7 +121,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });
       return await settingsApi(req, res, url.pathname.slice('/api/settings'.length));
     }
-    return await serveStatic(req, res, url, PUBLIC, PAGES);
+    return await serveStatic(req, res, url, PUBLIC, PAGES, PAGE_RENDER);
   } catch (e) {
     if (e.code === 'ENOENT' || e.code === 'EISDIR' || e.code === 'ENOTDIR') return res.writeHead(404).end('Not found');
     if (e.status) return send(res, e.status, { error: e.message });

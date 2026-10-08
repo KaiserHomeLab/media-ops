@@ -314,6 +314,55 @@ test('stuck downloads: off by default; saved with the wait clamped to what the f
   await json('PUT', '/api/settings/auto-fix', { enabled: false });
 });
 
+test('appearance: written into every page (new ETag), logo served only as the image it is, open to the login page', async () => {
+  const etag0 = (await fetch(`${base}/`)).headers.get('etag');
+  let r = await json('PUT', '/api/settings/appearance', {
+    theme: 'dark',
+    accent: 'purple',
+    title: 'Kaiser Media',
+    statusTheme: 'light',
+  });
+  assert.equal(r.status, 200);
+  r = await fetch(`${base}/`);
+  const page = await r.text();
+  assert.notEqual(r.headers.get('etag'), etag0, 'cached pages are re-rendered');
+  assert.match(page, /<html lang="en" data-theme="dark" data-accent="purple">/);
+  assert.match(page, /<title>Kaiser Media<\/title>/);
+  assert.match(await (await fetch(`${base}/settings`)).text(), /<div class="sub">Kaiser Media<\/div>/);
+  assert.equal((await json('PUT', '/api/settings/appearance', { title: 'a<b' })).status, 400);
+
+  assert.equal((await fetch(`${base}/branding/logo`)).status, 404, 'no logo yet');
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>').toString('base64');
+  r = await json('PUT', '/api/settings/logo', { data: svg });
+  assert.equal(r.status, 400, 'SVG refused');
+  const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(64, 7)]);
+  r = await json('PUT', '/api/settings/logo', { data: png.toString('base64') });
+  const { appearance } = await r.json();
+  assert.match(appearance.logo.hash, /^[0-9a-f]{16}$/);
+  assert.equal(appearance.logo.data, undefined, 'the image itself is never sent with the settings');
+  r = await fetch(`${base}/branding/logo?v=${appearance.logo.hash}`);
+  assert.equal(r.headers.get('content-type'), 'image/png');
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(Buffer.from(await r.arrayBuffer()), png);
+  assert.match(await (await fetch(`${base}/`)).text(), /<img class="logo custom" src="\/branding\/logo\?v=/);
+
+  // A hand-edited config can't turn the logo into a page.
+  const file = path.join(dir, 'config.json');
+  const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+  cfg.appearance.logo = {
+    type: 'text/html',
+    data: Buffer.from('<script>alert(1)</script>').toString('base64'),
+    hash: 'x',
+  };
+  fs.writeFileSync(file, JSON.stringify(cfg));
+  await new Promise(res => setTimeout(res, 1100)); // config.json is re-read at most once a second
+  assert.equal((await fetch(`${base}/branding/logo`)).status, 404);
+
+  await json('DELETE', '/api/settings/logo');
+  await json('PUT', '/api/settings/appearance', {});
+  assert.doesNotMatch(await (await fetch(`${base}/`)).text(), /data-theme|data-accent/);
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

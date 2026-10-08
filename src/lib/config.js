@@ -20,6 +20,7 @@ const DEFAULTS = {
   statusPage: null, // public /status page, see lib/status.js
   layout: null, // dashboard card order and which cards are off, see lib/layout.js
   autoFix: null, // fix stuck downloads automatically, see lib/autofix.js
+  appearance: null, // theme, accent, title, logo, see lib/appearance.js
   dismissed: { before: {}, items: [] }, // errors feed: what's been dismissed (see lib/events.js)
 };
 

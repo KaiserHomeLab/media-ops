@@ -38,6 +38,9 @@ there as soon as I can.
 - Fixing stuck downloads automatically is the only thing Media Ops changes in your apps on its
   own, and it's off until you turn it on. It uses the same two actions as the dashboard buttons
   (re-check downloads; remove, blocklist and search again), at most 3 removals per app per hour.
+- A logo uploaded under Settings → Appearance must be a PNG, JPEG or WebP (checked by its
+  bytes, not its name; SVG is refused because it can carry script), at most 256 KB. It's
+  served with the type its bytes prove, never one read from `config.json`.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API

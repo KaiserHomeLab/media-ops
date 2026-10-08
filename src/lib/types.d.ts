@@ -54,6 +54,14 @@ export interface Config {
   layout?: { order: string[]; hidden: string[] } | null;
   /** Fix stuck downloads automatically (lib/autofix.js); null = off. */
   autoFix?: { enabled: boolean; minutes: number } | null;
+  /** Settings → Appearance (lib/appearance.js); the logo is base64 so backups carry it. */
+  appearance?: {
+    theme: string;
+    accent: string;
+    title: string;
+    statusTheme: string;
+    logo: { type: string; data: string; hash: string } | null;
+  } | null;
   [key: string]: any;
 }
 

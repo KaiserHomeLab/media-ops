@@ -130,12 +130,29 @@ async function staticFile(file) {
 }
 
 // Serve a file from `root` (GET/HEAD only), with ETag revalidation and a gzip copy made once.
-// `pages` maps clean URLs to files ('/settings' -> '/settings.html').
-async function serveStatic(req, res, url, root, pages) {
+// `pages` maps clean URLs to files ('/settings' -> '/settings.html'). `render`, if given, turns
+// an HTML file into what's sent (the appearance settings); its `key()` changes whenever the
+// result would, and each version is cached like a static file.
+/**
+ * @param {{ key: () => string, apply: (html: string, file: string) => string } | null} [render]
+ */
+async function serveStatic(req, res, url, root, pages, render = null) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405);
   const file = path.join(root, path.normalize(pages[url.pathname] || url.pathname));
   if (!file.startsWith(root + path.sep)) return send(res, 403);
-  const f = await staticFile(file);
+  let f = await staticFile(file);
+  if (render && file.endsWith('.html')) {
+    const key = render.key();
+    f.pages ??= new Map();
+    let v = f.pages.get(key);
+    if (!v) {
+      const body = Buffer.from(render.apply(f.body.toString('utf8'), file));
+      v = { body, etag: `"${crypto.createHash('sha1').update(body).digest('base64url').slice(0, 20)}"` };
+      f.pages.clear(); // only the current appearance is worth keeping
+      f.pages.set(key, v);
+    }
+    f = v;
+  }
   const headers = {
     'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
     ETag: f.etag,

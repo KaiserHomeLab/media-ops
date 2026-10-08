@@ -6,17 +6,36 @@
 // server; the form only learns whether one is saved.
 'use strict';
 
-const $ = id => document.getElementById(id);
-const esc = s =>
-  String(s ?? '').replace(
-    /[&<>"']/g,
-    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
-  );
+// Elements by id. The ids are fixed in settings.html, so one that's missing is a bug, not a case
+// to handle: typed as always there. $form() is the same for the page's <form>s.
+/** @param {string} id */
+const $ = id => /** @type {HTMLElement} */ (document.getElementById(id));
+/** @param {string} id */
+const $form = id => /** @type {HTMLFormElement} */ (document.getElementById(id));
+/** @param {string} id */
+const $input = id => /** @type {HTMLInputElement} */ (document.getElementById(id));
+/** @param {string} id */
+const $button = id => /** @type {HTMLButtonElement} */ (document.getElementById(id));
+// A form's field by name. Needed for fields called `title` or `name`: in the browser they win
+// over the form's own title/name properties, but the types only know the properties.
+/** @param {HTMLFormElement} f @param {string} name */
+const field = (f, name) => /** @type {HTMLInputElement} */ (f.elements.namedItem(name));
+// The element matching `selector` that an event happened in (event delegation), or null.
+/** @param {Event} e @param {string} selector @returns {HTMLElement | null} */
+const closest = (e, selector) =>
+  e.target instanceof Element ? /** @type {HTMLElement | null} */ (e.target.closest(selector)) : null;
+/** @type {Record<string, string>} */
+const ENTITY = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+/** @param {unknown} s */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ENTITY[c]);
 
-let S = null; // settings payload from the server
-let appStatus = {}; // service id -> { up, error, version }
-const modal = $('modal');
+/** @type {SettingsPayload} */
+let S; // the settings payload from the server, set by load() before anything renders
+/** @type {Record<string, any>} */
+let appStatus = {}; // service id -> last test result
+const modal = /** @type {HTMLDialogElement} */ ($('modal'));
 
+/** @param {string} path @param {{ method?: string, body?: unknown }} [options] @returns {Promise<any>} */
 async function api(path, { method = 'GET', body } = {}) {
   const r = await fetch(`/api/settings${path}`, {
     method,
@@ -32,14 +51,21 @@ async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
+/** @param {HTMLElement} el @param {string} [msg] */
 function showError(el, msg) {
   el.textContent = msg || '';
   el.hidden = !msg;
 }
+/** @type {WeakMap<HTMLElement, ReturnType<typeof setTimeout>>} */
+const flashTimers = new WeakMap();
+/** @param {HTMLElement} el */
 function flash(el) {
   el.hidden = false;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => (el.hidden = true), 2500);
+  clearTimeout(flashTimers.get(el));
+  flashTimers.set(
+    el,
+    setTimeout(() => (el.hidden = true), 2500),
+  );
 }
 
 // --------------------------------------------------------------------- load
@@ -72,7 +98,7 @@ async function loadStatus() {
   if (S.demo || !S.services.length) return;
   try {
     const o = await (await fetch('/api/overview')).json();
-    appStatus = Object.fromEntries(o.services.map(s => [s.id, s]));
+    appStatus = Object.fromEntries(/** @type {ServiceState[]} */ (o.services).map(s => [s.id, s]));
     renderApps();
   } catch {
     /* the cards just show without a status dot */
@@ -82,11 +108,12 @@ async function loadStatus() {
 function showLogin() {
   $('settings-body').hidden = true;
   $('login').hidden = false;
-  $('login-form').password.focus();
+  $form('login-form').password.focus();
 }
 
 // `next` comes from the address bar, so only follow it to a page on this site. Resolving it as a
 // URL catches the tricks a prefix check misses ("/\evil.example" is "//evil.example" to a browser).
+/** @param {string | null} raw */
 function sameSitePath(raw) {
   if (!raw) return null;
   try {
@@ -97,12 +124,12 @@ function sameSitePath(raw) {
   }
 }
 
-$('login-form').addEventListener('submit', async e => {
+$form('login-form').addEventListener('submit', async e => {
   e.preventDefault();
   showError($('login-error'), '');
   try {
-    await api('/login', { method: 'POST', body: { password: e.target.password.value } });
-    e.target.reset();
+    await api('/login', { method: 'POST', body: { password: $form('login-form').password.value } });
+    $form('login-form').reset();
     const next = sameSitePath(new URLSearchParams(location.search).get('next'));
     if (next) return (location.href = next);
     load();
@@ -111,31 +138,35 @@ $('login-form').addEventListener('submit', async e => {
   }
 });
 // Forgot password: one-time code from the server's log / config folder.
+/** @param {boolean} on */
 const showReset = on => {
-  $('login-form').hidden = on;
-  $('reset-form').hidden = !on;
-  $('login').querySelector('h2').textContent = on ? 'Reset settings password' : 'Settings are locked';
+  $form('login-form').hidden = on;
+  $form('reset-form').hidden = !on;
+  /** @type {HTMLElement} */ ($('login').querySelector('h2')).textContent = on
+    ? 'Reset settings password'
+    : 'Settings are locked';
   if (on) $('send-code').focus();
 };
 $('forgot').addEventListener('click', () => showReset(true));
 $('back-to-login').addEventListener('click', () => showReset(false));
 $('send-code').addEventListener('click', async e => {
+  const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
   showError($('reset-error'), '');
-  e.target.disabled = true;
+  btn.disabled = true;
   try {
     const r = await api('/forgot', { method: 'POST', body: {} });
     $('reset-file').textContent = r.file;
     $('reset-where').hidden = false;
-    e.target.textContent = 'Send a new code';
-    $('reset-form').code.focus();
+    btn.textContent = 'Send a new code';
+    $form('reset-form').code.focus();
   } catch (err) {
     showError($('reset-error'), err.message);
   }
-  setTimeout(() => (e.target.disabled = false), 30000); // server allows one new code per 30 s
+  setTimeout(() => (btn.disabled = false), 30000); // server allows one new code per 30 s
 });
-$('reset-form').addEventListener('submit', async e => {
+$form('reset-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = /** @type {HTMLFormElement} */ (e.target);
   showError($('reset-error'), '');
   try {
     await api('/reset', { method: 'POST', body: { code: f.code.value, next: f.next.value } });
@@ -153,7 +184,9 @@ $('logout').addEventListener('click', async () => {
 });
 
 // --------------------------------------------------------------------- apps grid
+/** @param {string} kind */
 const kindDef = kind => S.kinds.find(k => k.kind === kind) || S.kinds.find(k => k.kind === 'seerr');
+/** @param {string} name */
 const abbrev = name =>
   esc(
     name
@@ -176,9 +209,9 @@ function renderApps() {
           ? `<span class="dot ${st.up ? 'up' : 'down'}" title="${esc(st.up ? 'Connected' : st.error)}"></span>`
           : '';
     return `<button type="button" class="app-card${s.enabled === false ? ' off' : ''}" draggable="true" data-id="${esc(s.id)}">
-      <span class="app-icon k-${esc(s.kind)}" aria-hidden="true">${abbrev(kindDef(s.kind).label)}</span>
+      <span class="app-icon k-${esc(s.kind)}" aria-hidden="true">${abbrev(kindDef(s.kind)?.label || s.kind)}</span>
       <span class="app-name">${esc(s.name)} ${dot}</span>
-      <span class="app-kind">${esc(kindDef(s.kind).label)}${s.enabled === false ? ' · disabled' : ''}</span>
+      <span class="app-kind">${esc(kindDef(s.kind)?.label || s.kind)}${s.enabled === false ? ' · disabled' : ''}</span>
       <span class="app-url">${esc(s.url)}</span>
       ${st && !st.up && s.enabled !== false ? `<span class="app-err">✕ ${esc(st.error)}</span>` : ''}
     </button>`;
@@ -200,6 +233,7 @@ function renderApps() {
   renderFound();
 }
 // --------------------------------------------------------------------- apps found in Docker
+/** @type {{ kind: string, label: string, container: string, via: string, host: string | null, port: number }[]} */
 let found = [];
 async function loadFound() {
   try {
@@ -211,7 +245,9 @@ async function loadFound() {
 }
 // Same kind at the same address (or, for a published port, the same port) is already added.
 const SEERR = ['seerr', 'overseerr', 'jellyseerr'];
+/** @param {string} a @param {string} b */
 const kindMatches = (a, b) => a === b || (SEERR.includes(a) && SEERR.includes(b));
+/** @param {(typeof found)[number]} app */
 function alreadyAdded(app) {
   return S.services.some(s => {
     if (!kindMatches(s.kind, app.kind)) return false;
@@ -224,6 +260,7 @@ function alreadyAdded(app) {
     }
   });
 }
+/** @param {(typeof found)[number]} app */
 function foundUrl(app) {
   const host = app.host || serverHost();
   return host ? `http://${host}:${app.port}` : '';
@@ -241,7 +278,7 @@ function renderFound() {
       .join('')}</span>`;
 }
 $('found').addEventListener('click', e => {
-  const b = e.target.closest('[data-found]');
+  const b = closest(e, '[data-found]');
   if (!b) return;
   const app = found[Number(b.dataset.found)];
   const twins = found.filter(f => f.kind === app.kind).length > 1;
@@ -249,12 +286,12 @@ $('found').addEventListener('click', e => {
 });
 
 $('detected').addEventListener('click', e => {
-  const b = e.target.closest('[data-add-kind]');
-  if (b) openForm(b.dataset.addKind);
+  const b = closest(e, '[data-add-kind]');
+  if (b?.dataset.addKind) openForm(b.dataset.addKind);
 });
 
 $('apps').addEventListener('click', e => {
-  const card = e.target.closest('.app-card');
+  const card = closest(e, '.app-card');
   if (!card) return;
   if (card.id === 'add-app') return openPicker();
   const svc = S.services.find(s => s.id === card.dataset.id);
@@ -262,40 +299,44 @@ $('apps').addEventListener('click', e => {
 });
 
 // Drag to reorder
+/** @type {string | null} */
 let dragId = null;
 $('apps').addEventListener('dragstart', e => {
-  const c = e.target.closest('.app-card[data-id]');
+  const c = closest(e, '.app-card[data-id]');
   if (!c) return;
-  dragId = c.dataset.id;
+  dragId = c.dataset.id || null;
   c.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
 });
 $('apps').addEventListener('dragover', e => {
-  const over = e.target.closest('.app-card[data-id]');
+  const over = closest(e, '.app-card[data-id]');
   if (!dragId || !over || over.dataset.id === dragId) return;
   e.preventDefault();
   const dragged = $('apps').querySelector(`[data-id="${CSS.escape(dragId)}"]`);
   const r = over.getBoundingClientRect();
   const after = e.clientX > r.left + r.width / 2;
-  over.parentNode.insertBefore(dragged, after ? over.nextSibling : over);
+  if (dragged) over.parentNode?.insertBefore(dragged, after ? over.nextSibling : over);
 });
 $('apps').addEventListener('dragend', async () => {
   if (!dragId) return;
   dragId = null;
-  const ids = [...$('apps').querySelectorAll('.app-card[data-id]')].map(c => c.dataset.id);
+  const ids = [.../** @type {NodeListOf<HTMLElement>} */ ($('apps').querySelectorAll('.app-card[data-id]'))].map(
+    c => c.dataset.id,
+  );
   S.services.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   renderApps();
   await api('/order', { method: 'PUT', body: { ids } }).catch(err => alert(err.message));
 });
 
 // --------------------------------------------------------------------- modal: picker
+/** @param {string} title @param {string} html */
 function openModal(title, html) {
   $('modal-title').textContent = title;
   $('modal-body').innerHTML = html;
   if (!modal.open) modal.showModal();
 }
 modal.addEventListener('click', e => {
-  if (e.target === modal || e.target.closest('[data-close]')) modal.close();
+  if (e.target === modal || closest(e, '[data-close]')) modal.close();
 });
 
 function openPicker() {
@@ -319,14 +360,16 @@ function openPicker() {
       )
       .join(''),
   );
-  $('modal-body')
-    .querySelectorAll('.pick')
-    .forEach(b => b.addEventListener('click', () => openForm(b.dataset.kind)));
+  /** @type {NodeListOf<HTMLElement>} */ ($('modal-body').querySelectorAll('.pick')).forEach(b =>
+    b.addEventListener('click', () => openForm(b.dataset.kind || '')),
+  );
 }
 
 // --------------------------------------------------------------------- modal: add / edit form
+/** @param {string} h */
 const isLoopback = h => /^(localhost|127(\.\d+){3}|\[::1\])$/i.test(h);
 
+/** @param {AppKind} def */
 function suggestUrl(def) {
   const host = serverHost();
   if (!host) return '';
@@ -356,6 +399,7 @@ function serverHost() {
 
 // One input from a field definition (lib/kinds.js for apps, lib/notify.js for notifications).
 // Secrets are never filled in: a saved one shows as dots, and leaving the box blank keeps it.
+/** @param {FormField} f @param {Record<string, any> | null | undefined} item @param {boolean} [required] */
 function fieldHtml(f, item, required = !f.optional) {
   const saved = item?.[`${f.key}Saved`];
   const ph = f.type === 'secret' && saved ? '•••••••••••• saved — leave blank to keep' : f.placeholder || '';
@@ -368,6 +412,7 @@ function fieldHtml(f, item, required = !f.optional) {
 }
 
 // Delete (when editing) or Back to the picker (when adding), then Test and Save.
+/** @param {boolean} editing @param {{ del: string, back: string, test: string, save: string }} ids @param {string} testLabel */
 function formActions(editing, ids, testLabel) {
   return `<div class="actions wide">
         ${editing ? `<button class="btn danger ghost" type="button" id="${ids.del}">Delete</button>` : `<button class="btn ghost" type="button" id="${ids.back}">← Back</button>`}
@@ -377,16 +422,22 @@ function formActions(editing, ids, testLabel) {
       </div>`;
 }
 
+/** @param {HTMLElement} btn @param {boolean} busy @param {string} label */
 const setBusy = (btn, busy, label) => {
-  btn.disabled = busy;
+  /** @type {HTMLButtonElement} */ (btn).disabled = busy;
   btn.textContent = busy ? '…' : label;
 };
+/** @param {HTMLFormElement} form @param {HTMLElement} fallback */
 const focusFirstEmpty = (form, fallback) =>
-  ([...form.querySelectorAll('input[required]')].find(i => !i.value) || fallback).focus();
+  (
+    [.../** @type {NodeListOf<HTMLInputElement>} */ (form.querySelectorAll('input[required]'))].find(i => !i.value) ||
+    fallback
+  ).focus();
 
 // Apps -----------------------------------------------------------------------------------------
 
 // prefill: { name, url } for a new app found in Docker.
+/** @param {AppKind} def @param {AppRow | null} svc @param {{ name: string, url: string } | null} [prefill] */
 function appFormHtml(def, svc, prefill) {
   const sameKind = S.services.filter(s => s.kind === def.kind).length;
   const defaultName = prefill?.name || (!svc && sameKind ? `${def.label} ${sameKind + 1}` : def.label);
@@ -411,6 +462,7 @@ function appFormHtml(def, svc, prefill) {
     </form>`;
 }
 
+/** @param {AppKind} def @param {{ ok: boolean, error?: string, version?: string, latency?: number, note?: string }} r */
 function appTestResultHtml(def, r) {
   if (!r.ok) return `✕ ${esc(r.error)}`;
   const version = r.version ? ` — ${esc(def.label)} v${esc(String(r.version).replace(/^v/, ''))}` : '';
@@ -418,6 +470,7 @@ function appTestResultHtml(def, r) {
   return `✓ Connected${version}${latency}${r.note ? `<br><small>${esc(r.note)}</small>` : ''}`;
 }
 
+/** @param {AppRow | null} svc @param {Record<string, any>} body */
 async function saveApp(svc, body) {
   const saved = svc
     ? await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'PUT', body })
@@ -429,6 +482,7 @@ async function saveApp(svc, body) {
   loadStatus();
 }
 
+/** @param {AppRow} svc */
 async function deleteApp(svc) {
   if (!confirm(`Remove ${svc.name} from the dashboard?`)) return;
   await api(`/services/${encodeURIComponent(svc.id)}`, { method: 'DELETE' });
@@ -437,10 +491,12 @@ async function deleteApp(svc) {
   renderApps();
 }
 
+/** @param {string} kind @param {AppRow | null} [svc] @param {{ name: string, url: string } | null} [prefill] */
 function openForm(kind, svc = null, prefill = null) {
   const def = kindDef(kind);
+  if (!def) return;
   openModal(svc ? `Edit ${svc.name}` : `Add ${def.label}`, appFormHtml(def, svc, prefill));
-  const form = $('app-form'),
+  const form = $form('app-form'),
     result = $('test-result');
 
   const values = () => {
@@ -450,6 +506,7 @@ function openForm(kind, svc = null, prefill = null) {
     if (svc) v.id = svc.id;
     return v;
   };
+  /** @param {Parameters<typeof appTestResultHtml>[1]} r */
   const showResult = r => {
     result.hidden = false;
     result.className = `test-result wide ${r.ok ? 'ok' : 'bad'}`;
@@ -493,11 +550,12 @@ function openForm(kind, svc = null, prefill = null) {
   });
 
   $('back')?.addEventListener('click', openPicker);
-  $('del')?.addEventListener('click', () => deleteApp(svc));
+  $('del')?.addEventListener('click', () => svc && deleteApp(svc));
   focusFirstEmpty(form, form.url);
 }
 
 // --------------------------------------------------------------------- notifications
+/** @type {Record<string, string>} */
 const NOTIF_ICON = {
   discord: 'Di',
   telegram: 'Tg',
@@ -507,6 +565,7 @@ const NOTIF_ICON = {
   email: '@',
   webhook: '{}',
 };
+/** @param {number} t */
 const sinceText = t => {
   const m = Math.round((Date.now() - t) / 60e3);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
@@ -515,7 +574,7 @@ const sinceText = t => {
 function renderNotifs() {
   const list = S.notifications.targets;
   $('notif-count').textContent = list.length ? `${list.length} set up` : '';
-  const o = $('notif-options'),
+  const o = $form('notif-options'),
     n = S.notifications;
   o.diskThreshold.value = n.diskThreshold;
   o.quietEnabled.checked = n.quiet.enabled;
@@ -524,6 +583,7 @@ function renderNotifs() {
   o.quietAllowDown.checked = n.quiet.allowDown;
   o.digestEnabled.checked = n.digest.enabled;
   o.digestTime.value = n.digest.time;
+  /** @param {string} t */
   const type = t => S.notifyTypes.find(x => x.type === t);
   $('notifs').innerHTML =
     list
@@ -535,7 +595,7 @@ function renderNotifs() {
       <span class="app-name">${esc(t.name)}</span>
       <span class="app-kind">${esc(type(t.type)?.label || t.type)}${t.enabled === false ? ' · disabled' : ''}</span>
       <span class="app-url">${evs} event type${evs === 1 ? '' : 's'}</span>
-      ${last ? `<span class="${t.last.ok ? 'app-ok' : 'app-err'}">${esc(last)}</span>` : ''}
+      ${last ? `<span class="${t.last?.ok ? 'app-ok' : 'app-err'}">${esc(last)}</span>` : ''}
     </button>`;
       })
       .join('') +
@@ -543,7 +603,7 @@ function renderNotifs() {
 }
 
 $('notifs').addEventListener('click', e => {
-  const card = e.target.closest('.app-card');
+  const card = closest(e, '.app-card');
   if (!card) return;
   if (card.id === 'add-notif') return openNotifPicker();
   const t = S.notifications.targets.find(x => x.id === card.dataset.notif);
@@ -560,11 +620,12 @@ function openNotifPicker() {
       )
       .join('')}</div>`,
   );
-  $('modal-body')
-    .querySelectorAll('.pick')
-    .forEach(b => b.addEventListener('click', () => openNotifForm(b.dataset.type)));
+  /** @type {NodeListOf<HTMLElement>} */ ($('modal-body').querySelectorAll('.pick')).forEach(b =>
+    b.addEventListener('click', () => openNotifForm(b.dataset.type || '')),
+  );
 }
 
+/** @param {NotifyType} def @param {NotifyTarget | null} target */
 function notifFormHtml(def, target) {
   // The ntfy server defaults to ntfy.sh when left blank, so it's never required.
   const fields = def.fields.map(f => fieldHtml(f, target, !f.optional && f.key !== 'server')).join('');
@@ -586,8 +647,10 @@ function notifFormHtml(def, target) {
 }
 
 // The form's values as the server expects them: the type's fields plus one flag per event.
+/** @param {HTMLFormElement} form @param {NotifyType} def @param {NotifyTarget | null} target */
 function notifValues(form, def, target) {
   const v = Object.fromEntries(new FormData(form));
+  /** @type {Record<string, any>} */
   const out = { type: def.type, name: v.name, enabled: form.enabled.checked, events: {} };
   for (const f of def.fields) out[f.key] = v[f.key];
   for (const e of S.notifyEvents) out.events[e.key] = form[`ev-${e.key}`].checked;
@@ -595,6 +658,7 @@ function notifValues(form, def, target) {
   return out;
 }
 
+/** @param {NotifyTarget | null} target @param {Record<string, any>} body */
 async function saveNotif(target, body) {
   const saved = target
     ? await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'PUT', body })
@@ -607,6 +671,7 @@ async function saveNotif(target, body) {
   renderNotifs();
 }
 
+/** @param {NotifyTarget} target */
 async function deleteNotif(target) {
   if (!confirm(`Delete ${target.name}?`)) return;
   await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
@@ -615,12 +680,15 @@ async function deleteNotif(target) {
   renderNotifs();
 }
 
+/** @param {string} type @param {NotifyTarget | null} [target] */
 function openNotifForm(type, target = null) {
   const def = S.notifyTypes.find(t => t.type === type);
+  if (!def) return;
   openModal(target ? `Edit ${target.name}` : `Add ${def.label}`, notifFormHtml(def, target));
-  const form = $('notif-form'),
+  const form = $form('notif-form'),
     result = $('notif-result');
   const values = () => notifValues(form, def, target);
+  /** @param {boolean} ok @param {string} msg */
   const show = (ok, msg) => {
     result.hidden = false;
     result.className = `test-result wide ${ok ? 'ok' : 'bad'}`;
@@ -629,14 +697,14 @@ function openNotifForm(type, target = null) {
 
   $('ntest').addEventListener('click', async () => {
     if (!form.reportValidity()) return;
-    $('ntest').disabled = true;
+    $button('ntest').disabled = true;
     try {
       const r = await api('/notifications/test', { method: 'POST', body: values() });
       show(r.ok, r.ok ? '✓ Test sent. Check your phone or channel.' : `✕ ${r.error}`);
     } catch (err) {
       show(false, `✕ ${err.message}`);
     }
-    $('ntest').disabled = false;
+    $button('ntest').disabled = false;
   });
   form.addEventListener('submit', async e => {
     e.preventDefault();
@@ -648,15 +716,15 @@ function openNotifForm(type, target = null) {
     }
   });
   $('nback')?.addEventListener('click', openNotifPicker);
-  $('ndel')?.addEventListener('click', () => deleteNotif(target));
-  focusFirstEmpty(form, form.name);
+  $('ndel')?.addEventListener('click', () => target && deleteNotif(target));
+  focusFirstEmpty(form, field(form, 'name'));
 }
 
 $('notif-options').addEventListener('submit', async e => {
   e.preventDefault();
   showError($('notif-error'), '');
   try {
-    const o = e.target;
+    const o = /** @type {HTMLFormElement} */ (e.target);
     const body = {
       diskThreshold: o.diskThreshold.value,
       quiet: {
@@ -680,7 +748,8 @@ $('notif-options').addEventListener('submit', async e => {
 });
 
 $('digest-now').addEventListener('click', async e => {
-  e.target.disabled = true;
+  const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
+  btn.disabled = true;
   try {
     const r = await api('/digest-test', { method: 'POST', body: {} });
     const pre = $('digest-preview');
@@ -689,13 +758,14 @@ $('digest-now').addEventListener('click', async e => {
   } catch (err) {
     showError($('notif-error'), err.message);
   }
-  e.target.disabled = false;
+  btn.disabled = false;
 });
 
 // --------------------------------------------------------------------- backup & restore
 $('restore-file').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  e.target.value = '';
+  const input = /** @type {HTMLInputElement} */ (e.currentTarget);
+  const file = input.files?.[0];
+  input.value = '';
   if (!file) return;
   showError($('restore-error'), '');
   let data;
@@ -723,14 +793,17 @@ $('restore-file').addEventListener('change', async e => {
 });
 
 // --------------------------------------------------------------------- diagnostics
+/** @type {DiagReport | null} */
 let diagReport = null;
 $('diag-run').addEventListener('click', async e => {
-  const btn = e.target;
+  const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
   btn.disabled = true;
   btn.textContent = 'Checking every app…';
   try {
-    diagReport = await api('/diagnostics');
-    renderDiag(diagReport);
+    /** @type {DiagReport} */
+    const report = await api('/diagnostics');
+    diagReport = report;
+    renderDiag(report);
     $('diag-copy').hidden = $('diag-download').hidden = false;
   } catch (err) {
     $('diag-results').innerHTML = `<div class="form-error">${esc(err.message)}</div>`;
@@ -739,6 +812,7 @@ $('diag-run').addEventListener('click', async e => {
   btn.textContent = 'Run again';
 });
 
+/** @param {DiagReport} r */
 function renderDiag(r) {
   const ok = r.apps.filter(a => a.ok).length;
   $('diag-results').innerHTML =
@@ -753,7 +827,7 @@ function renderDiag(r) {
         .map(
           c => `<details class="diag-call"><summary>
           <span class="mono">${esc(c.method)}</span> <span class="mono url">${esc(c.url)}</span>
-          <span class="mono ${c.error || c.status >= 400 ? 'diag-err' : 'muted'}">${c.status ?? '—'} · ${c.ms ?? '—'} ms${c.bytes != null ? ` · ${c.bytes.toLocaleString()} B` : ''}${c.error ? ` · ${esc(c.error)}` : ''}</span>
+          <span class="mono ${c.error || (c.status ?? 0) >= 400 ? 'diag-err' : 'muted'}">${c.status ?? '—'} · ${c.ms ?? '—'} ms${c.bytes != null ? ` · ${c.bytes.toLocaleString()} B` : ''}${c.error ? ` · ${esc(c.error)}` : ''}</span>
         </summary>${c.sample ? `<pre>${esc(c.sample)}</pre>` : ''}</details>`,
         )
         .join('')}
@@ -767,16 +841,18 @@ function renderDiag(r) {
 
 // The copied report is the short one, sized to paste into a chat or issue: every call's status
 // and timing, but reply samples only where something went wrong. Download keeps everything.
+/** @param {DiagReport} r */
 const compactReport = r => ({
   ...r,
   apps: r.apps.map(a => ({
     ...a,
     calls: a.calls.map(({ sample, ...c }) =>
-      c.error || c.status >= 400 ? { ...c, sample: sample?.slice(0, 1200) } : c,
+      c.error || (c.status ?? 0) >= 400 ? { ...c, sample: sample?.slice(0, 1200) } : c,
     ),
   })),
 });
-const reportText = () => `Media Ops debug report\n\`\`\`json\n${JSON.stringify(compactReport(diagReport))}\n\`\`\`\n`;
+const reportText = () =>
+  `Media Ops debug report\n\`\`\`json\n${diagReport ? JSON.stringify(compactReport(diagReport)) : '{}'}\n\`\`\`\n`;
 $('diag-copy').addEventListener('click', async () => {
   const text = reportText();
   try {
@@ -802,6 +878,7 @@ $('diag-download').addEventListener('click', () => {
 
 // --------------------------------------------------------------------- general
 // Disk path examples for the platform Media Ops runs on (lib/platform.js). Static text only.
+/** @type {Record<string, { example: string[], text: string }>} */
 const PATH_TIPS = {
   unraid: {
     example: ['/mnt/user', '/mnt/cache'],
@@ -836,11 +913,11 @@ PATH_TIPS['docker-desktop'] = PATH_TIPS.mac;
 PATH_TIPS.proxmox = PATH_TIPS.linux;
 
 function renderGeneral() {
-  const f = $('general-form');
+  const f = $form('general-form');
   f.refreshSeconds.value = S.general.refreshSeconds;
   f.dockerSocket.value = S.general.dockerSocket;
   f.paths.value = S.general.paths.join('\n');
-  const tip = PATH_TIPS[S.platform?.id] || PATH_TIPS.linux;
+  const tip = PATH_TIPS[S.platform?.id || 'linux'] || PATH_TIPS.linux;
   f.paths.placeholder = tip.example.join('\n');
   $('paths-tip').innerHTML =
     `Paths as seen inside this container. ${tip.text} The disk space your arrs report is shown too.`;
@@ -850,9 +927,9 @@ function renderGeneral() {
   f.cleanupDays.value = S.general.cleanupDays;
   f.checkUpdates.checked = S.general.checkUpdates;
 }
-$('general-form').addEventListener('submit', async e => {
+$form('general-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = /** @type {HTMLFormElement} */ (e.target);
   showError($('general-error'), '');
   try {
     await api('/general', {
@@ -876,7 +953,9 @@ $('general-form').addEventListener('submit', async e => {
 
 // --------------------------------------------------------------------- dashboard layout
 // Rows in order, each with ↑ ↓ and a checkbox per card. Works on a copy until Save.
-let layoutDraft = null;
+/** @type {{ order: string[], hidden: string[] }} */
+let layoutDraft = { order: [], hidden: [] };
+/** @param {{ order: string[], hidden: string[] }} layout */
 function renderLayout(layout) {
   layoutDraft = { order: [...layout.order], hidden: [...layout.hidden] };
   drawLayout();
@@ -899,23 +978,24 @@ function drawLayout() {
     .join('');
 }
 $('layout-list').addEventListener('click', e => {
-  const b = e.target.closest('[data-move]');
+  const b = closest(e, '[data-move]');
   if (!b) return;
-  const id = b.closest('[data-row]').dataset.row;
+  const id = /** @type {HTMLElement} */ (b.closest('[data-row]')).dataset.row || '';
   const i = layoutDraft.order.indexOf(id);
   const j = i + Number(b.dataset.move);
   if (j < 0 || j >= layoutDraft.order.length) return;
   [layoutDraft.order[i], layoutDraft.order[j]] = [layoutDraft.order[j], layoutDraft.order[i]];
   drawLayout();
-  $('layout-list')
-    .querySelector(`[data-row="${CSS.escape(id)}"] [data-move="${b.dataset.move}"]`)
-    ?.focus();
+  /** @type {HTMLElement | null} */ (
+    $('layout-list').querySelector(`[data-row="${CSS.escape(id)}"] [data-move="${b.dataset.move}"]`)
+  )?.focus();
 });
 $('layout-list').addEventListener('change', e => {
-  const box = e.target.closest('[data-card]');
+  const box = closest(e, '[data-card]');
   if (!box) return;
   const set = new Set(layoutDraft.hidden);
-  box.checked ? set.delete(box.dataset.card) : set.add(box.dataset.card);
+  const card = box.dataset.card || '';
+  /** @type {HTMLInputElement} */ (box).checked ? set.delete(card) : set.add(card);
   layoutDraft.hidden = [...set];
 });
 $('layout-reset').addEventListener('click', () => {
@@ -935,6 +1015,7 @@ $('layout-save').addEventListener('click', async () => {
 // --------------------------------------------------------------------- appearance
 // Theme and accent preview on this page as soon as they're picked (the server writes the saved
 // ones into every page); Save keeps them.
+/** @param {string} theme @param {string} accent */
 function previewAppearance(theme, accent) {
   const root = document.documentElement;
   if (theme === 'auto') delete root.dataset.theme;
@@ -944,10 +1025,10 @@ function previewAppearance(theme, accent) {
 }
 function renderAppearance() {
   const a = S.appearance;
-  const f = $('appearance-form');
-  f.querySelector(`[name=theme][value="${a.theme}"]`).checked = true;
-  f.querySelector(`[name=statusTheme][value="${a.statusTheme}"]`).checked = true;
-  f.title.value = a.title;
+  const f = $form('appearance-form');
+  /** @type {HTMLInputElement} */ (f.querySelector(`[name=theme][value="${a.theme}"]`)).checked = true;
+  /** @type {HTMLInputElement} */ (f.querySelector(`[name=statusTheme][value="${a.statusTheme}"]`)).checked = true;
+  field(f, 'title').value = a.title;
   f.liveStrip.checked = a.liveStrip;
   $('accent-swatches').innerHTML = S.accents
     .map(
@@ -975,15 +1056,16 @@ function renderLogo() {
     head.replaceWith(next);
   }
 }
-$('appearance-form').addEventListener('change', e => {
-  if (e.target.name === 'theme' || e.target.name === 'accent') {
-    const f = $('appearance-form');
+$form('appearance-form').addEventListener('change', e => {
+  const changed = /** @type {HTMLInputElement} */ (e.target).name;
+  if (changed === 'theme' || changed === 'accent') {
+    const f = $form('appearance-form');
     previewAppearance(f.theme.value, f.accent.value);
   }
 });
-$('appearance-form').addEventListener('submit', async e => {
+$form('appearance-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = /** @type {HTMLFormElement} */ (e.target);
   showError($('appearance-error'), '');
   try {
     const r = await api('/appearance', {
@@ -991,21 +1073,23 @@ $('appearance-form').addEventListener('submit', async e => {
       body: {
         theme: f.theme.value,
         accent: f.accent.value,
-        title: f.title.value,
+        title: field(f, 'title').value,
         statusTheme: f.statusTheme.value,
         liveStrip: f.liveStrip.checked,
       },
     });
     S.appearance = r.appearance;
-    document.querySelector('header.top .sub').textContent = S.appearance.title || 'Media Ops';
+    /** @type {HTMLElement} */ (document.querySelector('header.top .sub')).textContent =
+      S.appearance.title || 'Media Ops';
     flash($('appearance-saved'));
   } catch (err) {
     showError($('appearance-error'), err.message);
   }
 });
 $('logo-file').addEventListener('change', async e => {
-  const file = e.target.files?.[0];
-  e.target.value = '';
+  const input = /** @type {HTMLInputElement} */ (e.currentTarget);
+  const file = input.files?.[0];
+  input.value = '';
   if (!file) return;
   showError($('appearance-error'), '');
   if (file.size > 256 * 1024) return showError($('appearance-error'), 'The logo must be 256 KB or smaller');
@@ -1033,18 +1117,19 @@ $('logo-remove').addEventListener('click', async () => {
 
 // --------------------------------------------------------------------- Prometheus metrics
 // The token is only in the reply that creates it, so it's shown once, right then.
+/** @param {string | null} token shown once, right after it's made */
 function renderMetrics(token) {
   const m = S.metrics;
-  const f = $('metrics-form');
+  const f = $form('metrics-form');
   f.enabled.checked = m.enabled;
   $('metrics-regen').hidden = !m.tokenSet;
   const row = $('metrics-token-row');
   if (token) {
     row.innerHTML = `<span>Token <em>copy it now: it won't be shown again</em></span>
       <div class="logo-row"><input id="metrics-token" readonly spellcheck="false"><button class="btn small" type="button" id="metrics-copy">Copy</button></div>`;
-    $('metrics-token').value = token;
+    $input('metrics-token').value = token;
     $('metrics-copy').addEventListener('click', async () => {
-      $('metrics-token').select();
+      $input('metrics-token').select();
       try {
         await navigator.clipboard.writeText(token);
         $('metrics-copy').textContent = 'Copied';
@@ -1065,11 +1150,11 @@ function renderMetrics(token) {
     static_configs:
       - targets: ['${location.host}']`;
 }
-$('metrics-form').addEventListener('submit', async e => {
+$form('metrics-form').addEventListener('submit', async e => {
   e.preventDefault();
   showError($('metrics-error'), '');
   try {
-    const r = await api('/metrics', { method: 'PUT', body: { enabled: e.target.enabled.checked } });
+    const r = await api('/metrics', { method: 'PUT', body: { enabled: $form('metrics-form').enabled.checked } });
     S.metrics = r.metrics;
     renderMetrics(r.token);
     flash($('metrics-saved'));
@@ -1090,7 +1175,7 @@ $('metrics-regen').addEventListener('click', async () => {
 
 // --------------------------------------------------------------------- stuck downloads
 function renderAutoFix() {
-  const f = $('autofix-form');
+  const f = $form('autofix-form');
   f.enabled.checked = S.autoFix.enabled;
   f.minutes.value = S.autoFix.minutes;
   const list = S.autoFix.recent || [];
@@ -1103,9 +1188,9 @@ function renderAutoFix() {
         .join('')}</ul>`
     : '';
 }
-$('autofix-form').addEventListener('submit', async e => {
+$form('autofix-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = /** @type {HTMLFormElement} */ (e.target);
   showError($('autofix-error'), '');
   try {
     S.autoFix = (
@@ -1120,10 +1205,10 @@ $('autofix-form').addEventListener('submit', async e => {
 
 // --------------------------------------------------------------------- public status page
 function renderStatusPage() {
-  const f = $('status-form');
+  const f = $form('status-form');
   const sp = S.statusPage;
   f.enabled.checked = sp.enabled;
-  f.title.value = sp.title;
+  field(f, 'title').value = sp.title;
   f.notice.value = sp.notice;
   const chosen = new Set(sp.services);
   setStatusLink(sp.enabled);
@@ -1138,24 +1223,27 @@ function renderStatusPage() {
           .join('')
       : '<p class="hint">Add your apps first.</p>');
 }
+/** @param {boolean} on */
 function setStatusLink(on) {
   const link = `${location.origin}/status`;
   $('status-link').innerHTML = on
     ? `Share this link: <a href="/status" target="_blank" rel="noopener">${esc(link)}</a>`
     : 'Off: /status answers "not found".';
 }
-$('status-form').addEventListener('submit', async e => {
+$form('status-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = /** @type {HTMLFormElement} */ (e.target);
   showError($('status-error'), '');
   try {
     const r = await api('/status-page', {
       method: 'PUT',
       body: {
         enabled: f.enabled.checked,
-        title: f.title.value,
+        title: field(f, 'title').value,
         notice: f.notice.value,
-        services: [...f.querySelectorAll('input[name="svc"]:checked')].map(i => i.value),
+        services: [
+          .../** @type {NodeListOf<HTMLInputElement>} */ (f.querySelectorAll('input[name="svc"]:checked')),
+        ].map(i => i.value),
       },
     });
     S.statusPage = r.statusPage;
@@ -1176,12 +1264,13 @@ function renderSecurity() {
   $('pw-remove').hidden = !on;
   $('pw-next-label').textContent = on ? 'New password' : 'Password';
   $('pw-submit').textContent = on ? 'Change password' : 'Set password';
-  $('dash-lock').checked = S.dashboardAuth;
-  $('dash-lock').disabled = !on;
+  $input('dash-lock').checked = S.dashboardAuth;
+  $input('dash-lock').disabled = !on;
   $('dash-lock-wrap').title = on ? '' : 'Set a password first';
 }
+/** @param {string} next */
 async function setPassword(next) {
-  const f = $('pw-form');
+  const f = $form('pw-form');
   showError($('pw-error'), '');
   try {
     const r = await api('/password', { method: 'PUT', body: { current: f.current.value, next } });
@@ -1195,20 +1284,21 @@ async function setPassword(next) {
     showError($('pw-error'), err.message);
   }
 }
-$('pw-form').addEventListener('submit', e => {
+$form('pw-form').addEventListener('submit', e => {
   e.preventDefault();
-  const next = e.target.next.value;
+  const next = $form('pw-form').next.value;
   if (next.length < 8) return showError($('pw-error'), 'Use at least 8 characters');
   setPassword(next);
 });
 $('dash-lock').addEventListener('change', async e => {
+  const box = /** @type {HTMLInputElement} */ (e.currentTarget);
   showError($('pw-error'), '');
   try {
-    await api('/security', { method: 'PUT', body: { dashboardAuth: e.target.checked } });
-    S.dashboardAuth = e.target.checked;
+    await api('/security', { method: 'PUT', body: { dashboardAuth: box.checked } });
+    S.dashboardAuth = box.checked;
     flash($('pw-saved'));
   } catch (err) {
-    e.target.checked = !e.target.checked;
+    box.checked = !box.checked;
     showError($('pw-error'), err.message);
   }
 });

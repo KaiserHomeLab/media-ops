@@ -16,7 +16,7 @@
     "test": "node --test test/*.test.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -p . && node scripts/typecheck-web.js",
+    "typecheck": "tsc -p . && tsc -p public",
     "test:browser": "node --test test/browser/*.test.js",
     "screenshots": "node scripts/screenshots.js"
   },

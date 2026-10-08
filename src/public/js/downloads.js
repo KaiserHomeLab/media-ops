@@ -2,7 +2,7 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // Downloads, coming up, indexer limits, recently added and Seerr requests.
-import { $, ago, bytes, clock, esc, initials, num, rate, rollUp, setHTML, store, timeOf } from './util.js';
+import { $, ago, bytes, clock, esc, initials, num, rate, rollUp, setHTML, store, thumbUrl, timeOf } from './util.js';
 
 function etaText(eta) {
   if (eta == null || eta === '') return '';
@@ -130,22 +130,24 @@ export function renderIndexers(prowlarrs) {
 }
 
 // --------------------------------------------------------------------- recently added + imports
-export function renderRecent(plex, arrs) {
-  const items = plex?.data.recentlyAdded || [];
+export function renderRecent(media, arrs) {
+  const items = media
+    .flatMap(m => (m.data.recentlyAdded || []).map(x => ({ ...x, server: m.id })))
+    .sort((a, b) => b.addedAt - a.addedAt);
   const imports = arrs
     .flatMap(a => (a.data.imports || []).map(x => ({ ...x, source: a.name })))
     .filter(x => Date.now() - new Date(x.time) < 2 * 864e5)
     .sort((a, b) => new Date(b.time) - new Date(a.time))
     .slice(0, 8);
   $('recent-card').hidden = !items.length && !imports.length;
-  const thumb = t => (t && !store.state?.demo ? `/api/plex/thumb?p=${encodeURIComponent(t)}` : null);
+  const thumb = m => (m.thumb && !store.state?.demo ? thumbUrl(m.server, m.thumb) : null);
   setHTML(
     $('recent-posters'),
     items
       .slice(0, 8)
       .map(
         m => `<figure class="pcard" title="${esc(`${m.title} ${m.sub} · ${m.library || ''}`)}">
-      ${thumb(m.thumb) ? `<img loading="lazy" alt="" src="${thumb(m.thumb)}" data-fallback="${initials(m.title)}">` : `<div class="ph" aria-hidden="true">${initials(m.title)}</div>`}
+      ${thumb(m) ? `<img loading="lazy" alt="" src="${thumb(m)}" data-fallback="${initials(m.title)}">` : `<div class="ph" aria-hidden="true">${initials(m.title)}</div>`}
       <figcaption><b>${esc(m.title)}</b><span>${esc(m.sub)}</span><span class="muted">${ago(m.addedAt)}</span></figcaption></figure>`,
       )
       .join(''),

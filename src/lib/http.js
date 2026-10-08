@@ -33,7 +33,7 @@ const redactUrl = url => {
 };
 // Keys whose values are secrets or personal: tokens, keys, IPs, emails, people's names.
 const SECRET_KEY =
-  /(key|token|password|secret|cookie|auth|email|address|ip$|^ip|username|friendly_?name|^user$|displayname|plexusername|serial)/i;
+  /(key|token|password|secret|cookie|auth|email|address|endpoint|device_?(id|name)|ip$|^ip|username|friendly_?name|^user$|displayname|plexusername|serial)/i;
 function redactValue(v, depth = 0) {
   if (Array.isArray(v))
     return v

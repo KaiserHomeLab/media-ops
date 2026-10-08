@@ -7,6 +7,7 @@
 // results leave the server; raw IPs are stripped before the page sees anything.
 'use strict';
 const { join, req } = require('./http');
+const { isMedia } = require('./media');
 
 const DAY = 864e5;
 const PLEX_HEADERS = {
@@ -92,28 +93,41 @@ async function home(plex, override) {
   return publicIp && isPublic(publicIp) ? lookup(publicIp, plex.token) : null;
 }
 
-// Add `geo` to each remote stream and `home` to the Plex result, then drop raw IPs.
+// Add `geo` to each remote stream and `home` to each media server's result, then drop raw IPs.
+// Lookups go through plex.tv with the Plex token, so only Plex viewers are located: Plex already
+// sees their addresses, while sending a Jellyfin or Emby viewer's address to plex.tv would
+// share it with a third party. Those show in the viewer list as "location unknown". The
+// server's own location can still come from a Plex server (it's the server's address, not a
+// viewer's) or from Settings.
 async function enrich(results, cfg) {
   const enabled = cfg.map?.enabled !== false;
+  const plexes = cfg.services.filter(s => s.kind === 'plex' && s.enabled !== false && s.token);
   for (const r of results) {
-    if (r.kind !== 'plex' || !r.up) continue;
-    const plex = cfg.services.find(s => s.id === r.id);
-    if (enabled && plex) {
+    if (!isMedia(r.kind) || !r.up || !Array.isArray(r.data?.streams)) continue;
+    const own = cfg.services.find(s => s.id === r.id);
+    const plex = own?.kind === 'plex' ? own : plexes[0];
+    if (enabled) {
       await Promise.all(
         r.data.streams.map(async st => {
-          // `address` is what Plex sees; `remotePublicAddress` is what plex.tv sees (helps behind relays).
+          // Plex: `address` is what Plex sees; `remotePublicAddress` is what plex.tv sees (helps behind relays).
           const ip = [st.ip, st.publicIp].map(clean).find(isPublic);
-          st.geo = !st.local && ip ? await lookup(ip, plex.token) : null;
+          st.geo = own?.kind === 'plex' && !st.local && ip ? await lookup(ip, own.token) : null;
         }),
       );
-      r.data.home = await home(plex, cfg.map?.home);
+      r.data.home = plex
+        ? await home(plex, cfg.map?.home)
+        : parseLatLon(cfg.map?.home)
+          ? { ...parseLatLon(cfg.map?.home), city: null, country: null, manual: true }
+          : null;
     }
     r.data.mapEnabled = enabled;
-    for (const st of r.data.streams) {
+  }
+  // Viewer IPs never reach the browser, whatever the server or setting.
+  for (const r of results)
+    for (const st of r.data?.streams || []) {
       delete st.ip;
       delete st.publicIp;
     }
-  }
 }
 
 module.exports = { enrich, parseLatLon, unescapeXml };

@@ -1,9 +1,9 @@
 # Media Ops
 
-**One page that tells you how your Plex server is doing.**
+**One page that tells you how your media server is doing.**
 
-Media Ops is a dashboard for a home media server running Plex and the *arr apps (Sonarr,
-Radarr, Prowlarr and friends). It shows you who's watching, what's downloading, what's
+Media Ops is a dashboard for a home media server running Plex, Jellyfin or Emby and the *arr
+apps (Sonarr, Radarr, Prowlarr and friends). It shows you who's watching, what's downloading, what's
 broken, and how full your disks are, all in one place, without opening ten browser tabs.
 
 It runs as a single Docker container on Unraid, TrueNAS, Synology, Linux, Windows or a Mac.
@@ -15,7 +15,8 @@ You set it up from a settings page in your browser; there are no files to edit.
 
 ## What it shows you
 
-**Who's watching.** Every Plex stream with the viewer, device, quality and progress. When
+**Who's watching.** Every stream on Plex, Jellyfin or Emby with the viewer, device, quality and
+progress. When
 something is transcoding, it tells you why ("the TV can't play HEVC", "subtitles are being
 burned in"), and it flags 4K transcodes because those are the ones that slow your server down.
 
@@ -47,7 +48,7 @@ memory, GPU load and your Docker containers.
 
 - Which apps are up, with a 24-hour uptime bar for each, and a badge when an update is out
 - Downloads in progress (SABnzbd, NZBGet, qBittorrent, Transmission or Deluge), what's coming
-  up this week, and what was just added to Plex
+  up this week, and what was just added to your media server
 - Seerr requests you can approve or decline right from the dashboard
 - How close each indexer is to its daily API limit
 - Watch stats from Tautulli, and 24-hour charts of streams, bandwidth and download speed
@@ -70,7 +71,7 @@ always fits on one screen. Open `http://<your-server>:8484/?tv=1` to go straight
 ## A status page for the people you share with
 
 Turn on **Settings → Status page** and share `http://<your-server>:8484/status` with the people
-who use your Plex. They can check whether it's up, and see its uptime for the last day, without
+who use your server. They can check whether it's up, and see its uptime for the last day, without
 asking you. You pick which apps it lists and can add a notice like "down for maintenance
 tonight". It shows nothing else: no addresses, versions or errors.
 
@@ -239,7 +240,7 @@ options work:
 
 Media Ops is free and open source under the [MIT License](LICENSE).
 
-It's only possible because of the apps it talks to: Plex, Sonarr, Radarr, Lidarr, Readarr,
+It's only possible because of the apps it talks to: Plex, Jellyfin, Emby, Sonarr, Radarr, Lidarr, Readarr,
 Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
 TRaSH Guides, Unraid and TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
 APIs and doesn't include any of their code. Licenses and links are in

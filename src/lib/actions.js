@@ -3,6 +3,7 @@
 'use strict';
 // Actions the dashboard can run inside an app: clear its log, or re-run its health checks.
 const { join, req } = require('./http');
+const { AUTH } = require('./collectors/jellyfin');
 
 const ARR_API = { sonarr: 'v3', radarr: 'v3', lidarr: 'v1', readarr: 'v1', prowlarr: 'v1' };
 const FINISHED_BAD = ['failed', 'aborted', 'cancelled', 'orphaned'];
@@ -64,15 +65,31 @@ async function recheck(svc) {
   return `Re-checked ${svc.name}`;
 }
 
-// Stop a Plex stream; the viewer sees `reason` on screen. (Plex Pass feature on the server.)
+// Stop a stream; the viewer sees `reason` on screen. (On Plex this needs Plex Pass.)
 async function stopStream(svc, sessionId, reason) {
-  if (svc.kind !== 'plex') throw Object.assign(new Error('Only Plex streams can be stopped'), { status: 400 });
+  if (!['plex', 'jellyfin', 'emby'].includes(svc.kind))
+    throw Object.assign(new Error('Only media server streams can be stopped'), { status: 400 });
   if (!sessionId || !/^[\w-]{1,128}$/.test(String(sessionId)))
     throw Object.assign(new Error('This stream has no valid session id'), { status: 400 });
   const msg =
     String(reason || '')
       .trim()
       .slice(0, 200) || 'The server owner stopped this stream.';
+  if (svc.kind !== 'plex') {
+    // Jellyfin/Emby: show the message on the viewer's screen, then stop playback. Emby reads
+    // the message from the query, Jellyfin from the body; each ignores the other.
+    const headers = { ...AUTH[svc.kind](svc.apiKey), 'Content-Type': 'application/json' };
+    const base = join(svc.url, `/Sessions/${encodeURIComponent(sessionId)}`);
+    const q = new URLSearchParams({ Header: 'Media Ops', Text: msg, TimeoutMs: '10000' });
+    await req(`${base}/Message?${q}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ Header: 'Media Ops', Text: msg, TimeoutMs: 10000 }),
+      as: 'text',
+    }).catch(() => {}); // not every client can show messages; stop anyway
+    await req(`${base}/Playing/Stop`, { method: 'POST', headers, as: 'text' });
+    return 'Stream stopped';
+  }
   await req(
     join(
       svc.url,

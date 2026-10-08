@@ -22,6 +22,20 @@ const KINDS = [
     ],
   },
   {
+    kind: 'jellyfin',
+    label: 'Jellyfin',
+    group: 'Media server',
+    port: 8096,
+    fields: [apiKey('Dashboard → API Keys → + (in 10.10 and newer: Administration → Dashboard → API Keys).')],
+  },
+  {
+    kind: 'emby',
+    label: 'Emby',
+    group: 'Media server',
+    port: 8096,
+    fields: [apiKey('Settings (the gear) → Advanced → API Keys → New API Key.')],
+  },
+  {
     kind: 'tautulli',
     label: 'Tautulli',
     group: 'Media server',

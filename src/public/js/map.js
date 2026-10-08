@@ -39,20 +39,20 @@ const place = g =>
 const streamLine = s =>
   `<b>${esc(s.user)}</b> · ${esc(s.title)}${s.subtitle && s.type !== 'movie' ? ` <span class="muted">${esc(s.subtitle.split(' · ')[0])}</span>` : ''}`;
 
-export function renderMap(plex) {
-  const show = !!plex && plex.data.mapEnabled !== false && !!window.WORLD_MAP;
+// src: { streams, home, enabled } from util.js mapSource(), or null without a media server.
+export function renderMap(src) {
+  const show = !!src && src.enabled && !!window.WORLD_MAP;
   $('map-card').hidden = !show;
   if (!show) return;
 
-  if (rollUp('map-card', !plex.data.streams.length)) {
+  if (rollUp('map-card', !src.streams.length)) {
     $('map-count').textContent = 'nobody watching';
     return;
   }
 
   const { project } = MapProjection;
   const { width: W, height: H, land } = WORLD_MAP;
-  const streams = plex.data.streams;
-  const home = plex.data.home;
+  const { streams, home } = src;
   const remote = streams.filter(s => !s.local && s.geo);
   const atHome = streams.filter(s => s.local);
   const unknown = streams.filter(s => !s.local && !s.geo);

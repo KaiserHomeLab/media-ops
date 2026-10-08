@@ -14,6 +14,7 @@ const crypto = require('node:crypto');
 const { originOf } = require('./config');
 const { req } = require('./http');
 const smtp = require('./smtp');
+const { allStreams } = require('./media');
 
 // ------------------------------------------------------------------ destination types (Settings form)
 const secret = (key, label, help, optional) => ({ key, label, type: 'secret', help, optional });
@@ -389,10 +390,10 @@ function detect(raw, events, disks, cfg) {
     } else if (pct < threshold - 2) state.diskOver.delete(d.path); // a little hysteresis
   }
 
-  const plex = raw.services.find(s => s.kind === 'plex' && s.up);
+  const streams = allStreams(raw.services);
   const upload = Number(cfg.uploadMbps) || 0;
-  if (upload && plex) {
-    const wan = (plex.data.streams || []).filter(st => !st.local).reduce((a, st) => a + (st.bandwidth || 0), 0) / 1000;
+  if (upload) {
+    const wan = streams.filter(st => !st.local).reduce((a, st) => a + (st.bandwidth || 0), 0) / 1000;
     if (wan >= upload * 0.85 && !state.uploadHigh) {
       state.uploadHigh = true;
       out.push({
@@ -403,8 +404,8 @@ function detect(raw, events, disks, cfg) {
     } else if (wan < upload * 0.75) state.uploadHigh = false;
   }
   const live = new Set();
-  for (const st of plex?.data.streams || []) {
-    const id = st.sessionId || st.id;
+  for (const st of streams) {
+    const id = `${st.server}:${st.sessionId || st.id}`;
     live.add(id);
     if (!state.streams.has(id))
       out.push({

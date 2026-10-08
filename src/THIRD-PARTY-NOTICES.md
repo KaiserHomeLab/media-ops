@@ -57,10 +57,12 @@ dashboard depends on.
 | [Clonarr](https://github.com/ProphetSe7en/clonarr) | MIT | sync-profile stats via its widget API |
 | [TRaSH Guides](https://github.com/TRaSH-Guides/Guides) | MIT | (indirectly, through Clonarr) |
 | Plex Media Server / plex.tv | proprietary | sessions, libraries, posters; GeoIP lookups for the stream map (`plex.tv/api/v2/geoip`) |
+| [Jellyfin](https://github.com/jellyfin/jellyfin) | GPL-2.0 | sessions, libraries, posters |
+| Emby Server | proprietary | sessions, libraries, posters |
 
 ## Trademarks
 
-Plex is a trademark of Plex, Inc. Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr,
+Plex is a trademark of Plex, Inc. Jellyfin, Emby, Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr,
 Tautulli, Seerr, Overseerr, Jellyseerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
 Unraid, TrueNAS and Docker
 are names or trademarks of their respective owners. They're used here only to say which

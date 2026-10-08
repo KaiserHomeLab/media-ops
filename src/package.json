@@ -1,7 +1,7 @@
 {
   "name": "media-ops",
   "version": "1.15.1",
-  "description": "Nerdy live dashboard for a Plex + *arr media server",
+  "description": "Nerdy live dashboard for a Plex, Jellyfin or Emby + *arr media server",
   "main": "server.js",
   "private": true,
   "license": "MIT",
@@ -29,6 +29,8 @@
   },
   "keywords": [
     "plex",
+    "jellyfin",
+    "emby",
     "sonarr",
     "radarr",
     "lidarr",

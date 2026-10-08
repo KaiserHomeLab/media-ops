@@ -62,10 +62,12 @@ memory, GPU load and your Docker containers.
 the rest. Every screen, TV mode included, uses the same layout.
 
 **Settings → Appearance** sets light or dark (or follows each device), the accent color (Plex
-amber, Jellyfin purple, Emby green, blue, teal or red), your own title and logo, and the look of
-the status page, and whether the top bar shows a live summary (streams, download speed, apps up,
-errors) once you scroll down. Every accent is checked for readable contrast in both light and dark, and the
-up, warning and down colors never change, so a problem always looks like a problem.
+amber, Jellyfin purple, Emby green, blue, teal or red), your own title and logo, the look of the
+status page, and whether the top bar shows a live summary (streams, download speed, apps up,
+errors) once you scroll down. Every accent is checked for readable contrast in both light and
+dark, and the up, warning and down colors never change, so a problem always looks like a problem.
+
+<img src="docs/screenshots/appearance.png" alt="Settings → Appearance" width="620">
 
 ## TV mode
 
@@ -80,6 +82,8 @@ Turn on **Settings → Status page** and share `http://<your-server>:8484/status
 who use your server. They can check whether it's up, and see its uptime for the last day, without
 asking you. You pick which apps it lists and can add a notice like "down for maintenance
 tonight". It shows nothing else: no addresses, versions or errors.
+
+<img src="docs/screenshots/status-page.png" alt="The public status page" width="600">
 
 ## On your phone
 

@@ -214,6 +214,10 @@ body.strip-on .strip {
   opacity: 1;
   visibility: visible;
 }
+/* Takes no room until it shows, so the title has the space (it matters on phones). */
+body:not(.strip-on) .strip {
+  flex: 0 1 0;
+}
 :root[data-strip='off'] .strip,
 body.tv .strip {
   display: none;
@@ -1879,6 +1883,13 @@ main.settings {
 }
 .k-plex {
   background: #e5a00d;
+}
+.k-jellyfin {
+  background: #aa5cc3;
+  color: #fff;
+}
+.k-emby {
+  background: #52b54b;
 }
 .k-tautulli {
   background: #db9e3a;

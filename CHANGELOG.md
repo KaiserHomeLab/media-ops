@@ -9,6 +9,16 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Changed
+
+- The demo (`DEMO=1`) now has a Jellyfin server next to Plex and a qBittorrent client, and the
+  README screenshots are retaken from it, with new ones of the status page and Appearance.
+
+### Fixed
+
+- On phones the live summary took the title's space even before it appeared.
+- Jellyfin and Emby had grey icons in Settings; they have their own colors now.
+
 ## [1.17.0] - 2026-10-08
 
 ### Added

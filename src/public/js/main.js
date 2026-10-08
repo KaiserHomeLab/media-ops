@@ -13,7 +13,7 @@ import { applyLayout } from './layout.js';
 import { renderKpis, renderLibrary, renderServices } from './summary.js';
 import { renderDisks, renderHost, renderTrueNAS, renderUnraid } from './system.js';
 import { setTvMode } from './tv.js';
-import { $, esc, lastHTML, setHTML, store, uptime } from './util.js';
+import { $, allStreams, esc, lastHTML, mapSource, mediaServers, setHTML, store, uptime } from './util.js';
 
 // --------------------------------------------------------------------- polling
 let lastOk = 0;
@@ -85,8 +85,8 @@ export function render(d) {
   const up = kind => d.services.filter(s => s.kind === kind && s.up);
   const all = kinds => d.services.filter(s => kinds.includes(s.kind) && s.up);
   const arrs = all(['sonarr', 'radarr', 'lidarr', 'readarr']);
-  const plex = up('plex')[0];
-  const streams = plex?.data.streams || [];
+  const media = mediaServers(d.services);
+  const streams = allStreams(d.services);
   const clients = d.services.filter(s => s.up && s.data?.client); // download clients
 
   applyLayout(d.layout);
@@ -107,11 +107,11 @@ export function render(d) {
 
   renderAlerts(d);
   renderKpis(d, { streams, arrs, clients });
-  renderStreams(streams, d.demo, plex?.id);
+  renderStreams(streams, d.demo);
   renderServices(d.services);
-  renderMap(plex);
+  renderMap(mapSource(d.services));
   renderEvents(d);
-  renderLibrary(plex, d.services);
+  renderLibrary(media, d.services);
   renderDownloads(clients, arrs);
   renderIndexers(up('prowlarr'));
   renderSpace(d.space);
@@ -120,10 +120,10 @@ export function render(d) {
   renderTrends();
   renderUnraid(up('unraid')[0]);
   renderTrueNAS(up('truenas')[0]);
-  renderRecent(plex, arrs);
+  renderRecent(media, arrs);
   renderRequests(all(['seerr', 'overseerr', 'jellyseerr']));
   renderDisks(d, arrs);
-  renderHost(d.host, d.docker, d.gpus, plex?.data.resources);
+  renderHost(d.host, d.docker, d.gpus, media.find(m => m.data.resources)?.data.resources);
 }
 
 function renderAlerts(d) {
@@ -160,7 +160,7 @@ function renderAlerts(d) {
 addEventListener('resize', () => {
   lastHTML.delete($('plays-chart'));
   lastHTML.delete($('map'));
-  if (store.state) renderMap(store.state.services.find(s => s.kind === 'plex' && s.up));
+  if (store.state) renderMap(mapSource(store.state.services));
   if (store.state) renderWatch(store.state.services.find(s => s.kind === 'tautulli' && s.up));
 });
 

@@ -12,6 +12,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const config = require('./config');
+const { allStreams } = require('./media');
 
 const MIN = 60e3,
   HOUR = 60 * MIN,
@@ -74,8 +75,7 @@ function record(raw) {
   }
 
   // Metrics: one row per minute; within a minute keep the busiest sample.
-  const plex = raw.services.find(s => s.kind === 'plex' && s.up);
-  const streams = plex?.data.streams || [];
+  const streams = allStreams(raw.services);
   const dl = raw.services.filter(s => s.up && s.data?.client); // download clients
   const row = [
     Math.floor(now / MIN) * MIN,

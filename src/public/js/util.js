@@ -104,3 +104,24 @@ export function placeTip(e) {
   tip.style.left = `${Math.max(8, left)}px`;
   tip.style.top = `${Math.max(8, e.clientY - r.height - 10)}px`;
 }
+
+// --------------------------------------------------------------------- media servers
+// Plex, Jellyfin and Emby report streams, libraries and recently added items alike (see
+// lib/media.js); several can run at once. Streams are tagged with their server's id.
+export const MEDIA_KINDS = ['plex', 'jellyfin', 'emby'];
+export const mediaServers = services => services.filter(s => s.up && MEDIA_KINDS.includes(s.kind));
+export const allStreams = services =>
+  mediaServers(services).flatMap(m => (m.data.streams || []).map(st => ({ ...st, server: m.id })));
+// What the stream map needs: every stream, the server's location, and whether it's on.
+export function mapSource(services) {
+  const media = mediaServers(services);
+  if (!media.length) return null;
+  return {
+    streams: allStreams(services),
+    home: media.find(m => m.data.home)?.data.home || null,
+    enabled: media.some(m => m.data.mapEnabled !== false),
+  };
+}
+// A poster through the server's proxy (tokens stay on the server).
+export const thumbUrl = (server, path) =>
+  `/api/media/thumb?s=${encodeURIComponent(server)}&p=${encodeURIComponent(path)}`;

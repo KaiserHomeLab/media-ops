@@ -16,7 +16,7 @@ ARG VERSION
 LABEL build_version="Media Ops version:- ${VERSION} Build-date:- ${BUILD_DATE}"
 LABEL maintainer="KaiserHomeLab"
 LABEL org.opencontainers.image.title="Media Ops"
-LABEL org.opencontainers.image.description="Live dashboard for a Plex + arr media server"
+LABEL org.opencontainers.image.description="Live dashboard for a Plex, Jellyfin or Emby + arr media server"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.source="https://github.com/KaiserHomeLab/media-ops"
 LABEL org.opencontainers.image.url="https://github.com/KaiserHomeLab/media-ops"

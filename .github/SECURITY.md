@@ -51,6 +51,8 @@ there as soon as I can.
 - The stream map looks up remote viewers' IP addresses with Plex's own GeoIP service
   (plex.tv, authenticated with your Plex token; the same service Tautulli uses). No other
   third party receives them. Only city-level locations reach the browser, never the IPs.
+  Jellyfin and Emby viewers aren't looked up at all (plex.tv would be a third party to them),
+  and their IPs are removed the same way.
   You can turn the map off under Settings → General.
 - **Backups** downloaded from Settings contain your API keys and the password hash, so they can
   only be downloaded once a settings password is set. Store them like a password manager export.

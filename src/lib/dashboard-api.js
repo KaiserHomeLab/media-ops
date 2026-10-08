@@ -2,12 +2,13 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // What the dashboard can do besides reading: dismiss errors, clear an app's log, re-check,
-// stop a stream, retry or replace a download, approve requests, and the Plex poster proxy.
+// stop a stream, retry or replace a download, approve requests, and the poster proxy.
 'use strict';
 const config = require('./config');
 const feed = require('./events');
 const actions = require('./actions');
 const { join } = require('./http');
+const { AUTH } = require('./collectors/jellyfin');
 const { loggedIn } = require('./auth');
 const { readJson, send } = require('./web');
 const { DEMO, describeError, invalidate, overview } = require('./poll');
@@ -63,19 +64,36 @@ async function eventsApi(req, res, route) {
   }
 }
 
-// ------------------------------------------------------------- Plex poster proxy (keeps token server-side)
+// ------------------------------------------------------------- poster proxy (keeps tokens server-side)
+// /api/media/thumb?s=<media server id>&p=<image path>. Only image paths of the shape each server
+// uses are accepted, so the proxy can't be pointed at anything else on the server.
 const THUMB_MAX = 5 * 1024 * 1024; // a 240×360 poster is ~30 KB
-async function plexThumb(res, p) {
-  const plex = config.load().services.find(s => s.kind === 'plex' && s.enabled !== false);
-  if (!plex || !/^\/library\/metadata\/\d+\/(thumb|art)\/\d+$/.test(p || '')) return send(res, 404);
-  const url = join(
-    plex.url,
-    `/photo/:/transcode?width=240&height=360&minSize=1&upscale=1&url=${encodeURIComponent(p)}`,
-  );
+const THUMB = {
+  plex: {
+    path: /^\/library\/metadata\/\d+\/(thumb|art)\/\d+$/,
+    url: (svc, p) =>
+      join(svc.url, `/photo/:/transcode?width=240&height=360&minSize=1&upscale=1&url=${encodeURIComponent(p)}`),
+    headers: svc => ({ 'X-Plex-Token': svc.token || '' }),
+  },
+  jellyfin: {
+    path: /^\/Items\/[0-9a-f]{32}\/Images\/Primary$/,
+    url: (svc, p) => join(svc.url, `${p}?maxHeight=360&quality=85`),
+    headers: svc => AUTH.jellyfin(svc.apiKey || ''),
+  },
+  emby: {
+    path: /^\/Items\/(\d{1,12}|[0-9a-f]{32})\/Images\/Primary$/,
+    url: (svc, p) => join(svc.url, `${p}?maxHeight=360&quality=85`),
+    headers: svc => AUTH.emby(svc.apiKey || ''),
+  },
+};
+async function mediaThumb(res, serviceId, p) {
+  const svc = config.load().services.find(s => s.id === serviceId && s.enabled !== false);
+  const how = svc && THUMB[svc.kind];
+  if (!how || !how.path.test(p || '')) return send(res, 404);
   try {
-    // No redirects: fetch would carry the X-Plex-Token header along to wherever it points.
-    const r = await fetch(url, {
-      headers: { 'X-Plex-Token': plex.token || '' },
+    // No redirects: fetch would carry the token header along to wherever it points.
+    const r = await fetch(how.url(svc, p), {
+      headers: how.headers(svc),
       signal: AbortSignal.timeout(8000),
       redirect: 'manual',
     });
@@ -100,4 +118,4 @@ async function plexThumb(res, p) {
   }
 }
 
-module.exports = { eventsApi, plexThumb };
+module.exports = { eventsApi, mediaThumb };

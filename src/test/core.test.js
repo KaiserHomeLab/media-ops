@@ -155,7 +155,7 @@ test('geo: remote viewers located via plex.tv, private IPs never looked up, IPs 
       },
     },
   ];
-  await geo.enrich(results, { services: [{ id: 'p', url: 'http://pms', token: 't' }], map: {} });
+  await geo.enrich(results, { services: [{ id: 'p', kind: 'plex', url: 'http://pms', token: 't' }], map: {} });
   const [a, b, c] = results[0].data.streams;
   assert.equal(a.geo.city, 'London');
   assert.equal(b.geo.city, 'London');
@@ -163,6 +163,36 @@ test('geo: remote viewers located via plex.tv, private IPs never looked up, IPs 
   assert.ok(results[0].data.streams.every(s => !('ip' in s) && !('publicIp' in s)));
   assert.equal(results[0].data.home.city, 'Chicago');
   assert.ok(!geoCalls.some(u => /192\.168|100\.100/.test(u)));
+});
+
+test('geo: Jellyfin and Emby viewers are never sent to plex.tv; the home location can come from Plex; IPs always stripped', async () => {
+  const jf = () => [
+    { kind: 'jellyfin', id: 'j', up: true, data: { streams: [{ local: false, ip: '198.51.100.7' }] } },
+    { kind: 'sonarr', id: 's', up: true, data: { streams: [{ ip: '198.51.100.8' }] } }, // anything with streams
+  ];
+  let results = jf();
+  await geo.enrich(results, { services: [{ id: 'j', kind: 'jellyfin' }], map: { home: '41.88, -87.63' } });
+  assert.equal(results[0].data.streams[0].geo, null, 'no Plex: no lookup');
+  assert.equal(results[0].data.home.manual, true, 'typed-in home location still used');
+  assert.ok(
+    results.every(r => r.data.streams.every(st => !('ip' in st))),
+    'IPs stripped everywhere',
+  );
+  results = jf();
+  const before = geoCalls.length;
+  await geo.enrich(results, {
+    services: [
+      { id: 'j', kind: 'jellyfin' },
+      { id: 'p', kind: 'plex', url: 'http://pms', token: 't' },
+    ],
+    map: {},
+  });
+  assert.equal(results[0].data.streams[0].geo, null, 'a Jellyfin viewer is not looked up');
+  assert.ok(!geoCalls.slice(before).some(u => u.includes('198.51.100.7')), "the viewer's IP never went to plex.tv");
+  assert.equal(results[0].data.home.city, 'Chicago', "the server's own location from Plex");
+  results = jf();
+  await geo.enrich(results, { services: [{ id: 'j', kind: 'jellyfin' }], map: { enabled: false } });
+  assert.ok(!('ip' in results[0].data.streams[0]), 'stripped with the map off too');
 });
 
 test('settings: blank API key keeps the saved one, but only for the same address; secrets never public', () => {

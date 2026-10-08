@@ -67,7 +67,7 @@ test('poster proxy never follows a redirect (the Plex token would go along)', as
     await json('POST', '/api/settings/services', { kind: 'plex', name: 'Plex', url: plex.url, token: 'secret-token' })
   ).json();
   try {
-    const r = await fetch(`${base}/api/plex/thumb?p=/library/metadata/1/thumb/2`);
+    const r = await fetch(`${base}/api/media/thumb?s=${svc.id}&p=/library/metadata/1/thumb/2`);
     assert.equal(r.status, 502);
     assert.equal(plex.calls.length, 1);
     assert.equal(evil.calls.length, 0);
@@ -75,6 +75,37 @@ test('poster proxy never follows a redirect (the Plex token would go along)', as
     await json('DELETE', `/api/settings/services/${svc.id}`);
     plex.close();
     evil.close();
+  }
+});
+
+test('jellyfin: posters through the proxy (only image paths, key in the header), and Stop shows a message first', async () => {
+  const id = '0123456789abcdef0123456789abcdef';
+  const jf = await fakeServer({
+    [`/Items/${id}/Images/Primary`]: req =>
+      req.headers.authorization === 'MediaBrowser Token="jf-key"'
+        ? { status: 200, headers: { 'Content-Type': 'image/jpeg' }, body: 'JPEGDATA' }
+        : { status: 401 },
+    [`POST /Sessions/${id}/Message`]: { status: 204 },
+    [`POST /Sessions/${id}/Playing/Stop`]: { status: 204 },
+  });
+  const svc = await (
+    await json('POST', '/api/settings/services', { kind: 'jellyfin', name: 'Jellyfin', url: jf.url, apiKey: 'jf-key' })
+  ).json();
+  try {
+    let r = await fetch(`${base}/api/media/thumb?s=${svc.id}&p=/Items/${id}/Images/Primary`);
+    assert.equal(r.status, 200);
+    assert.equal(await r.text(), 'JPEGDATA');
+    for (const p of ['/System/Info', `/Items/${id}/Images/Primary/../../../System/Info`, '/Items/1/Images/Primary'])
+      assert.equal((await fetch(`${base}/api/media/thumb?s=${svc.id}&p=${encodeURIComponent(p)}`)).status, 404, p);
+    r = await json('POST', `/api/events/services/${svc.id}/stop`, { sessionId: id, reason: 'Server maintenance' });
+    assert.equal(r.status, 200);
+    const [msg, stop] = jf.calls.filter(c => c.method === 'POST');
+    assert.equal(msg.path, `/Sessions/${id}/Message`);
+    assert.equal(JSON.parse(msg.body).Text, 'Server maintenance');
+    assert.equal(stop.path, `/Sessions/${id}/Playing/Stop`);
+  } finally {
+    await json('DELETE', `/api/settings/services/${svc.id}`);
+    jf.close();
   }
 });
 

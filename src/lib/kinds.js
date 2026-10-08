@@ -88,6 +88,28 @@ const KINDS = [
     fields: [apiKey('Config → General → Security → API Key (the full API key, not the NZB key).')],
   },
   {
+    kind: 'nzbget',
+    label: 'NZBGet',
+    group: 'Downloaders',
+    port: 6789,
+    fields: [
+      {
+        key: 'username',
+        label: 'Username',
+        type: 'text',
+        optional: true,
+        help: 'Settings → Security → ControlUsername (nzbget unless you changed it). A RestrictedUsername works too.',
+      },
+      {
+        key: 'password',
+        label: 'Password',
+        type: 'secret',
+        optional: true,
+        help: 'Settings → Security → ControlPassword.',
+      },
+    ],
+  },
+  {
     kind: 'qbittorrent',
     label: 'qBittorrent',
     group: 'Downloaders',
@@ -101,6 +123,38 @@ const KINDS = [
         help: 'Leave blank if "Bypass authentication for clients on localhost / whitelisted subnets" is on.',
       },
       { key: 'password', label: 'Password', type: 'secret', optional: true },
+    ],
+  },
+
+  {
+    kind: 'transmission',
+    label: 'Transmission',
+    group: 'Downloaders',
+    port: 9091,
+    fields: [
+      {
+        key: 'username',
+        label: 'Username',
+        type: 'text',
+        optional: true,
+        help: 'Only if Transmission asks for a login (rpc-authentication-required).',
+      },
+      { key: 'password', label: 'Password', type: 'secret', optional: true },
+    ],
+  },
+  {
+    kind: 'deluge',
+    label: 'Deluge',
+    group: 'Downloaders',
+    port: 8112,
+    note: "Use the address of the Deluge Web UI. If it isn't connected to a daemon yet, Media Ops connects it to the first one in its Connection Manager.",
+    fields: [
+      {
+        key: 'password',
+        label: 'Web UI password',
+        type: 'secret',
+        help: 'The password you type to open the Deluge Web UI (deluge unless you changed it).',
+      },
     ],
   },
 

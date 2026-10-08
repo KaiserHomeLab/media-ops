@@ -86,7 +86,7 @@ export function render(d) {
   const arrs = all(['sonarr', 'radarr', 'lidarr', 'readarr']);
   const plex = up('plex')[0];
   const streams = plex?.data.streams || [];
-  const clients = all(['sabnzbd', 'qbittorrent']);
+  const clients = d.services.filter(s => s.up && s.data?.client); // download clients
 
   $('demo-badge').hidden = !d.demo;
   $('lock-nudge').hidden = d.demo || d.settingsLocked !== false || nudgeHidden();

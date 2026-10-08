@@ -46,7 +46,8 @@ memory, GPU load and your Docker containers.
 **And a lot more:**
 
 - Which apps are up, with a 24-hour uptime bar for each, and a badge when an update is out
-- Downloads in progress, what's coming up this week, and what was just added to Plex
+- Downloads in progress (SABnzbd, NZBGet, qBittorrent, Transmission or Deluge), what's coming
+  up this week, and what was just added to Plex
 - Seerr requests you can approve or decline right from the dashboard
 - How close each indexer is to its daily API limit
 - Watch stats from Tautulli, and 24-hour charts of streams, bandwidth and download speed
@@ -222,8 +223,8 @@ options work:
 Media Ops is free and open source under the [MIT License](LICENSE).
 
 It's only possible because of the apps it talks to: Plex, Sonarr, Radarr, Lidarr, Readarr,
-Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, qBittorrent, Clonarr, TRaSH Guides, Unraid and
-TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
+Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
+TRaSH Guides, Unraid and TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
 APIs and doesn't include any of their code. Licenses and links are in
 [THIRD-PARTY-NOTICES.md](src/THIRD-PARTY-NOTICES.md).
 

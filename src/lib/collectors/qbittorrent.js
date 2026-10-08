@@ -6,9 +6,11 @@
 const { join, req, timed } = require('../http');
 
 // qBittorrent Web API v2 uses a cookie session. Login is skipped when no username is set
-// (its "bypass auth for LAN" option); the SID is cached per server and renewed on 401/403.
+// (its "bypass auth for LAN" option); the SID is cached per server and login (so testing other
+// credentials in Settings logs in afresh) and renewed on 401/403.
 const qbitSid = new Map();
 async function qbittorrent(cfg) {
+  const key = [cfg.url, cfg.username, cfg.password].join('\n');
   const login = async () => {
     if (!cfg.username) return null;
     const res = await req(join(cfg.url, '/api/v2/auth/login'), {
@@ -19,7 +21,7 @@ async function qbittorrent(cfg) {
     });
     const sid = /SID=([^;]+)/.exec(res.headers.get('set-cookie') || '')?.[1];
     if (!sid) throw new Error('qBittorrent login failed');
-    qbitSid.set(cfg.url, sid);
+    qbitSid.set(key, sid);
     return sid;
   };
   /** @param {string} p @param {'json' | 'text'} [as] */
@@ -27,7 +29,7 @@ async function qbittorrent(cfg) {
     const doCall = sid =>
       req(join(cfg.url, p), { as, headers: { Referer: cfg.url, ...(sid ? { Cookie: `SID=${sid}` } : {}) } });
     try {
-      return await doCall(qbitSid.get(cfg.url) ?? (await login()));
+      return await doCall(qbitSid.get(key) ?? (await login()));
     } catch (e) {
       if (!/HTTP 40[13]/.test(e.message) || !cfg.username) throw e;
       return doCall(await login());
@@ -63,6 +65,15 @@ async function qbittorrent(cfg) {
           eta: t.eta,
           status: t.state,
           speed: t.dlspeed,
+        })),
+      events: torrents
+        .filter(t => t.state === 'error' || t.state === 'missingFiles')
+        .map(t => ({
+          time: new Date().toISOString(),
+          level: 'error',
+          source: 'Torrent error',
+          message: `${t.name}: ${t.state === 'missingFiles' ? 'files are missing' : 'error'}`,
+          live: true,
         })),
     },
   };

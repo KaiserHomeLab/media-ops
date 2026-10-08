@@ -14,7 +14,10 @@ const { tautulli } = require('./tautulli');
 const { bazarr } = require('./bazarr');
 const { overseerr } = require('./seerr');
 const { sabnzbd } = require('./sabnzbd');
+const { nzbget } = require('./nzbget');
 const { qbittorrent } = require('./qbittorrent');
+const { transmission } = require('./transmission');
+const { deluge } = require('./deluge');
 const { clonarr } = require('./clonarr');
 const { unraid } = require('./unraid');
 const { truenas } = require('./truenas');
@@ -33,7 +36,10 @@ module.exports = {
   jellyseerr: overseerr,
   seerr: overseerr,
   sabnzbd,
+  nzbget,
   qbittorrent,
+  transmission,
+  deluge,
   clonarr,
   unraid,
   truenas,

@@ -26,11 +26,11 @@ export function renderDownloads(clients, arrs) {
       .map(c => {
         const d = c.data;
         const x =
-          c.kind === 'qbittorrent'
+          d.client === 'torrent'
             ? `${num(d.torrents)} torrents · ratio ${d.ratio?.toFixed(2) ?? '—'} · ${bytes(d.allTimeUp)} seeded`
             : `${d.paused ? 'PAUSED' : esc(d.status)}${d.totals ? ` · today ${bytes(d.totals.day)} · month ${bytes(d.totals.month)}` : ''}`;
         return `<div class="client"><h3>${esc(c.name)}</h3>
-      <div class="speeds"><span class="down">${rate(d.downBps)}</span>${c.kind === 'qbittorrent' ? `<span class="up">${rate(d.upBps)}</span>` : ''}</div>
+      <div class="speeds"><span class="down">${rate(d.downBps)}</span>${d.client === 'torrent' ? `<span class="up">${rate(d.upBps)}</span>` : ''}</div>
       <div class="x">${x}</div></div>`;
       })
       .join(''),

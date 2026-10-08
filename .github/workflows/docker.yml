@@ -6,7 +6,10 @@
 #   test    the unit and server tests, on the Node versions we support
 #   build   builds the image and smoke-tests it (starts it, checks it serves the dashboard);
 #           on main and on version tags it then publishes the multi-arch image to
-#           ghcr.io/<owner>/media-ops. Only runs when lint and test passed.
+#           ghcr.io/<owner>/media-ops with a signed provenance attestation. Only runs when
+#           lint and test passed.
+#   release on a version tag (v1.2.3): creates the GitHub release, with the notes from
+#           CHANGELOG.md. See CONTRIBUTING.md → Releasing.
 name: CI
 
 on:
@@ -62,8 +65,15 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # sign the provenance attestation (Sigstore, via GitHub's OIDC token)
+      attestations: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Version tag matches package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          want="v$(jq -r .version package.json)"
+          [ "$GITHUB_REF_NAME" = "$want" ] || { echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json ($want)"; exit 1; }
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -79,6 +89,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
       - id: info
         run: |
@@ -104,7 +115,8 @@ jobs:
       - name: Container log
         if: always()
         run: docker logs smoke || true
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      - id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           build-args: |
@@ -120,3 +132,36 @@ jobs:
           sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # Verifiable by anyone: gh attestation verify oci://ghcr.io/kaiserhomelab/media-ops:<tag> -R KaiserHomeLab/media-ops
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        if: github.event_name != 'pull_request'
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/media-ops
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  release:
+    name: release
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # The section from "## [1.2.3]" up to the next "## [" heading.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::No section for $version in CHANGELOG.md"; exit 1; }
+          printf '\n**Image:** `ghcr.io/kaiserhomelab/media-ops:%s`\n' "$version" >> notes.md
+          cat notes.md
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --title "Media Ops ${GITHUB_REF_NAME#v}" --notes-file notes.md

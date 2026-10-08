@@ -73,6 +73,9 @@ there as soon as I can.
   SBOM (every package inside). To see them:
   `docker buildx imagetools inspect ghcr.io/kaiserhomelab/media-ops:latest --format '{{ json .Provenance }}'`
   (or `.SBOM`).
+- Every published image also has a signed attestation (Sigstore, via GitHub) tying it to the
+  exact commit and workflow run that built it. Check one with
+  `gh attestation verify oci://ghcr.io/kaiserhomelab/media-ops:latest -R KaiserHomeLab/media-ops`.
 - The base image is pinned to an exact digest. Dependabot opens weekly pull requests for newer
   base images, GitHub Actions and the development tools, and CodeQL scans every change for
   security problems.

@@ -40,8 +40,17 @@ const publicUrls = v =>
 async function checkPublic(url) {
   const host = new URL(url).host;
   try {
-    const [res, ms] = await timed(() => req(url, { as: 'response', timeout: 10000, headers: { Accept: '*/*' } }));
+    /** @param {string} u */
+    const open = u => req(u, { as: 'response', timeout: 10000, headers: { Accept: '*/*' } });
+    let [res, ms] = await timed(() => open(url));
     res.body?.cancel().catch(() => {});
+    // http:// → https:// on the same host is Cloudflare's "Always Use HTTPS", answered at its
+    // edge without touching the tunnel. Follow that one hop so the tunnel is really tested.
+    const to = res.status >= 300 && res.status < 400 && URL.parse(res.headers.get('location') || '', url);
+    if (to && to.protocol === 'https:' && new URL(url).protocol === 'http:' && to.host === host) {
+      [res, ms] = await timed(() => open(to.href));
+      res.body?.cancel().catch(() => {});
+    }
     const status = res.status;
     if (status < 500) return { host, url, ok: true, status, ms };
     const viaCloudflare = res.headers.has('cf-ray');

@@ -4,10 +4,12 @@
 // Seerr, Overseerr and Jellyseerr (same API): pending requests, counts and the log.
 'use strict';
 const { join, req, timed, cached } = require('../http');
-const { DAY, normLevel } = require('./shared');
+const { DAY, normLevel, list } = require('./shared');
 
+/** @param {import('../types').Service} cfg */
 async function overseerr(cfg) {
-  const headers = { 'X-Api-Key': cfg.apiKey };
+  const headers = { 'X-Api-Key': cfg.apiKey || '' };
+  /** @param {string} p */
   const api = p => req(join(cfg.url, `/api/v1${p}`), { headers });
   const [status, latency] = await timed(() => api('/status'));
   const update = status.updateAvailable ? { version: null, behind: status.commitsBehind || null } : null;
@@ -19,7 +21,7 @@ async function overseerr(cfg) {
   ]);
   // Request lists only carry TMDB ids; look titles up once a day each.
   const requests = await Promise.all(
-    (pending?.results || []).map(async r => {
+    list(pending?.results).map(async r => {
       const tv = r.type === 'tv';
       const m = await cached(`seerr-title:${cfg.url}:${r.type}:${r.media?.tmdbId}`, DAY, () =>
         api(`/${tv ? 'tv' : 'movie'}/${r.media?.tmdbId}`).catch(() => null),
@@ -32,12 +34,12 @@ async function overseerr(cfg) {
         createdAt: r.createdAt,
         title: (tv ? m?.name : m?.title) || `TMDB ${r.media?.tmdbId}`,
         year: date ? date.slice(0, 4) : null,
-        seasons: tv ? (r.seasons || []).map(x => x.seasonNumber) : null,
+        seasons: tv ? list(r.seasons).map(x => x.seasonNumber) : null,
         requestedBy: r.requestedBy?.displayName || r.requestedBy?.username || 'someone',
       };
     }),
   );
-  const events = (Array.isArray(logs) ? logs : logs.results || [])
+  const events = list(Array.isArray(logs) ? logs : logs?.results)
     .filter(l => normLevel(l.level))
     .map(l => ({
       time: l.timestamp,

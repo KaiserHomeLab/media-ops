@@ -23,10 +23,12 @@ const FIELDS = [
 const cookies = new Map();
 const NOT_AUTHENTICATED = 1;
 
+/** @param {import('../types').Service} cfg */
 async function deluge(cfg) {
   const url = join(cfg.url, '/json');
   const key = [url, cfg.password].join('\n');
   let id = 0;
+  /** @param {string} method @param {unknown[]} params @param {string} [cookie] */
   const post = (method, params, cookie) =>
     req(url, {
       method: 'POST',
@@ -52,6 +54,7 @@ async function deluge(cfg) {
     cookies.set(key, cookie);
     return cookie;
   };
+  /** @param {string} method @param {unknown[]} [params] */
   const call = async (method, params = []) => {
     let r = await post(method, params, cookies.get(key) ?? (await login()));
     if (r?.error?.code === NOT_AUTHENTICATED) r = await post(method, params, await login());
@@ -70,6 +73,7 @@ async function deluge(cfg) {
   const [ui, version] = await Promise.all([call('web.update_ui', [FIELDS, {}]), call('daemon.info').catch(() => null)]);
   const torrents = Object.values(ui?.torrents || {});
   const s = ui?.stats || {};
+  /** @type {Record<string, number>} */
   const states = {};
   for (const t of torrents) states[t.state] = (states[t.state] || 0) + 1;
   const done = torrents.reduce((a, t) => a + (t.total_done || 0), 0);

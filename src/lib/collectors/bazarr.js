@@ -5,8 +5,10 @@
 'use strict';
 const { join, req, timed } = require('../http');
 
+/** @param {import('../types').Service} cfg */
 async function bazarr(cfg) {
-  const headers = { 'X-API-KEY': cfg.apiKey };
+  const headers = { 'X-API-KEY': cfg.apiKey || '' };
+  /** @param {string} p */
   const api = p => req(join(cfg.url, p), { headers });
   const [status, latency] = await timed(() => api('/api/system/status'));
   const badges = await api('/api/badges');

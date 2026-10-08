@@ -5,14 +5,18 @@
 // (for "What's using space").
 'use strict';
 const { join, req, timed, cached, background } = require('../http');
-const { normLevel, UPDATE_TTL } = require('./shared');
+const { normLevel, UPDATE_TTL, list } = require('./shared');
 
+/** @param {import('../types').Service} cfg */
 async function tautulli(cfg) {
+  /** @param {string} cmd @param {string} [extra] @param {number} [timeout] @returns {Promise<any>} */
   const api = (cmd, extra = '', timeout) =>
-    req(join(cfg.url, `/api/v2?apikey=${encodeURIComponent(cfg.apiKey)}&cmd=${cmd}${extra}`), { timeout }).then(r => {
-      if (r.response?.result !== 'success') throw new Error(r.response?.message || 'Tautulli error');
-      return r.response.data;
-    });
+    req(join(cfg.url, `/api/v2?apikey=${encodeURIComponent(cfg.apiKey || '')}&cmd=${cmd}${extra}`), { timeout }).then(
+      r => {
+        if (r.response?.result !== 'success') throw new Error(r.response?.message || 'Tautulli error');
+        return r.response.data;
+      },
+    );
   const [info, latency] = await timed(() => api('get_tautulli_info'));
   const [home, byDate, logs] = await Promise.all([
     cached(`taut-home:${cfg.url}`, 5 * 60e3, () => api('get_home_stats', '&time_range=30&stats_count=5')),
@@ -25,7 +29,7 @@ async function tautulli(cfg) {
     ),
     tautulliWatch(cfg, api),
   ]);
-  const events = (Array.isArray(logs) ? logs : logs.data || [])
+  const events = list(Array.isArray(logs) ? logs : logs?.data)
     .filter(l => normLevel(l.loglevel))
     .slice(-50)
     .map(l => ({
@@ -34,7 +38,8 @@ async function tautulli(cfg) {
       source: l.thread,
       message: l.msg,
     }));
-  const stat = id => home.find(s => s.stat_id === id)?.rows || [];
+  /** @param {string} id @returns {any[]} */
+  const stat = id => list(list(home).find(s => s.stat_id === id)?.rows);
   return {
     version: info.tautulli_version,
     latency,
@@ -53,7 +58,7 @@ async function tautulli(cfg) {
       events,
       playsByDate: {
         dates: byDate.categories,
-        series: byDate.series.map(s => ({ name: s.name, data: s.data })),
+        series: list(byDate.series).map(s => ({ name: s.name, data: s.data })),
       },
     },
   };
@@ -62,6 +67,7 @@ async function tautulli(cfg) {
 // When each movie and show was last watched, for "What's using space" (hourly; server-side
 // only). Tautulli groups shows by series, so a show counts as watched if any episode was.
 // `since` is the oldest play Tautulli knows about: nothing before it can be judged.
+/** @param {import('../types').Service} cfg @param {(cmd: string, extra?: string, timeout?: number) => Promise<any>} api */
 function tautulliWatch(cfg, api) {
   return background(`taut-watch:${cfg.url}`, 60 * 60e3, async () => {
     const libs = await api('get_libraries').catch(() => []);
@@ -70,7 +76,7 @@ function tautulliWatch(cfg, api) {
       sections.map(l =>
         api('get_library_media_info', `&section_id=${l.section_id}&length=100000`, 30000)
           .then(r =>
-            (r?.data || []).map(m => ({
+            list(r?.data).map(m => ({
               type: l.section_type,
               title: m.title,
               year: Number(m.year) || null,

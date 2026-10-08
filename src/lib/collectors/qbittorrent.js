@@ -9,6 +9,7 @@ const { join, req, timed } = require('../http');
 // (its "bypass auth for LAN" option); the SID is cached per server and login (so testing other
 // credentials in Settings logs in afresh) and renewed on 401/403.
 const qbitSid = new Map();
+/** @param {import('../types').Service} cfg */
 async function qbittorrent(cfg) {
   const key = [cfg.url, cfg.username, cfg.password].join('\n');
   const login = async () => {
@@ -26,6 +27,7 @@ async function qbittorrent(cfg) {
   };
   /** @param {string} p @param {'json' | 'text'} [as] */
   const call = async (p, as = 'json') => {
+    /** @param {string | null} sid */
     const doCall = sid =>
       req(join(cfg.url, p), { as, headers: { Referer: cfg.url, ...(sid ? { Cookie: `SID=${sid}` } : {}) } });
     try {
@@ -39,6 +41,7 @@ async function qbittorrent(cfg) {
   const main = await call('/api/v2/sync/maindata?rid=0');
   const s = main.server_state || {};
   const torrents = Object.values(main.torrents || {});
+  /** @type {Record<string, number>} */
   const states = {};
   for (const t of torrents) states[t.state] = (states[t.state] || 0) + 1;
   return {

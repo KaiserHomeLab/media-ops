@@ -4,6 +4,7 @@
 // TrueNAS (JSON-RPC over WebSocket, lib/jsonrpc-ws.js): pools, disks, apps and alerts.
 'use strict';
 const { trace } = require('../http');
+const { list } = require('./shared');
 const rpc = require('../jsonrpc-ws');
 const pins = require('../pins');
 
@@ -11,6 +12,7 @@ const pins = require('../pins');
 // at wss://<host>/api/current, logging in with an API key and the username that owns it.
 // Always wss, even when the address is entered as http://: TrueNAS revokes an API key the
 // moment it's sent over plain http.
+/** @type {Map<string, Promise<any>>} */
 const truenasConns = new Map(); // host+user+key -> Promise<Connection>, reused between polls
 const truenasUsed = new Map(); // same key -> last poll time
 // Close connections nobody has polled for 10 minutes (a removed app, or a changed key).
@@ -26,6 +28,7 @@ setInterval(() => {
   }
 }, 60e3).unref();
 
+/** @param {import('../types').Service} cfg @param {boolean} fresh */
 async function truenasLogin(cfg, fresh) {
   const u = new URL(cfg.url);
   const port = u.protocol === 'https:' && u.port ? Number(u.port) : 443;
@@ -56,13 +59,13 @@ async function truenasLogin(cfg, fresh) {
       });
     if (r?.response_type !== 'SUCCESS') {
       c.close();
-      throw new Error(
-        {
-          AUTH_ERR: 'TrueNAS refused the API key. Check the username is the one the key belongs to.',
-          EXPIRED: 'The API key has expired or was revoked. Create a new one in TrueNAS.',
-          OTP_REQUIRED: 'This account needs a one-time password; API keys for it need a different user.',
-        }[r?.response_type] || `TrueNAS login failed (${r?.response_type || 'no answer'})`,
-      );
+      /** @type {Record<string, string>} */
+      const why = {
+        AUTH_ERR: 'TrueNAS refused the API key. Check the username is the one the key belongs to.',
+        EXPIRED: 'The API key has expired or was revoked. Create a new one in TrueNAS.',
+        OTP_REQUIRED: 'This account needs a one-time password; API keys for it need a different user.',
+      };
+      throw new Error(why[r?.response_type] || `TrueNAS login failed (${r?.response_type || 'no answer'})`);
     }
     return c;
   };
@@ -81,10 +84,12 @@ async function truenasLogin(cfg, fresh) {
   });
 }
 
+/** @param {any} v */
 const tnTime = v => (v && typeof v === 'object' && '$date' in v ? v.$date : v) || null;
 // TrueNAS alert text contains HTML; we only want the words (it's escaped again before display).
 // One pass over the characters, dropping everything from a < to the next >: unlike a regex
 // replace, a broken or nested tag can't leave part of a tag behind. A <br> becomes a space.
+/** @param {unknown} s */
 function stripHtml(s) {
   let text = '';
   /** @type {string | null} */
@@ -103,6 +108,7 @@ function stripHtml(s) {
     .trim();
 }
 
+/** @param {import('../types').Service} cfg */
 async function truenas(cfg) {
   const tracing = !!trace.getStore();
   const t0 = performance.now();
@@ -116,16 +122,19 @@ async function truenas(cfg) {
       c.call('alert.list').catch(() => []),
       c.call('app.query').catch(() => null), // not every install uses Apps
     ]);
-    const names = disksRaw.map(d => d.name).filter(Boolean);
+    const names = list(disksRaw)
+      .map(d => d.name)
+      .filter(Boolean);
     // Cached by TrueNAS for 5 minutes; a missing reading just shows as "—".
     const temps = names.length ? await c.call('disk.temperatures', [names]).catch(() => ({})) : {};
+    /** @param {string} n */
     const tempOf = n => {
       const v = temps?.[n];
       const t = typeof v === 'number' ? v : (v?.temperature ?? v?.temp ?? v?.current);
       return Number.isFinite(t) ? Math.round(t) : null;
     };
 
-    const disks = disksRaw
+    const disks = list(disksRaw)
       .map(d => {
         const ssd = d.type === 'SSD';
         return {
@@ -147,10 +156,13 @@ async function truenas(cfg) {
       })
       .sort((a, b) => a.role.localeCompare(b.role) || a.name.localeCompare(b.name, undefined, { numeric: true }));
 
+    /** @type {any[]} */
     const events = [];
+    /** @param {string} level @param {string} source @param {string} message @param {string | null} [detail] */
     const ev = (level, source, message, detail) =>
       events.push({ time: new Date().toISOString(), level, source, message, detail: detail || null, live: true });
-    const active = alerts.filter(a => !a.dismissed);
+    const active = list(alerts).filter(a => !a.dismissed);
+    /** @type {Record<string, string>} */
     const alertLevel = { WARNING: 'warn', ERROR: 'error', CRITICAL: 'error', ALERT: 'error', EMERGENCY: 'error' };
     for (const a of active) {
       const level = alertLevel[a.level];
@@ -160,7 +172,7 @@ async function truenas(cfg) {
     }
     // TrueNAS raises its own alert for an unhealthy pool; only add one if that alert isn't there.
     const poolAlert = active.some(a => a.klass === 'VolumeStatus');
-    const poolList = pools.map(p => {
+    const poolList = list(pools).map(p => {
       const scan = p.scan || {};
       if ((!p.healthy || p.status !== 'ONLINE') && !poolAlert)
         ev('error', 'Pool', `Pool ${p.name} is ${String(p.status || 'unhealthy').toLowerCase()}`);

@@ -4,6 +4,7 @@
 // Transmission: torrents and transfer speed, over its RPC API.
 'use strict';
 const { basicAuth, join, req, timed } = require('../http');
+const { list } = require('./shared');
 
 const STATUS = ['stopped', 'queued to check', 'checking', 'queued', 'downloading', 'queued to seed', 'seeding'];
 const FIELDS = ['name', 'percentDone', 'sizeWhenDone', 'eta', 'status', 'rateDownload', 'error', 'errorString'];
@@ -13,10 +14,13 @@ const FIELDS = ['name', 'percentDone', 'sizeWhenDone', 'eta', 'status', 'rateDow
 const sessions = new Map();
 
 // "http://nas:9091", "http://nas:9091/transmission/web/" and a reverse-proxy path all work.
+/** @param {string} url */
 const rpcUrl = url => join(url.replace(/\/transmission(\/web)?\/?$/, ''), '/transmission/rpc');
 
+/** @param {import('../types').Service} cfg */
 async function transmission(cfg) {
   const url = rpcUrl(cfg.url);
+  /** @param {string} method @param {object} [args] @returns {Promise<any>} */
   const rpc = async (method, args) => {
     const call = () =>
       req(url, {
@@ -42,9 +46,10 @@ async function transmission(cfg) {
   };
 
   const [session, latency] = await timed(() => rpc('session-get', { fields: ['version'] }));
-  const [stats, list] = await Promise.all([rpc('session-stats'), rpc('torrent-get', { fields: FIELDS })]);
-  const torrents = list.torrents || [];
+  const [stats, reply] = await Promise.all([rpc('session-stats'), rpc('torrent-get', { fields: FIELDS })]);
+  const torrents = list(reply.torrents);
   const total = stats['cumulative-stats'] || {};
+  /** @type {Record<string, number>} */
   const states = {};
   for (const t of torrents) {
     const st = STATUS[t.status] || 'unknown';

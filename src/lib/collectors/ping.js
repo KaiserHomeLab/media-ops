@@ -5,6 +5,7 @@
 'use strict';
 const { req, timed } = require('../http');
 
+/** @param {import('../types').Service} cfg */
 async function ping(cfg) {
   const [res, latency] = await timed(() => req(cfg.url, { as: 'response', timeout: 5000 }));
   // Any non-5xx answer (incl. 401 / redirect to login) means the service is alive.

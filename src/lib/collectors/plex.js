@@ -5,11 +5,13 @@
 // resource use and update status.
 'use strict';
 const { join, req, timed, cached, background } = require('../http');
-const { DAY, pad, UPDATE_TTL } = require('./shared');
+const { DAY, pad, UPDATE_TTL, list } = require('./shared');
 
 // Plex doesn't say *why* it's transcoding, but the TranscodeSession tells us what changed
 // (codec, resolution, subtitles, audio), which is what Tautulli and Plex Web infer from too.
+/** @param {unknown} s */
 const UP = s => String(s || '').toUpperCase();
+/** @param {any} ts Plex's TranscodeSession @param {any} media the playing Media */
 function transcodeReason(ts, media) {
   const why = [];
   if (ts.subtitleDecision === 'burn') why.push('burning in subtitles');
@@ -35,8 +37,10 @@ function transcodeReason(ts, media) {
   return why.join(' · ') || null;
 }
 
+/** @param {import('../types').Service} cfg */
 async function plex(cfg) {
-  const headers = { 'X-Plex-Token': cfg.token };
+  const headers = { 'X-Plex-Token': cfg.token || '' };
+  /** @param {string} p */
   const api = p => req(join(cfg.url, p), { headers });
   const [identity, latency] = await timed(() => api('/identity'));
 
@@ -44,13 +48,15 @@ async function plex(cfg) {
     api('/status/sessions'),
     cached(`plex-libs:${cfg.url}`, 5 * 60e3, async () => {
       const sections = await api('/library/sections');
+      /** @param {string} key @param {number} [type] */
       const count = async (key, type) => {
         const q = `${type ? `type=${type}&` : ''}X-Plex-Container-Start=0&X-Plex-Container-Size=0`;
         const r = await api(`/library/sections/${key}/all?${q}`);
         return r.MediaContainer.totalSize ?? r.MediaContainer.size ?? 0;
       };
       return Promise.all(
-        (sections.MediaContainer.Directory || []).map(async d => {
+        list(sections.MediaContainer.Directory).map(async d => {
+          /** @type {import('../types').Library} */
           const lib = { title: d.title, type: d.type, count: await count(d.key) };
           if (d.type === 'show') lib.episodes = await count(d.key, 4);
           if (d.type === 'artist') [lib.albums, lib.tracks] = await Promise.all([count(d.key, 9), count(d.key, 10)]);
@@ -68,6 +74,7 @@ async function plex(cfg) {
   const current = identity.MediaContainer?.version || '';
   const update = await background(`update:${cfg.url}`, UPDATE_TTL, () =>
     api('/updater/status').then(r => {
+      /** @type {any} */
       const rel = [].concat(r?.MediaContainer?.Release || [])[0];
       return rel?.version && rel.version.split('-')[0] !== current.split('-')[0]
         ? { version: rel.version.split('-')[0] }
@@ -76,8 +83,8 @@ async function plex(cfg) {
   );
   const res = resources?.MediaContainer?.StatisticsResources?.at(-1);
 
-  const streams = (sessions.MediaContainer.Metadata || []).map(m => {
-    const media = m.Media?.find(x => x.selected) || m.Media?.[0] || {};
+  const streams = list(sessions.MediaContainer.Metadata).map(m => {
+    const media = list(m.Media).find(x => x.selected) || m.Media?.[0] || {};
     const ts = m.TranscodeSession;
     let decision = 'Direct Play';
     if (ts) {
@@ -128,7 +135,7 @@ async function plex(cfg) {
 
   // Plex sorts by addedAt, so an item with a corrupt future date (seen in the wild: year 2098)
   // would sit at the front forever. Skip anything "added" more than a day from now.
-  const recentlyAdded = (recent?.MediaContainer?.Metadata || [])
+  const recentlyAdded = list(recent?.MediaContainer?.Metadata)
     .filter(m => !(m.addedAt * 1000 > Date.now() + DAY))
     .map(m => ({
       id: m.ratingKey,

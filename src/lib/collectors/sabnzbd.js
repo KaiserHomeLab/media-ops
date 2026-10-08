@@ -4,10 +4,13 @@
 // SABnzbd: queue, speed, warnings and failed downloads.
 'use strict';
 const { join, req, timed, cached } = require('../http');
-const { normLevel } = require('./shared');
+const { normLevel, list } = require('./shared');
 
+/** @param {import('../types').Service} cfg */
 async function sabnzbd(cfg) {
-  const api = mode => req(join(cfg.url, `/api?mode=${mode}&output=json&apikey=${encodeURIComponent(cfg.apiKey)}`));
+  /** @param {string} mode */
+  const api = mode =>
+    req(join(cfg.url, `/api?mode=${mode}&output=json&apikey=${encodeURIComponent(cfg.apiKey || '')}`));
   const [q, latency] = await timed(() => api('queue'));
   const [totals, warnings, failed] = await Promise.all([
     cached(`sab-stats:${cfg.url}`, 60e3, () => api('server_stats').catch(() => null)),
@@ -17,7 +20,7 @@ async function sabnzbd(cfg) {
   const queue = q.queue;
   const events = [
     // SAB 4.x returns {text,type,time}; 3.x returned "timestamp\nLEVEL\nmessage" strings.
-    ...(warnings?.warnings || []).map(w => {
+    ...list(warnings?.warnings).map(w => {
       if (typeof w === 'string') {
         const [time, type, ...msg] = w.split('\n');
         return {
@@ -29,7 +32,7 @@ async function sabnzbd(cfg) {
       }
       return { time: w.time * 1000, level: normLevel(w.type) || 'warn', source: 'Warnings', message: w.text };
     }),
-    ...(failed?.history?.slots || []).map(h => ({
+    ...list(failed?.history?.slots).map(h => ({
       time: h.completed * 1000,
       level: 'error',
       source: 'Failed download',
@@ -47,7 +50,7 @@ async function sabnzbd(cfg) {
       status: queue.status,
       downBps: Number(queue.kbpersec || 0) * 1024,
       upBps: 0,
-      items: (queue.slots || []).map(s => ({
+      items: list(queue.slots).map(s => ({
         title: s.filename,
         progress: Number(s.percentage || 0) / 100,
         size: Number(s.mb || 0) * 1048576,

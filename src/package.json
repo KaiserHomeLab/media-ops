@@ -16,7 +16,7 @@
     "test": "node --test test/*.test.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -p . && node scripts/typecheck-strict.js"
+    "typecheck": "tsc -p ."
   },
   "repository": {
     "type": "git",

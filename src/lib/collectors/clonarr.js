@@ -4,9 +4,11 @@
 // Clonarr (TRaSH Guides sync): sync status per *arr.
 'use strict';
 const { join, req, timed } = require('../http');
+const { list } = require('./shared');
 
 // /api/widget/summary is Clonarr's stable integration endpoint. Builds that predate it
 // (or no API key) fall back to /api/health, which only tells us it's alive.
+/** @param {import('../types').Service} cfg */
 async function clonarr(cfg) {
   /** @type {Record<string, string>} */
   const headers = cfg.apiKey ? { 'X-Api-Key': cfg.apiKey } : {};
@@ -24,7 +26,7 @@ async function clonarr(cfg) {
         : 'Up. This Clonarr build has no stats endpoint yet (needs a release with /api/widget/summary).';
     return { version: null, latency, data: { limited: true, note: msg } };
   }
-  const rules = sum.rules?.list || [];
+  const rules = list(sum.rules?.list);
   const events = rules
     .filter(r => r.lastSyncError)
     .map(r => ({

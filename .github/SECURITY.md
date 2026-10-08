@@ -32,8 +32,14 @@ there as soon as I can.
   before they go into an app's address.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
-- Notification secrets (webhook URLs, tokens, keys) are stored like API keys: in `config.json`,
-  never sent back to the browser. Messages go only to the destinations you add.
+- Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API
+  keys: in `config.json`, never sent back to the browser. Messages go only to the destinations
+  you add. When a send fails, every saved secret is blanked out of the error before it's shown
+  in Settings or written to the log (a Telegram bot token or a Discord webhook's token is part
+  of the address the error names).
+- Email: the password is only sent over an encrypted connection (port 465, or STARTTLS), and
+  the mail server's certificate is always checked. A server that doesn't offer encryption only
+  works without a login. Addresses are checked so a saved address can't add extra headers.
 - The stream map looks up remote viewers' IP addresses with Plex's own GeoIP service
   (plex.tv, authenticated with your Plex token; the same service Tautulli uses). No other
   third party receives them. Only city-level locations reach the browser, never the IPs.
@@ -65,7 +71,8 @@ there as soon as I can.
 - Replies from apps are capped (128 MB per reply, 64 MB per TrueNAS message, 5 MB per poster),
   so a misbehaving app can't exhaust memory. Settings writes are capped at 64 KB (2 MB for a
   restore), and a client gets 30 seconds to send a request.
-- Discord messages can't ping `@everyone`, even when they quote an app's log line.
+- Discord messages can't ping `@everyone`, and Telegram messages are sent as plain text (no
+  links or formatting), even when they quote an app's log line.
 - The image is built by GitHub Actions pinned to exact commits, so a moved tag can't change
   what runs with the publishing token. It's only published after lint, every test and a smoke
   test pass, and `main` only accepts changes through pull requests that pass those checks.

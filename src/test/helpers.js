@@ -157,4 +157,110 @@ function fakeTrueNAS(methods) {
   );
 }
 
-module.exports = { dir, fixture, fakeServer, fakeTrueNAS };
+// A fake mail server. { starttls, tls (encrypted from the start), auth: login methods offered }
+// choose what it offers;
+// `sessions` records what each client did: { encrypted, auth, from, to, data }.
+function fakeSmtp({ starttls = false, tls: implicit = false, auth = 'PLAIN LOGIN' } = {}) {
+  const net = require('node:net');
+  const tlsMod = require('node:tls');
+  const cert = { key: fs.readFileSync(path.join(__dirname, 'fixtures', 'tls', 'key.pem')), cert: tlsCert() };
+  const sessions = [];
+  const handle = (socket, encrypted) => {
+    const sess = { encrypted, auth: null, from: null, to: [], data: null };
+    sessions.push(sess);
+    let buf = '',
+      inData = false,
+      authStep = null;
+    const say = l => socket.write(`${l}\r\n`);
+    const caps = () => [
+      '250-media-ops-test',
+      ...(auth ? [`250-AUTH ${auth}`] : []),
+      ...(starttls && !sess.encrypted ? ['250-STARTTLS'] : []),
+      '250 8BITMIME',
+    ];
+    socket.on('data', d => {
+      buf += d;
+      let i;
+      while ((i = buf.indexOf('\r\n')) >= 0) {
+        const line = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        if (inData) {
+          if (line === '.') {
+            inData = false;
+            say('250 queued');
+          } else sess.data += `${line}\n`;
+          continue;
+        }
+        if (authStep === 'user') {
+          sess.auth = { user: Buffer.from(line, 'base64').toString() };
+          authStep = 'pass';
+          say('334 UGFzc3dvcmQ6');
+          continue;
+        }
+        if (authStep === 'pass') {
+          sess.auth.pass = Buffer.from(line, 'base64').toString();
+          authStep = null;
+          say('235 ok');
+          continue;
+        }
+        const [verb] = line.split(' ');
+        if (verb === 'EHLO') caps().forEach(say);
+        else if (verb === 'STARTTLS') {
+          say('220 go ahead');
+          socket.removeAllListeners('data');
+          const secure = new tlsMod.TLSSocket(socket, {
+            isServer: true,
+            secureContext: tlsMod.createSecureContext(cert),
+          });
+          handle(secure, true);
+          sessions.splice(sessions.indexOf(sess), 1);
+          return;
+        } else if (line.startsWith('AUTH PLAIN ')) {
+          const [, user, pass] = Buffer.from(line.slice(11), 'base64').toString().split('\0');
+          sess.auth = { user, pass };
+          say('235 ok');
+        } else if (line === 'AUTH LOGIN') {
+          authStep = 'user';
+          say('334 VXNlcm5hbWU6');
+        } else if (line.startsWith('MAIL FROM:')) {
+          sess.from = line.slice(10);
+          say('250 ok');
+        } else if (line.startsWith('RCPT TO:')) {
+          sess.to.push(line.slice(8));
+          say('250 ok');
+        } else if (verb === 'DATA') {
+          inData = true;
+          sess.data = '';
+          say('354 go');
+        } else if (verb === 'QUIT') {
+          say('221 bye');
+          socket.end();
+        } else say('500 what');
+      }
+    });
+    socket.on('error', () => {});
+  };
+  const server = implicit
+    ? tlsMod.createServer(cert, s => {
+        s.write('220 media-ops-test ESMTP\r\n');
+        handle(s, true);
+      })
+    : net.createServer(s => {
+        s.write('220 media-ops-test ESMTP\r\n');
+        handle(s, false);
+      });
+  return new Promise(resolve =>
+    server.listen(0, '127.0.0.1', () =>
+      resolve({
+        port: server.address().port,
+        sessions,
+        close: () => server.close(),
+        // Lets the client trust the test certificate (CN media-ops-test).
+        tlsOptions: { ca: tlsCert(), servername: 'media-ops-test' },
+      }),
+    ),
+  );
+}
+const tlsCert = () => fs.readFileSync(path.join(__dirname, 'fixtures', 'tls', 'cert.pem'));
+
+module.exports = { dir, fixture, fakeServer, fakeTrueNAS, fakeSmtp };

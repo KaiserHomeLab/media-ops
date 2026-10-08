@@ -69,7 +69,8 @@ The dashboard works on a phone too, and you can add it to your home screen like 
 
 ## Notifications
 
-Get a message on Discord, ntfy, Pushover, Gotify, or any webhook when something happens.
+Get a message on Discord, Telegram, ntfy, Pushover, Gotify, email, or any webhook when
+something happens.
 For each destination you choose which events it gets:
 
 - an app goes down or comes back

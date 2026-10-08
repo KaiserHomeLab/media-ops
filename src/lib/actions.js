@@ -5,12 +5,15 @@
 const { join, req } = require('./http');
 const { AUTH } = require('./collectors/jellyfin');
 
+/** @type {Record<string, string>} */
 const ARR_API = { sonarr: 'v3', radarr: 'v3', lidarr: 'v1', readarr: 'v1', prowlarr: 'v1' };
 const FINISHED_BAD = ['failed', 'aborted', 'cancelled', 'orphaned'];
 // IDs from the browser go into an app's URL: whole numbers only ("", "-1" or "1e21" aren't).
+/** @param {unknown} v */
 const isId = v => /^\d{1,12}$/.test(String(v ?? ''));
 
 // What each app supports, with the exact wording shown in the confirm dialog.
+/** @param {string} kind @param {string} name */
 function capabilities(kind, name) {
   if (ARR_API[kind])
     return {
@@ -26,9 +29,10 @@ function capabilities(kind, name) {
 }
 
 // Run an *arr command (same as the buttons in its UI) and wait for it to finish.
+/** @param {import('./types').Service} svc @param {string} name */
 async function arrCommand(svc, name) {
   const base = join(svc.url, `/api/${ARR_API[svc.kind]}/command`);
-  const headers = { 'X-Api-Key': svc.apiKey, 'Content-Type': 'application/json' };
+  const headers = { 'X-Api-Key': svc.apiKey || '', 'Content-Type': 'application/json' };
   const cmd = await req(base, { method: 'POST', headers, body: JSON.stringify({ name }) });
   const until = Date.now() + 20000;
   while (Date.now() < until) {
@@ -41,13 +45,15 @@ async function arrCommand(svc, name) {
   return 'running'; // still going in the app; the next refresh will pick up the result
 }
 
+/** @param {import('./types').Service} svc */
 async function clear(svc) {
   if (ARR_API[svc.kind]) {
     await arrCommand(svc, 'ClearLog');
     return `Cleared ${svc.name}'s log`;
   }
   if (svc.kind === 'sabnzbd') {
-    const api = q => req(join(svc.url, `/api?output=json&apikey=${encodeURIComponent(svc.apiKey)}&${q}`));
+    /** @param {string} q */
+    const api = q => req(join(svc.url, `/api?output=json&apikey=${encodeURIComponent(svc.apiKey || '')}&${q}`));
     await api('mode=warnings&name=clear');
     await api('mode=history&name=delete&value=failed&del_files=0');
     return `Cleared ${svc.name}'s warnings and failed history`;
@@ -55,6 +61,7 @@ async function clear(svc) {
   throw Object.assign(new Error(`${svc.name} has no API for clearing its log — use Dismiss instead`), { status: 400 });
 }
 
+/** @param {import('./types').Service} svc */
 async function recheck(svc) {
   if (ARR_API[svc.kind]) {
     const r = await arrCommand(svc, 'CheckHealth');
@@ -66,6 +73,7 @@ async function recheck(svc) {
 }
 
 // Stop a stream; the viewer sees `reason` on screen. (On Plex this needs Plex Pass.)
+/** @param {import('./types').Service} svc @param {unknown} sessionId @param {unknown} reason */
 async function stopStream(svc, sessionId, reason) {
   if (!['plex', 'jellyfin', 'emby'].includes(svc.kind))
     throw Object.assign(new Error('Only media server streams can be stopped'), { status: 400 });
@@ -78,8 +86,8 @@ async function stopStream(svc, sessionId, reason) {
   if (svc.kind !== 'plex') {
     // Jellyfin/Emby: show the message on the viewer's screen, then stop playback. Emby reads
     // the message from the query, Jellyfin from the body; each ignores the other.
-    const headers = { ...AUTH[svc.kind](svc.apiKey), 'Content-Type': 'application/json' };
-    const base = join(svc.url, `/Sessions/${encodeURIComponent(sessionId)}`);
+    const headers = { ...AUTH[svc.kind](svc.apiKey || ''), 'Content-Type': 'application/json' };
+    const base = join(svc.url, `/Sessions/${encodeURIComponent(String(sessionId))}`);
     const q = new URLSearchParams({ Header: 'Media Ops', Text: msg, TimeoutMs: '10000' });
     await req(`${base}/Message?${q}`, {
       method: 'POST',
@@ -93,14 +101,15 @@ async function stopStream(svc, sessionId, reason) {
   await req(
     join(
       svc.url,
-      `/status/sessions/terminate?sessionId=${encodeURIComponent(sessionId)}&reason=${encodeURIComponent(msg)}`,
+      `/status/sessions/terminate?sessionId=${encodeURIComponent(String(sessionId))}&reason=${encodeURIComponent(msg)}`,
     ),
-    { headers: { 'X-Plex-Token': svc.token }, as: 'text' },
+    { headers: { 'X-Plex-Token': svc.token || '' }, as: 'text' },
   );
   return 'Stream stopped';
 }
 
 // Stuck download in an *arr queue: re-check it (same as the refresh button on the Queue page)...
+/** @param {import('./types').Service} svc */
 async function queueRetry(svc) {
   if (!ARR_API[svc.kind]) throw Object.assign(new Error(`${svc.name} has no download queue`), { status: 400 });
   await arrCommand(svc, 'RefreshMonitoredDownloads');
@@ -108,13 +117,14 @@ async function queueRetry(svc) {
 }
 
 // ...or give up on this release: remove it from the downloader, blocklist it, and search again.
+/** @param {import('./types').Service} svc @param {unknown} queueId */
 async function queueRemove(svc, queueId) {
   if (!ARR_API[svc.kind]) throw Object.assign(new Error(`${svc.name} has no download queue`), { status: 400 });
   if (!isId(queueId)) throw Object.assign(new Error('Bad queue item'), { status: 400 });
   const q = 'removeFromClient=true&blocklist=true&skipRedownload=false';
   await req(join(svc.url, `/api/${ARR_API[svc.kind]}/queue/${Number(queueId)}?${q}`), {
     method: 'DELETE',
-    headers: { 'X-Api-Key': svc.apiKey },
+    headers: { 'X-Api-Key': svc.apiKey || '' },
     as: 'text',
   });
   return `Removed and blocklisted; ${svc.name} is searching for another release`;
@@ -122,6 +132,7 @@ async function queueRemove(svc, queueId) {
 
 // Approve or decline a Seerr/Overseerr/Jellyseerr request (needs a key with Manage Requests;
 // the main key under Settings → General has it).
+/** @param {import('./types').Service} svc @param {unknown} requestId @param {string} decision */
 async function seerrRequest(svc, requestId, decision) {
   if (!['seerr', 'overseerr', 'jellyseerr'].includes(svc.kind))
     throw Object.assign(new Error('Not a requests app'), { status: 400 });
@@ -129,7 +140,7 @@ async function seerrRequest(svc, requestId, decision) {
     throw Object.assign(new Error('Bad request'), { status: 400 });
   await req(join(svc.url, `/api/v1/request/${Number(requestId)}/${decision}`), {
     method: 'POST',
-    headers: { 'X-Api-Key': svc.apiKey },
+    headers: { 'X-Api-Key': svc.apiKey || '' },
   });
   return decision === 'approve' ? 'Request approved' : 'Request declined';
 }

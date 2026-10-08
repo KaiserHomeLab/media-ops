@@ -13,6 +13,7 @@ const { DAY, pad } = require('./shared');
 const TICKS_PER_MS = 10000; // durations and positions are in 100-nanosecond ticks
 
 // How each server takes the API key.
+/** @type {Record<string, (key: string) => Record<string, string>>} */
 const AUTH = {
   jellyfin: key => ({ Authorization: `MediaBrowser Token="${key}"` }),
   emby: key => ({ 'X-Emby-Token': key }),

@@ -7,12 +7,16 @@ const GB = 1024 ** 3,
   TB = 1024 ** 4,
   DAY = 864e5;
 const start = Date.now();
+/** @param {number} base @param {number} spread @param {number} [period] @param {number} [phase] */
 const wobble = (base, spread, period = 7000, phase = 0) =>
   Math.max(0, base + spread * Math.sin((Date.now() + phase) / period));
 // Fixed timestamps (relative to server start) so log lines keep the same identity between refreshes.
+/** @param {number} mins */
 const ago = mins => new Date(start - mins * 60e3).toISOString();
+/** @param {number} offsetDays */
 const iso = offsetDays => new Date(Date.now() + offsetDays * DAY).toISOString();
 
+/** @param {any} s a demo stream @param {number} i */
 function stream(s, i) {
   const offset = (s.offset + (Date.now() - start)) % s.duration;
   return { id: String(i), thumb: null, hw: s.decision === 'Transcode', ...s, offset };
@@ -141,6 +145,7 @@ function playsByDate() {
     const dt = new Date(Date.now() - d * DAY);
     dates.push(dt.toISOString().slice(0, 10));
     const weekend = [0, 5, 6].includes(dt.getDay()) ? 1.6 : 1;
+    /** @param {number} k */
     const n = k => Math.round((k + (Math.sin(d * 1.7 + k) + 1) * k * 0.6) * weekend);
     tv.push(n(6));
     movies.push(n(2));
@@ -162,6 +167,7 @@ const disks = [
   { path: '/config', label: 'nvme', freeSpace: 188 * GB, totalSpace: 476 * GB },
 ];
 
+/** @param {any} realHost hostStats(), for the parts that stay real */
 function overview(realHost) {
   // A believable server for the demo and the README screenshots, not the machine running it.
   const GiB = 1024 ** 3;
@@ -180,6 +186,7 @@ function overview(realHost) {
     memUsed: Math.round(wobble(17.4, 0.6, 4100) * GiB),
     uptime: 23 * 86400 + 4 * 3600,
   };
+  /** @param {string} kind @param {string} name @param {string} version @param {any} [extra] */
   const svc = (kind, name, version, extra = {}) => ({
     id: name.toLowerCase().replace(/\W+/g, '-'),
     kind,
@@ -868,8 +875,10 @@ function overview(realHost) {
 }
 
 // "What's using space" for the demo: what lib/space.js would build from real libraries.
+/** @param {number} now */
 function demoSpace(now) {
   const D = 864e5;
+  /** @param {string} app @param {string} kind @param {string} title @param {number} year @param {number} tb @param {number} addedDaysAgo @param {any} [extra] */
   const it = (app, kind, title, year, tb, addedDaysAgo, extra = {}) => ({
     app,
     kind,
@@ -948,6 +957,7 @@ function history() {
     peakAt = from + streams.indexOf(peak) * step;
   const kpeak = Math.max(...kbps),
     kpeakAt = from + kbps.indexOf(kpeak) * step;
+  /** @param {number[]} [blips] */
   const cells = (blips = []) => Array.from({ length: 48 }, (_, i) => (blips.includes(i) ? 0.5 : 1));
   const ids = overview({}).services.map(s => s.id);
   return {

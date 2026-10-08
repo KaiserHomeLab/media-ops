@@ -126,6 +126,19 @@
         <div class="actions"><button class="btn ghost" type="button" id="layout-reset">Reset to default</button><span class="spacer"></span><span class="saved" id="layout-saved" hidden>✓ Saved</span><button class="btn primary" type="button" id="layout-save">Save</button></div>
       </section>
 
+      <section class="card" id="stuck-downloads">
+        <h2>Stuck downloads</h2>
+        <p class="hint">When Sonarr, Radarr, Lidarr or Readarr flags a download as stuck (a failed import, no files found, stalled with no connections) and it stays that way, Media Ops can fix it the way you would: halfway through the wait it asks the app to re-check its downloads, and if it's still stuck at the end it removes the download, blocklists that release and has the app search for another. At most 3 per app per hour. You get a "Failed or stuck downloads" notification for each one.</p>
+        <form id="autofix-form" class="form grid-form">
+          <label class="field toggle wide"><input type="checkbox" name="enabled"><span>Fix stuck downloads automatically</span>
+            <small>Downloads that are already stuck count from when Media Ops first saw them, so some may be fixed right after you turn this on.</small></label>
+          <label class="field"><span>Wait before replacing <em>minutes</em></span><input type="number" name="minutes" min="15" max="1440" step="5" required></label>
+          <div class="wide" id="autofix-recent"></div>
+          <div class="form-error" id="autofix-error" hidden></div>
+          <div class="actions wide"><span class="saved" id="autofix-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
+        </form>
+      </section>
+
       <section class="card" id="status-page">
         <h2>Status page</h2>
         <p class="hint">A simple page you can share with the people who use your server, so they can check whether Plex is up without asking you. It shows only the apps you pick, whether each is up, and its uptime over the last day: no addresses, versions or errors. Anyone who can reach Media Ops can open it, even when the dashboard needs a login.</p>

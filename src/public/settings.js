@@ -59,6 +59,7 @@ async function load() {
   renderNotifs();
   renderGeneral();
   renderLayout(S.layout);
+  renderAutoFix();
   renderSecurity();
   loadStatus();
   // The page fills in after loading, so jump to a #section (e.g. #security from the dashboard) now.
@@ -926,6 +927,36 @@ $('layout-save').addEventListener('click', async () => {
     flash($('layout-saved'));
   } catch (err) {
     showError($('layout-error'), err.message);
+  }
+});
+
+// --------------------------------------------------------------------- stuck downloads
+function renderAutoFix() {
+  const f = $('autofix-form');
+  f.enabled.checked = S.autoFix.enabled;
+  f.minutes.value = S.autoFix.minutes;
+  const list = S.autoFix.recent || [];
+  $('autofix-recent').innerHTML = list.length
+    ? `<h3 class="sub-h">Recent fixes</h3><ul class="fix-log">${list
+        .map(
+          x =>
+            `<li class="${x.ok ? '' : 'bad'}"><span class="muted">${esc(new Date(x.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span> <b>${esc(x.app)}</b> ${x.ok ? 'replaced' : 'could not replace'} ${esc(x.title)}<span class="muted"> · ${esc(x.ok ? x.reason : x.error)}</span></li>`,
+        )
+        .join('')}</ul>`
+    : '';
+}
+$('autofix-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  showError($('autofix-error'), '');
+  try {
+    S.autoFix = (
+      await api('/auto-fix', { method: 'PUT', body: { enabled: f.enabled.checked, minutes: f.minutes.value } })
+    ).autoFix;
+    renderAutoFix();
+    flash($('autofix-saved'));
+  } catch (err) {
+    showError($('autofix-error'), err.message);
   }
 });
 

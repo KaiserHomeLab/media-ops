@@ -20,6 +20,7 @@ const space = require('./space');
 const selfupdate = require('./selfupdate');
 const status = require('./status');
 const layout = require('./layout');
+const autofix = require('./autofix');
 const { hostStats, localDisks, dockerContainers } = require('./host');
 const pkg = require('../package.json');
 
@@ -137,7 +138,8 @@ async function monitorTick() {
     const raw = DEMO ? demo.overview(hostStats()) : await polled();
     const { events } = feed.apply(eventsOf(raw), raw.services, cfg.dismissed);
     history.record(raw);
-    await notify.handle(raw, events, history.diskList(raw), cfg);
+    const fixes = DEMO ? [] : await autofix.tick(raw, cfg);
+    await notify.handle(raw, events, history.diskList(raw), cfg, fixes);
     await digest.maybeSend(
       cfg,
       { ...raw, latestVersion: DEMO ? null : selfupdate.latest(cfg) },

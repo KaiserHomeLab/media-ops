@@ -273,6 +273,16 @@ test('dashboard layout: saved in Settings, sent with the overview, cleaned of un
   await json('PUT', '/api/settings/layout', {});
 });
 
+test('stuck downloads: off by default; saved with the wait clamped to what the form allows', async () => {
+  let s = await (await fetch(`${base}/api/settings`)).json();
+  assert.deepEqual(s.autoFix, { enabled: false, minutes: 60, recent: [] });
+  const r = await json('PUT', '/api/settings/auto-fix', { enabled: true, minutes: '9999' });
+  assert.deepEqual((await r.json()).autoFix, { enabled: true, minutes: 1440, recent: [] });
+  s = await (await fetch(`${base}/api/settings`)).json();
+  assert.equal(s.autoFix.enabled, true);
+  await json('PUT', '/api/settings/auto-fix', { enabled: false });
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

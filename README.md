@@ -52,7 +52,8 @@ memory, GPU load and your Docker containers.
 - How close each indexer is to its daily API limit
 - Watch stats from Tautulli, and 24-hour charts of streams, bandwidth and download speed
 - A forecast of when each disk will be full
-- Buttons to stop a stream, retry a stuck download, or swap it for another release
+- Buttons to stop a stream, retry a stuck download, or swap it for another release, and an
+  optional setting that does the last two for you when a download stays stuck
 
 ## Make it yours
 

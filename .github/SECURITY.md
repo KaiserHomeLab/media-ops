@@ -35,6 +35,9 @@ there as soon as I can.
   name you gave them, whether each is up, and its uptime: no addresses, versions, errors or
   other data from the apps. It reads the last background check instead of starting one, so
   opening it a lot can't make Media Ops poll your apps more often.
+- Fixing stuck downloads automatically is the only thing Media Ops changes in your apps on its
+  own, and it's off until you turn it on. It uses the same two actions as the dashboard buttons
+  (re-check downloads; remove, blocklist and search again), at most 3 removals per app per hour.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API

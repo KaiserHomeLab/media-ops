@@ -432,8 +432,9 @@ function inQuietHours(q, now = new Date()) {
   return from <= to ? t >= from && t < to : t >= from || t < to;
 }
 
-async function handle(raw, events, disks, cfg) {
-  let found = detect(raw, events, disks, cfg);
+// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules.
+async function handle(raw, events, disks, cfg, extra = []) {
+  let found = [...detect(raw, events, disks, cfg), ...extra];
   if (!state.seeded) {
     state.seeded = true;
     return;

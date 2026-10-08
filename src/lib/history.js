@@ -76,7 +76,7 @@ function record(raw) {
   // Metrics: one row per minute; within a minute keep the busiest sample.
   const plex = raw.services.find(s => s.kind === 'plex' && s.up);
   const streams = plex?.data.streams || [];
-  const dl = raw.services.filter(s => s.up && (s.kind === 'sabnzbd' || s.kind === 'qbittorrent'));
+  const dl = raw.services.filter(s => s.up && s.data?.client); // download clients
   const row = [
     Math.floor(now / MIN) * MIN,
     streams.length,

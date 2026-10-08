@@ -13,6 +13,13 @@ const { AsyncLocalStorage } = require('node:async_hooks');
 
 const trace = new AsyncLocalStorage();
 const join = (base, p) => base.replace(/\/+$/, '') + p;
+// HTTP Basic auth header, or none when there's no username.
+const basicAuth = (user, pass) => {
+  /** @type {Record<string, string>} */
+  const h = {};
+  if (user) h.Authorization = `Basic ${Buffer.from(`${user}:${pass || ''}`).toString('base64')}`;
+  return h;
+};
 
 // ------------------------------------------------------------------ redaction (for diagnostics)
 const SECRET_PARAM = /([?&](?:apikey|api_key|token|x-plex-token|password|key)=)[^&]*/gi;
@@ -100,7 +107,11 @@ async function req(url, { headers = {}, timeout = 8000, method = 'GET', body, as
     if (as === 'response') return res;
     const text = await readText(res);
     if (call) Object.assign(call, { bytes: text.length, sample: sampleOf(text) });
-    if (!res.ok) throw new Error(`HTTP ${res.status} on ${new URL(url).pathname}`);
+    // `reply` lets a caller react to a specific answer (Transmission's 409 session handshake).
+    if (!res.ok)
+      throw Object.assign(new Error(`HTTP ${res.status} on ${new URL(url).pathname}`), {
+        reply: { status: res.status, headers: res.headers },
+      });
     if (as === 'text') return text;
     try {
       return JSON.parse(text);
@@ -177,4 +188,17 @@ async function background(key, ttlMs, fn) {
 // Settings changed (new URL/key): drop everything cached so the next poll is fresh.
 const clearCache = () => memo.clear();
 
-module.exports = { join, req, unixGet, timed, cached, background, clearCache, trace, redactValue, sampleOf };
+module.exports = {
+  join,
+  basicAuth,
+  req,
+  readText,
+  unixGet,
+  timed,
+  cached,
+  background,
+  clearCache,
+  trace,
+  redactValue,
+  sampleOf,
+};

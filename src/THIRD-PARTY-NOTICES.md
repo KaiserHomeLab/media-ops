@@ -50,7 +50,10 @@ dashboard depends on.
 | [Tautulli](https://github.com/Tautulli/Tautulli) | GPL-3.0 | watch statistics, logs |
 | [Seerr](https://github.com/seerr-team/seerr) / [Overseerr](https://github.com/sct/overseerr) / [Jellyseerr](https://github.com/Fallenbagel/jellyseerr) | MIT | request counts, logs |
 | [SABnzbd](https://github.com/sabnzbd/sabnzbd) | GPL-2.0-or-later | queue, speed, totals, warnings, failed downloads |
+| [NZBGet](https://github.com/nzbgetcom/nzbget) | GPL-2.0-or-later | queue, speed, failed downloads, log warnings |
 | [qBittorrent](https://github.com/qbittorrent/qBittorrent) | GPL-2.0-or-later | transfer stats, torrents |
+| [Transmission](https://github.com/transmission/transmission) | GPL-2.0 or GPL-3.0 | transfer stats, torrents, torrent errors |
+| [Deluge](https://github.com/deluge-torrent/deluge) | GPL-3.0-or-later | transfer stats, torrents, torrent errors |
 | [Clonarr](https://github.com/ProphetSe7en/clonarr) | MIT | sync-profile stats via its widget API |
 | [TRaSH Guides](https://github.com/TRaSH-Guides/Guides) | MIT | (indirectly, through Clonarr) |
 | Plex Media Server / plex.tv | proprietary | sessions, libraries, posters; GeoIP lookups for the stream map (`plex.tv/api/v2/geoip`) |
@@ -58,7 +61,8 @@ dashboard depends on.
 ## Trademarks
 
 Plex is a trademark of Plex, Inc. Sonarr, Radarr, Lidarr, Readarr, Prowlarr, Bazarr,
-Tautulli, Seerr, Overseerr, Jellyseerr, SABnzbd, qBittorrent, Clonarr, Unraid, TrueNAS and Docker
+Tautulli, Seerr, Overseerr, Jellyseerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
+Unraid, TrueNAS and Docker
 are names or trademarks of their respective owners. They're used here only to say which
 apps Media Ops works with. Media Ops is an independent project, not affiliated with or
 endorsed by any of them. The colored app tiles on the Settings page are simple letter

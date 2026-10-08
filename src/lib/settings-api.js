@@ -16,6 +16,7 @@ const notify = require('./notify');
 const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
+const appearance = require('./appearance');
 const diagnostics = require('./diagnostics');
 const digest = require('./digest');
 const pins = require('./pins');
@@ -65,6 +66,8 @@ function settingsPayload(req) {
     layout: layout.clean(cfg.layout),
     layoutBlocks: layout.BLOCKS,
     autoFix: { ...autofix.settingsOf(cfg), recent: autofix.recent() },
+    appearance: appearance.settingsOf(cfg),
+    accents: appearance.ACCENTS,
   };
 }
 
@@ -342,6 +345,43 @@ async function saveLayout(req, res) {
   return send(res, 200, { ok: true, layout: next });
 }
 
+// ---------------------------------------------------------------- appearance
+async function saveAppearance(req, res) {
+  let next;
+  try {
+    next = appearance.clean(await readJson(req), config.load().appearance);
+  } catch (e) {
+    return send(res, 400, { error: e.message });
+  }
+  config.update(c => ({ ...c, appearance: next }));
+  return send(res, 200, { ok: true, appearance: appearance.settingsOf({ appearance: next }) });
+}
+async function uploadLogo(req, res) {
+  let logo;
+  try {
+    // Base64 makes the 256 KB limit about 342 KB on the wire.
+    logo = appearance.logoFrom((await readJson(req, 400 * 1024))?.data);
+  } catch (e) {
+    return send(res, e.status || 400, { error: e.status === 413 ? 'The logo must be 256 KB or smaller' : e.message });
+  }
+  config.update(c => ({ ...c, appearance: { ...appearance.clean(c.appearance, null), logo } }));
+  return send(res, 200, { ok: true, appearance: appearance.settingsOf(config.load()) });
+}
+function removeLogo(req, res) {
+  config.update(c => ({ ...c, appearance: appearance.clean(c.appearance, null) }));
+  return send(res, 200, { ok: true, appearance: appearance.settingsOf(config.load()) });
+}
+// A backup's appearance, through the same checks as the form and the upload.
+function safeAppearance(input) {
+  try {
+    const out = appearance.clean(input, null);
+    if (input.logo?.data) out.logo = appearance.logoFrom(input.logo.data);
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------- stuck downloads
 async function saveAutoFix(req, res) {
   const next = autofix.clean(await readJson(req));
@@ -444,6 +484,7 @@ async function restore(req, res) {
     statusPage: incoming.statusPage ? safeStatusPage(incoming.statusPage, services) : null,
     layout: incoming.layout ? layout.clean(incoming.layout) : null,
     autoFix: incoming.autoFix ? autofix.clean(incoming.autoFix) : null,
+    appearance: incoming.appearance ? safeAppearance(incoming.appearance) : null,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -494,6 +535,9 @@ const ROUTE_LIST = [
   ['GET', '/discover', discoverApps],
   ['PUT', '/layout', saveLayout],
   ['PUT', '/auto-fix', saveAutoFix],
+  ['PUT', '/appearance', saveAppearance],
+  ['PUT', '/logo', uploadLogo],
+  ['DELETE', '/logo', removeLogo],
   ['POST', '/digest-test', sendTestDigest],
   ['GET', '/backup', backup],
   ['POST', '/restore', restore],

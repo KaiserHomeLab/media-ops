@@ -452,3 +452,61 @@ test('stuck downloads: re-check at half the wait, replace at the end, 3 per app 
   assert.deepEqual(calls, []);
   assert.deepEqual(autofix.clean({ enabled: 1, minutes: 5 }), { enabled: true, minutes: 15 }, 'minutes clamped');
 });
+
+test('appearance: settings checked, logo must be a real PNG/JPEG/WebP, pages get the theme and an escaped title', () => {
+  const appearance = require('../lib/appearance');
+  assert.deepEqual(appearance.settingsOf({}), {
+    theme: 'auto',
+    accent: 'amber',
+    title: '',
+    statusTheme: 'auto',
+    logo: null,
+  });
+  assert.deepEqual(appearance.clean({ theme: 'neon', accent: 'pink', title: ' Home ', statusTheme: 'light' }, null), {
+    theme: 'auto',
+    accent: 'amber',
+    title: 'Home',
+    statusTheme: 'light',
+    logo: null,
+  });
+  assert.throws(() => appearance.clean({ title: '<script>' }, null), /can't contain/);
+  const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(32)]).toString('base64');
+  assert.equal(appearance.logoFrom(png).type, 'image/png');
+  for (const bad of ['<svg onload="alert(1)"/>', '<html><script>x</script>', 'GIF89a……'])
+    assert.throws(() => appearance.logoFrom(Buffer.from(bad).toString('base64')), /PNG, JPEG or WebP/, bad);
+  assert.throws(() => appearance.logoFrom(Buffer.alloc(300 * 1024, 0xff).toString('base64')), /256 KB/);
+
+  const html =
+    '<html lang="en"><head><title>Media Ops</title></head><body><span class="logo" aria-hidden="true"></span><h1>Media Ops</h1><!--brand-logo--></body></html>';
+  const cfg = {
+    appearance: {
+      theme: 'light',
+      accent: 'teal',
+      title: "Tom & Jerry's",
+      statusTheme: 'dark',
+      logo: appearance.logoFrom(png),
+    },
+  };
+  const page = appearance.renderPage(html, cfg, 'dashboard');
+  assert.match(page, /<html lang="en" data-theme="light" data-accent="teal">/);
+  assert.match(page, /<title>Tom &amp; Jerry&#39;s<\/title>/);
+  assert.match(page, /<h1>Tom &amp; Jerry&#39;s<\/h1>/);
+  assert.match(page, /<img class="logo custom" src="\/branding\/logo\?v=[0-9a-f]{16}" alt="">/);
+  assert.match(appearance.renderPage(html, cfg, 'status'), /data-theme="dark"/, 'the status page has its own theme');
+  assert.equal(
+    appearance.renderPage(html, {}, 'dashboard'),
+    html.replace('<!--brand-logo-->', ''),
+    'defaults change nothing',
+  );
+
+  // The swatches' colors are the ones in the stylesheet.
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  for (const a of appearance.ACCENTS) {
+    const block =
+      a.id === 'amber'
+        ? css.slice(css.indexOf(':root {'), css.indexOf('}', css.indexOf(':root {')))
+        : css.slice(css.indexOf(`:root[data-accent='${a.id}']`)).split('}')[0];
+    assert.match(block, new RegExp(`--accent-dark: ${a.dark};`), `${a.id} dark`);
+    assert.match(block, new RegExp(`--accent-light: ${a.light};`), `${a.id} light`);
+  }
+});

@@ -126,6 +126,23 @@
         <div class="actions"><button class="btn ghost" type="button" id="layout-reset">Reset to default</button><span class="spacer"></span><span class="saved" id="layout-saved" hidden>✓ Saved</span><button class="btn primary" type="button" id="layout-save">Save</button></div>
       </section>
 
+      <section class="card" id="appearance">
+        <h2>Appearance</h2>
+        <p class="hint">How the dashboard looks on every screen. Changes show here right away; Save to keep them. Up, warning and down colors stay the same whatever you pick, so problems always look like problems.</p>
+        <form id="appearance-form" class="form grid-form">
+          <fieldset class="field wide events inline"><legend>Theme</legend><label class="check"><input type="radio" name="theme" value="auto"><span>Follow the device</span></label><label class="check"><input type="radio" name="theme" value="dark"><span>Dark</span></label><label class="check"><input type="radio" name="theme" value="light"><span>Light</span></label></fieldset>
+          <fieldset class="field wide events"><legend>Accent color</legend><div class="swatches" id="accent-swatches"></div></fieldset>
+          <label class="field"><span>Title <em>optional</em></span><input name="title" maxlength="40" placeholder="Media Ops" spellcheck="false">
+            <small>Shown at the top of the dashboard and in the browser tab.</small></label>
+          <div class="field"><span>Logo <em>optional</em></span>
+            <div class="logo-row"><span id="logo-preview" class="logo-preview"></span><label class="btn small" for="logo-file">Upload…</label><input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp" hidden><button class="btn small ghost" type="button" id="logo-remove" hidden>Remove</button></div>
+            <small>PNG, JPEG or WebP, up to 256 KB. Square works best. Also shown on the status page.</small></div>
+          <fieldset class="field wide events inline"><legend>Status page theme</legend><label class="check"><input type="radio" name="statusTheme" value="auto"><span>Follow the device</span></label><label class="check"><input type="radio" name="statusTheme" value="dark"><span>Dark</span></label><label class="check"><input type="radio" name="statusTheme" value="light"><span>Light</span></label></fieldset>
+          <div class="form-error" id="appearance-error" hidden></div>
+          <div class="actions wide"><span class="saved" id="appearance-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
+        </form>
+      </section>
+
       <section class="card" id="stuck-downloads">
         <h2>Stuck downloads</h2>
         <p class="hint">When Sonarr, Radarr, Lidarr or Readarr flags a download as stuck (a failed import, no files found, stalled with no connections) and it stays that way, Media Ops can fix it the way you would: halfway through the wait it asks the app to re-check its downloads, and if it's still stuck at the end it removes the download, blocklists that release and has the app search for another. At most 3 per app per hour. You get a "Failed or stuck downloads" notification for each one.</p>

@@ -9,6 +9,20 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Appearance: light, dark or follow the device; six accent colors; your own title
+  and logo (PNG, JPEG or WebP); and a separate light/dark choice for the status page, which
+  also shows your logo. Applied by the server before the page loads, so there's no flash of
+  the default look.
+
+### Fixed
+
+- In light mode the amber accent was too faint to read as text (3.2:1). It's darker now
+  (4.7:1), and buttons on it use white text.
+- The "new version" badge linked to a section of the README that no longer exists; it now
+  opens the release notes.
+
 ## [1.16.0] - 2026-10-08
 
 ### Added

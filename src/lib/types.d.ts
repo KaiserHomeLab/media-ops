@@ -75,6 +75,19 @@ export interface CollectorData {
   events?: any[];
   queue?: any[];
   items?: any[];
+  imports?: any[];
+  upcoming?: any[];
+  libraries?: any[];
+  recentlyAdded?: any[];
+  disks?: any[];
+  pools?: any[];
+  [key: string]: any;
+}
+
+/** The shape of a poll result the digest and notifications read: every app, plus local disks. */
+export interface PollResult {
+  services: Polled[];
+  disks?: any[];
   [key: string]: any;
 }
 

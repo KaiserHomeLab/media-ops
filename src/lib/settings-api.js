@@ -28,6 +28,9 @@ const { readJson, send } = require('./web');
 const { DEMO, describeError, runService, invalidate, polled } = require('./poll');
 const pkg = require('../package.json');
 
+/** @typedef {import('node:http').IncomingMessage} Req @typedef {import('node:http').ServerResponse} Res */
+
+/** @param {Req} req */
 function settingsPayload(req) {
   const cfg = config.load();
   return {
@@ -71,16 +74,19 @@ function settingsPayload(req) {
   };
 }
 
+/** @param {unknown} v */
 const hhmm = v => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || ''));
-const newId = id => (/^[\w-]{1,64}$/.test(id) ? id : crypto.randomUUID());
+const newId = (/** @type {unknown} */ id) => (/^[\w-]{1,64}$/.test(String(id)) ? String(id) : crypto.randomUUID());
 
 // A wrong password or reset code: count it toward the lockout and slow the next guess down.
+/** @param {Req} req */
 async function wrongAnswer(req) {
   noteFailure(req);
   await new Promise(r => setTimeout(r, 800));
 }
 
 // ---------------------------------------------------------------- login and password
+/** @param {Req} req @param {Res} res */
 async function login(req, res) {
   const { password } = await readJson(req);
   if (!(await config.checkPassword(password))) {
@@ -91,11 +97,13 @@ async function login(req, res) {
   return send(res, 200, { ok: true });
 }
 
+/** @param {Req} req @param {Res} res */
 function forgot(req, res) {
   const r = recovery.request();
   return send(res, r.ok ? 200 : 400, r.ok ? { ok: true, file: r.file } : { error: r.error });
 }
 
+/** @param {Req} req @param {Res} res */
 async function reset(req, res) {
   const { code, next } = await readJson(req);
   if (next && String(next).length < 8)
@@ -112,12 +120,14 @@ async function reset(req, res) {
   return send(res, 200, { ok: true, authEnabled: !!next });
 }
 
+/** @param {Req} req @param {Res} res */
 function logout(req, res) {
   sessions.delete(cookie(req, 'mo_session'));
   res.setHeader('Set-Cookie', 'mo_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict');
   return send(res, 200, { ok: true });
 }
 
+/** @param {Req} req @param {Res} res */
 async function changePassword(req, res) {
   const { current, next } = await readJson(req);
   const cfg = config.load();
@@ -136,6 +146,7 @@ async function changePassword(req, res) {
   return send(res, 200, { ok: true, authEnabled: !!next });
 }
 
+/** @param {Req} req @param {Res} res */
 async function saveSecurity(req, res) {
   const { dashboardAuth } = await readJson(req);
   if (dashboardAuth && !config.load().auth) return send(res, 400, { error: 'Set a settings password first' });
@@ -144,6 +155,7 @@ async function saveSecurity(req, res) {
 }
 
 // ---------------------------------------------------------------- apps
+/** @param {Req} req @param {Res} res */
 async function testService(req, res) {
   const input = await readJson(req);
   const existing = config.load().services.find(s => s.id === input.id);
@@ -165,6 +177,7 @@ async function testService(req, res) {
   );
 }
 
+/** @param {Req} req @param {Res} res */
 async function addService(req, res) {
   const input = await readJson(req);
   let svc;
@@ -179,6 +192,7 @@ async function addService(req, res) {
   return send(res, 201, config.publicService(svc));
 }
 
+/** @param {Req} req @param {Res} res @param {{ id: string }} params */
 async function updateService(req, res, { id }) {
   const input = await readJson(req);
   const existing = config.load().services.find(s => s.id === id);
@@ -195,22 +209,25 @@ async function updateService(req, res, { id }) {
   return send(res, 200, config.publicService(svc));
 }
 
+/** @param {Req} req @param {Res} res @param {{ id: string }} params */
 function deleteService(req, res, { id }) {
   config.update(c => ({ ...c, services: c.services.filter(s => s.id !== id) }));
   invalidate();
   return send(res, 200, { ok: true });
 }
 
+/** @param {Req} req @param {Res} res */
 async function reorderServices(req, res) {
   const { ids } = await readJson(req);
   config.update(c => {
-    const pos = new Map((ids || []).map((id, i) => [id, i]));
+    const pos = new Map(/** @type {string[]} */ (ids || []).map((id, i) => [id, i]));
     return { ...c, services: [...c.services].sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9)) };
   });
   invalidate();
   return send(res, 200, { ok: true });
 }
 
+/** @param {Req} req @param {Res} res */
 async function runDiagnostics(req, res) {
   // Diagnostics skips every cache, so allow up to a minute per app.
   return send(res, 200, await diagnostics.run(config.load().services, s => runService(s, 60000)));
@@ -218,12 +235,14 @@ async function runDiagnostics(req, res) {
 
 // ---------------------------------------------------------------- notifications
 const targets = () => config.load().notifications?.targets || [];
+/** @param {(list: import('./types').Target[]) => import('./types').Target[]} fn */
 const saveTargets = fn =>
   config.update(c => ({
     ...c,
     notifications: { ...(c.notifications || {}), targets: fn(c.notifications?.targets || []) },
   }));
 
+/** @param {Req} req @param {Res} res */
 async function testTarget(req, res) {
   const input = await readJson(req);
   try {
@@ -238,6 +257,7 @@ async function testTarget(req, res) {
   }
 }
 
+/** @param {Req} req @param {Res} res */
 async function addTarget(req, res) {
   let t;
   try {
@@ -249,6 +269,7 @@ async function addTarget(req, res) {
   return send(res, 201, notify.publicTarget(t));
 }
 
+/** @param {Req} req @param {Res} res @param {{ id: string }} params */
 async function updateTarget(req, res, { id }) {
   const existing = targets().find(x => x.id === id);
   if (!existing) return send(res, 404, { error: 'Not found' });
@@ -262,11 +283,13 @@ async function updateTarget(req, res, { id }) {
   return send(res, 200, notify.publicTarget(t));
 }
 
+/** @param {Req} req @param {Res} res @param {{ id: string }} params */
 function deleteTarget(req, res, { id }) {
   saveTargets(list => list.filter(x => x.id !== id));
   return send(res, 200, { ok: true });
 }
 
+/** @param {Req} req @param {Res} res */
 async function saveNotificationOptions(req, res) {
   const { diskThreshold, quiet = {}, digest: dg = {} } = await readJson(req);
   const n = Math.round(Number(diskThreshold));
@@ -291,6 +314,7 @@ async function saveNotificationOptions(req, res) {
   return send(res, 200, { ok: true });
 }
 
+/** @param {Req} req @param {Res} res */
 async function sendTestDigest(req, res) {
   const raw = DEMO ? demo.overview(hostStats()) : await polled();
   const { events } = feed.apply(feed.collect(raw.services), raw.services, config.load().dismissed);
@@ -300,11 +324,12 @@ async function sendTestDigest(req, res) {
 }
 
 // ---------------------------------------------------------------- general options
+/** @param {Req} req @param {Res} res */
 async function saveGeneral(req, res) {
   const g = await readJson(req);
   const refresh = Math.round(Number(g.refreshSeconds));
   if (!(refresh >= 3 && refresh <= 300)) return send(res, 400, { error: 'Refresh must be between 3 and 300 seconds' });
-  const paths = (Array.isArray(g.paths) ? g.paths : String(g.paths || '').split(/[\n,]/))
+  const paths = /** @type {unknown[]} */ (Array.isArray(g.paths) ? g.paths : String(g.paths || '').split(/[\n,]/))
     .map(p => String(p).trim())
     .filter(Boolean);
   if (paths.some(p => !p.startsWith('/')))
@@ -339,6 +364,7 @@ async function saveGeneral(req, res) {
 }
 
 // ---------------------------------------------------------------- dashboard layout
+/** @param {Req} req @param {Res} res */
 async function saveLayout(req, res) {
   const next = layout.clean(await readJson(req));
   config.update(c => ({ ...c, layout: next }));
@@ -346,6 +372,7 @@ async function saveLayout(req, res) {
 }
 
 // ---------------------------------------------------------------- appearance
+/** @param {Req} req @param {Res} res */
 async function saveAppearance(req, res) {
   let next;
   try {
@@ -356,6 +383,7 @@ async function saveAppearance(req, res) {
   config.update(c => ({ ...c, appearance: next }));
   return send(res, 200, { ok: true, appearance: appearance.settingsOf({ appearance: next }) });
 }
+/** @param {Req} req @param {Res} res */
 async function uploadLogo(req, res) {
   let logo;
   try {
@@ -367,11 +395,13 @@ async function uploadLogo(req, res) {
   config.update(c => ({ ...c, appearance: { ...appearance.clean(c.appearance, null), logo } }));
   return send(res, 200, { ok: true, appearance: appearance.settingsOf(config.load()) });
 }
+/** @param {Req} req @param {Res} res */
 function removeLogo(req, res) {
   config.update(c => ({ ...c, appearance: appearance.clean(c.appearance, null) }));
   return send(res, 200, { ok: true, appearance: appearance.settingsOf(config.load()) });
 }
 // A backup's appearance, through the same checks as the form and the upload.
+/** @param {any} input */
 function safeAppearance(input) {
   try {
     const out = appearance.clean(input, null);
@@ -383,6 +413,7 @@ function safeAppearance(input) {
 }
 
 // ---------------------------------------------------------------- stuck downloads
+/** @param {Req} req @param {Res} res */
 async function saveAutoFix(req, res) {
   const next = autofix.clean(await readJson(req));
   config.update(c => ({ ...c, autoFix: next }));
@@ -390,6 +421,7 @@ async function saveAutoFix(req, res) {
 }
 
 // ---------------------------------------------------------------- apps found in Docker
+/** @param {Req} req @param {Res} res */
 async function discoverApps(req, res) {
   if (DEMO) return send(res, 200, { docker: false, apps: [] });
   try {
@@ -402,6 +434,7 @@ async function discoverApps(req, res) {
 }
 
 // ---------------------------------------------------------------- public status page
+/** @param {Req} req @param {Res} res */
 async function saveStatusPage(req, res) {
   let statusPage;
   try {
@@ -415,6 +448,7 @@ async function saveStatusPage(req, res) {
 
 // ---------------------------------------------------------------- backup and restore
 // The whole config, secrets included, as one JSON file.
+/** @param {Req} req @param {Res} res */
 function backup(req, res) {
   // The file holds every API key. Without a password, anyone on the network could fetch it.
   if (!config.load().auth)
@@ -433,6 +467,7 @@ function backup(req, res) {
 }
 
 // A backup's status page settings, through the same checks as the form (bad ones are dropped).
+/** @param {any} input @param {import('./types').Service[]} services */
 function safeStatusPage(input, services) {
   try {
     return status.clean(input, services);
@@ -441,6 +476,7 @@ function safeStatusPage(input, services) {
   }
 }
 
+/** @param {Req} req @param {Res} res */
 async function restore(req, res) {
   const b = await readJson(req, 2 * 1024 * 1024);
   const incoming = b?.app === 'media-ops' ? b.config : b;
@@ -450,11 +486,11 @@ async function restore(req, res) {
   // known settings are taken, so a crafted file can't smuggle in anything the forms refuse.
   let services, restoredTargets;
   try {
-    services = incoming.services.map(x => {
+    services = /** @type {any[]} */ (incoming.services).map(x => {
       if (!collectors[x.kind]) throw new Error(`Unknown app type "${x.kind}" in the backup`);
       return { ...config.mergeService(null, x), id: newId(x.id) };
     });
-    restoredTargets = (incoming.notifications?.targets || []).map(t => ({
+    restoredTargets = /** @type {any[]} */ (incoming.notifications?.targets || []).map(t => ({
       ...notify.mergeTarget(null, t),
       id: newId(t.id),
     }));
@@ -472,7 +508,9 @@ async function restore(req, res) {
     // Keep the current password if the backup has none, so a restore can't silently unlock Settings.
     auth: auth || c.auth,
     refreshSeconds: Math.min(300, Math.max(3, Math.round(Number(incoming.refreshSeconds)) || c.refreshSeconds)),
-    paths: Array.isArray(incoming.paths) ? incoming.paths.map(String).filter(p => p.startsWith('/')) : c.paths,
+    paths: Array.isArray(incoming.paths)
+      ? /** @type {unknown[]} */ (incoming.paths).map(String).filter(p => p.startsWith('/'))
+      : c.paths,
     map: {
       enabled: incoming.map?.enabled !== false,
       home: geo.parseLatLon(incoming.map?.home || '') ? String(incoming.map.home) : '',
@@ -551,6 +589,7 @@ const ROUTES = ROUTE_LIST.map(([method, path, handler, opts = {}]) => ({
 
 // Routes under /api/settings. Without a session (when a password is set) only the `open` ones
 // answer; anything else, including an unknown path, gets 401 so it reveals nothing.
+/** @param {Req} req @param {Res} res @param {string} path */
 async function settingsApi(req, res, path) {
   /** @type {(typeof ROUTES)[number] | null} */
   let route = null;

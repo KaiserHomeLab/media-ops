@@ -17,9 +17,12 @@ const smtp = require('./smtp');
 const { allStreams } = require('./media');
 
 // ------------------------------------------------------------------ destination types (Settings form)
+/** @param {string} key @param {string} label @param {string} help @param {boolean} [optional] @returns {import('./kinds').Field} */
 const secret = (key, label, help, optional) => ({ key, label, type: 'secret', help, optional });
+/** @param {string} key @param {string} label @param {string} help @param {string} placeholder @param {boolean} [optional] @returns {import('./kinds').Field} */
 const text = (key, label, help, placeholder, optional) => ({ key, label, type: 'text', help, placeholder, optional });
 
+/** @type {{ type: string, label: string, fields: import('./kinds').Field[], where?: (t: any) => string }[]} */
 const TYPES = [
   {
     type: 'discord',
@@ -132,6 +135,7 @@ const TYPES = [
     ],
   },
 ];
+/** @type {Record<string, (typeof TYPES)[number]>} */
 const BY_TYPE = Object.fromEntries(TYPES.map(t => [t.type, t]));
 
 const EVENTS = [
@@ -147,8 +151,10 @@ const EVENTS = [
   { key: 'digest', label: 'Daily digest', def: true },
 ];
 
+/** @param {string} type */
 const secretKeys = type => (BY_TYPE[type]?.fields || []).filter(f => f.type === 'secret').map(f => f.key);
 
+/** @param {import('./types').Target} t */
 function publicTarget(t) {
   const out = { ...t };
   for (const k of secretKeys(t.type)) {
@@ -159,10 +165,12 @@ function publicTarget(t) {
 }
 
 // Form submission -> stored destination. Blank secret = keep the saved one.
+/** @param {import('./types').Target | null | undefined} existing @param {any} input @returns {import('./types').Target} */
 function mergeTarget(existing, input) {
   const type = existing?.type || input.type;
   const def = BY_TYPE[type];
   if (!def) throw new Error(`Unknown notification type "${type}"`);
+  /** @type {import('./types').Target} */
   const out = {
     id: existing?.id || crypto.randomUUID(),
     type,
@@ -212,6 +220,7 @@ function mergeTarget(existing, input) {
 }
 
 // ------------------------------------------------------------------ sending
+/** @type {Record<string, number>} */
 const LEVEL_COLOR = { error: 0xd03b3b, warn: 0xfab219, good: 0x0ca30c, info: 0x3987e5 };
 
 /**
@@ -239,7 +248,9 @@ async function send(target, message) {
 /** @param {import('./types').Target} target @param {Parameters<typeof send>[1]} message */
 async function deliver(target, { title, lines, level = 'info', events = [] }) {
   const message = lines.join('\n');
+  /** @param {string} url @param {string | URLSearchParams} body @param {Record<string, string>} [headers] */
   const post = (url, body, headers = {}) => req(url, { method: 'POST', as: 'text', timeout: 10000, body, headers });
+  /** @param {unknown} o */
   const json = o => JSON.stringify(o);
   switch (target.type) {
     case 'discord':
@@ -331,11 +342,13 @@ const state = {
   lastResult: new Map(), // target id -> { at, ok, error }
 };
 
+/** @param {number} ms */
 const ago = ms => {
   const m = Math.round(ms / 60e3);
   return m < 1 ? 'less than a minute' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 };
 
+/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @returns {{ kind: string, level: string, line: string }[]} */
 function detect(raw, events, disks, cfg) {
   const out = [];
   const now = Date.now();
@@ -419,12 +432,14 @@ function detect(raw, events, disks, cfg) {
 }
 
 // "HH:MM" in server-local time (set TZ on the container). Handles ranges across midnight.
+/** @param {string | undefined} hhmm */
 const minutes = hhmm => {
   const [h, m] = String(hhmm || '')
     .split(':')
     .map(Number);
   return h * 60 + (m || 0);
 };
+/** @param {{ enabled?: boolean, from?: string, to?: string, allowDown?: boolean } | undefined} q @param {Date} [now] */
 function inQuietHours(q, now = new Date()) {
   if (!q?.enabled) return false;
   const t = now.getHours() * 60 + now.getMinutes(),
@@ -434,6 +449,7 @@ function inQuietHours(q, now = new Date()) {
 }
 
 // `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules.
+/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {{ kind: string, level: string, line: string }[]} [extra] */
 async function handle(raw, events, disks, cfg, extra = []) {
   let found = [...detect(raw, events, disks, cfg), ...extra];
   if (!state.seeded) {
@@ -445,7 +461,8 @@ async function handle(raw, events, disks, cfg, extra = []) {
   // one "while you were asleep" message when they end. "Started watching" isn't worth holding.
   const quiet = cfg.notifications?.quiet;
   if (inQuietHours(quiet)) {
-    const urgent = f => quiet.allowDown !== false && (f.kind === 'down' || f.kind === 'recovered');
+    /** @param {{ kind: string }} f */
+    const urgent = f => quiet?.allowDown !== false && (f.kind === 'down' || f.kind === 'recovered');
     state.held.push(...found.filter(f => !urgent(f) && f.kind !== 'streams'));
     state.held = state.held.slice(-50);
     found = found.filter(urgent);
@@ -487,6 +504,7 @@ async function handle(raw, events, disks, cfg, extra = []) {
 }
 
 // Send the daily digest to every destination that wants it.
+/** @param {import('./types').Config} cfg @param {{ title: string, lines: string[] }} digest @returns {Promise<number>} */
 async function sendDigest(cfg, digest) {
   const targets = (cfg.notifications?.targets || []).filter(t => t.enabled !== false && t.events?.digest);
   await Promise.all(
@@ -503,6 +521,7 @@ async function sendDigest(cfg, digest) {
   return targets.length;
 }
 
+/** @param {import('./types').Target} target */
 async function test(target) {
   await send(target, {
     title: 'Media Ops test notification',
@@ -518,6 +537,7 @@ async function test(target) {
   });
 }
 
+/** @param {string} id */
 const lastResult = id => state.lastResult.get(id) || null;
 
 module.exports = { TYPES, EVENTS, publicTarget, mergeTarget, handle, test, lastResult, sendDigest, inQuietHours };

@@ -5,22 +5,29 @@
 // Settings → Notifications to every destination with "Daily digest" ticked.
 'use strict';
 const history = require('./history');
+const { answered } = require('./media');
 
 const DAY = 864e5;
 const GB = 1024 ** 3;
+/** @param {number} b */
 const size = b => (Math.abs(b) >= 1024 * GB ? `${(b / (1024 * GB)).toFixed(2)} TB` : `${(b / GB).toFixed(1)} GB`);
+/** @param {number | string | Date} t */
 const time = t => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+/** @param {number} m */
 const dur = m => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`);
 
+/** @param {import('./types').PollResult} raw @param {any[]} events the errors feed @param {number} [now] */
 function build(raw, events, now = Date.now()) {
-  const up = kind => raw.services.filter(s => s.kind === kind && s.up);
+  /** @param {string} kind */
+  const up = kind => raw.services.filter(answered).filter(s => s.kind === kind);
   const yesterday = history.dayKey(now - DAY);
   const lines = [];
 
   // Plays: Tautulli knows exactly; otherwise fall back to our own peak.
+  /** @type {{ dates: string[], series: { name: string, data: number[] }[] } | undefined} */
   const t = up('tautulli')[0]?.data.playsByDate;
   const i = t?.dates?.indexOf(yesterday) ?? -1;
-  if (i >= 0) {
+  if (t && i >= 0) {
     const plays = t.series.reduce((a, s) => a + (s.data[i] || 0), 0);
     const parts = t.series.filter(s => s.data[i]).map(s => `${s.data[i]} ${s.name}`);
     lines.push(`📺 ${plays} play${plays === 1 ? '' : 's'} yesterday${parts.length ? ` (${parts.join(', ')})` : ''}`);
@@ -32,9 +39,11 @@ function build(raw, events, now = Date.now()) {
     );
 
   // What the *arrs imported in the last 24 h.
+  /** @param {string[]} kinds */
   const count = kinds =>
     raw.services
-      .filter(s => kinds.includes(s.kind) && s.up)
+      .filter(answered)
+      .filter(s => kinds.includes(s.kind))
       .reduce((a, s) => a + (s.data.imports || []).filter(x => now - new Date(x.time).getTime() < DAY).length, 0);
   const eps = count(['sonarr']),
     movies = count(['radarr']);
@@ -70,14 +79,15 @@ function build(raw, events, now = Date.now()) {
   if (errs) lines.push(`⚠️ ${errs} error${errs === 1 ? '' : 's'} in the last 24 h (open the dashboard to review)`);
 
   const pending = raw.services
-    .filter(s => ['seerr', 'overseerr', 'jellyseerr'].includes(s.kind) && s.up)
+    .filter(answered)
+    .filter(s => ['seerr', 'overseerr', 'jellyseerr'].includes(s.kind))
     .reduce((a, s) => a + (s.data.stats?.pending || 0), 0);
   if (pending) lines.push(`🙋 ${pending} request${pending === 1 ? '' : 's'} waiting for approval`);
 
   const ur = up('unraid')[0]?.data;
   if (ur) {
     // Judge heat against each disk's own limit (SSDs run hotter than hard drives).
-    const hot = ur.disks.filter(x => x.temp != null && x.temp >= x.tempWarn).map(x => `${x.name} ${x.temp} °C`);
+    const hot = (ur.disks || []).filter(x => x.temp != null && x.temp >= x.tempWarn).map(x => `${x.name} ${x.temp} °C`);
     const p = ur.parity;
     lines.push(
       `🗄️ Array ${ur.state.toLowerCase()}, ${hot.length ? `running hot: ${hot.join(', ')}` : 'disk temperatures OK'}${p.running ? `, parity check ${p.progress ?? 0}%` : ''}`,
@@ -85,17 +95,19 @@ function build(raw, events, now = Date.now()) {
   }
   const tn = up('truenas')[0]?.data;
   if (tn) {
-    const bad = tn.pools
+    const pools = tn.pools || [];
+    const bad = pools
       .filter(p => !p.healthy || p.status !== 'ONLINE')
       .map(p => `${p.name} ${String(p.status).toLowerCase()}`);
-    const hot = tn.disks.filter(x => x.temp != null && x.temp >= x.tempWarn).map(x => `${x.name} ${x.temp} °C`);
-    const scrub = tn.pools.find(p => p.scan?.state === 'SCANNING');
+    const hot = (tn.disks || []).filter(x => x.temp != null && x.temp >= x.tempWarn).map(x => `${x.name} ${x.temp} °C`);
+    const scrub = pools.find(p => p.scan?.state === 'SCANNING');
     lines.push(
-      `🗄️ ${bad.length ? `Pools need attention: ${bad.join(', ')}` : `${tn.pools.length === 1 ? 'Pool' : 'All pools'} healthy`}, ${hot.length ? `running hot: ${hot.join(', ')}` : 'disk temperatures OK'}${scrub ? `, ${scrub.scan.kind.toLowerCase()} of ${scrub.name} ${Math.floor(scrub.scan.progress ?? 0)}%` : ''}${tn.alerts ? `, ${tn.alerts} TrueNAS alert${tn.alerts === 1 ? '' : 's'}` : ''}`,
+      `🗄️ ${bad.length ? `Pools need attention: ${bad.join(', ')}` : `${pools.length === 1 ? 'Pool' : 'All pools'} healthy`}, ${hot.length ? `running hot: ${hot.join(', ')}` : 'disk temperatures OK'}${scrub ? `, ${scrub.scan.kind.toLowerCase()} of ${scrub.name} ${Math.floor(scrub.scan.progress ?? 0)}%` : ''}${tn.alerts ? `, ${tn.alerts} TrueNAS alert${tn.alerts === 1 ? '' : 's'}` : ''}`,
     );
   }
   const updates = raw.services
-    .filter(s => s.up && s.data?.update)
+    .filter(answered)
+    .filter(s => s.data.update)
     .map(s => `${s.name}${s.data.update.version ? ` ${s.data.update.version}` : ''}`);
   if (raw.latestVersion) updates.push(`Media Ops ${raw.latestVersion}`);
   if (updates.length) lines.push(`⬆️ Updates available: ${updates.join(', ')}`);
@@ -111,6 +123,7 @@ function build(raw, events, now = Date.now()) {
 }
 
 // Called every monitor tick: sends once a day, at or after the configured time.
+/** @param {import('./types').Config} cfg @param {import('./types').PollResult} raw @param {any[]} events @param {(cfg: import('./types').Config, digest: { title: string, lines: string[] }) => Promise<number>} sendDigest @param {Date} [now] */
 async function maybeSend(cfg, raw, events, sendDigest, now = new Date()) {
   const dg = cfg.notifications?.digest;
   if (!dg?.enabled) return false;

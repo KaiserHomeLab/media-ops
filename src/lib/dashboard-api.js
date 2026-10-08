@@ -14,6 +14,7 @@ const { readJson, send } = require('./web');
 const { DEMO, describeError, invalidate, overview } = require('./poll');
 
 const lastRecheck = new Map(); // service id -> when it was last re-checked
+/** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res @param {string} route */
 async function eventsApi(req, res, route) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
   const body = await readJson(req);
@@ -47,7 +48,8 @@ async function eventsApi(req, res, route) {
     lastRecheck.set(id, Date.now());
   }
   try {
-    const run = {
+    /** @type {Record<string, () => Promise<string>>} */
+    const runs = {
       clear: () => actions.clear(svc),
       recheck: () => actions.recheck(svc),
       stop: () => actions.stopStream(svc, body.sessionId, body.reason),
@@ -55,8 +57,8 @@ async function eventsApi(req, res, route) {
       'queue-remove': () => actions.queueRemove(svc, body.queueId),
       'request-approve': () => actions.seerrRequest(svc, body.requestId, 'approve'),
       'request-decline': () => actions.seerrRequest(svc, body.requestId, 'decline'),
-    }[action];
-    const message = await run();
+    };
+    const message = await runs[action]();
     invalidate(); // re-fetch logs/health right away
     return send(res, 200, { ok: true, message });
   } catch (e) {
@@ -68,6 +70,7 @@ async function eventsApi(req, res, route) {
 // /api/media/thumb?s=<media server id>&p=<image path>. Only image paths of the shape each server
 // uses are accepted, so the proxy can't be pointed at anything else on the server.
 const THUMB_MAX = 5 * 1024 * 1024; // a 240×360 poster is ~30 KB
+/** @type {Record<string, { path: RegExp, url: (svc: import('./types').Service, p: string) => string, headers: (svc: import('./types').Service) => Record<string, string> }>} */
 const THUMB = {
   plex: {
     path: /^\/library\/metadata\/\d+\/(thumb|art)\/\d+$/,
@@ -86,13 +89,14 @@ const THUMB = {
     headers: svc => AUTH.emby(svc.apiKey || ''),
   },
 };
+/** @param {import('node:http').ServerResponse} res @param {string | null} serviceId @param {string | null} p */
 async function mediaThumb(res, serviceId, p) {
   const svc = config.load().services.find(s => s.id === serviceId && s.enabled !== false);
   const how = svc && THUMB[svc.kind];
   if (!how || !how.path.test(p || '')) return send(res, 404);
   try {
     // No redirects: fetch would carry the token header along to wherever it points.
-    const r = await fetch(how.url(svc, p), {
+    const r = await fetch(how.url(svc, String(p)), {
       headers: how.headers(svc),
       signal: AbortSignal.timeout(8000),
       redirect: 'manual',

@@ -84,6 +84,18 @@ const HINTS = [
     /HTTP 401|Unauthorized|refused the API key/i,
     'The API key was rejected. Copy it again from the app and paste it in Settings → Apps.',
   ],
+  [
+    /no connected tunnel for this address/i,
+    "Cloudflare doesn't see a running tunnel for this hostname. Check that cloudflared is running, and that the hostname's Public Hostname route (Zero Trust → Networks → Tunnels) points at this tunnel.",
+  ],
+  [
+    /tunnel can't reach the app behind it/i,
+    "The tunnel is up, but the app it forwards to isn't answering. Check that the app (e.g. Seerr) is running, and that the service URL in the tunnel's Public Hostname route matches its address and port as cloudflared sees it.",
+  ],
+  [
+    /tunnel is not connected to Cloudflare/i,
+    'cloudflared is running but has no connection to Cloudflare. Check its log for the reason: a revoked or wrong tunnel token, or outbound port 7844 being blocked by a firewall.',
+  ],
 ];
 
 /** @param {{ message?: string, source?: string, detail?: string | null }} e an errors-feed entry */

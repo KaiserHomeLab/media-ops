@@ -201,6 +201,21 @@ export function renderLibrary(media, services) {
     ],
   };
   rows.jellyseerr = rows.seerr = rows.overseerr;
+  rows.cloudflared = s => [
+    ['Connections to Cloudflare', num(s.connections), s.connections < 2],
+    ['Cloudflare locations', list(s.locations).join(', ') || '—'],
+    ...(s.publicTotal
+      ? [
+          /** @type {[string, string, boolean]} */ ([
+            'Public addresses loading',
+            `${num(s.publicOk)} / ${num(s.publicTotal)}`,
+            s.publicOk < s.publicTotal,
+          ]),
+        ]
+      : []),
+    ['Requests served', num(s.requests)],
+    ['Request errors', num(s.errors)],
+  ];
   rows.clonarr = s => [
     ['Arr instances', num(s.instances)],
     ['Sync profiles', `${num(s.active)} / ${num(s.profiles)} active`],

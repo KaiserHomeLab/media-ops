@@ -14,6 +14,10 @@ To stay on one version instead of `latest`, use a version tag such as
 - Prometheus metrics at `/metrics` (Settings → Metrics, off until you turn it on): apps up,
   latency and updates, streams and bandwidth, download speeds and queues, wanted/missing,
   requests, errors and disk space. Prometheus authenticates with a token Settings creates.
+- Cloudflare Tunnel (cloudflared): whether the tunnel is connected to Cloudflare, and whether
+  the public addresses it serves (for example Seerr) load from the internet. A badge in the top
+  bar shows it at all times, and you're alerted when the tunnel drops or a site stops loading.
+  Settings finds cloudflared in Docker.
 
 ### Changed
 

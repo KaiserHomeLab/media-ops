@@ -227,6 +227,7 @@ function overview(realHost) {
       ['tautulli', 'lscr.io/linuxserver/tautulli', 'Up 12 days'],
       ['sabnzbd', 'lscr.io/linuxserver/sabnzbd', 'Up 12 days'],
       ['clonarr', 'ghcr.io/prophetse7en/clonarr', 'Up 6 days'],
+      ['cloudflared', 'cloudflare/cloudflared', 'Up 12 days'],
       ['media-ops', 'ghcr.io/you/media-ops', 'Up 2 hours (healthy)'],
     ].map(([name, image, status]) => ({
       name,
@@ -869,6 +870,22 @@ function overview(realHost) {
               message: 'Profile sync failed: custom format "Anime Dual Audio" rejected by Sonarr — name already in use',
             },
           ],
+        },
+      }),
+      svc('cloudflared', 'Cloudflare Tunnel', '2026.9.1', {
+        data: {
+          stats: {
+            connections: 4,
+            locations: ['dfw08', 'dfw12', 'iah01'],
+            requests: 18342,
+            errors: 12,
+            publicOk: 1,
+            publicTotal: 1,
+          },
+          public: [
+            { host: 'requests.example.com', url: 'https://requests.example.com', ok: true, status: 200, ms: 142 },
+          ],
+          events: [],
         },
       }),
     ],

@@ -214,6 +214,23 @@ const KINDS = [
     fields: [{ ...apiKey('Settings → Security → API key.'), optional: true }],
   },
   {
+    kind: 'cloudflared',
+    label: 'Cloudflare Tunnel',
+    group: 'Tools',
+    port: 20241,
+    note: "Use the address of cloudflared's metrics server, e.g. http://cloudflared:20241. The Docker image serves it on port 20241 by default; Media Ops needs to share a Docker network with cloudflared, or publish that port. Running cloudflared outside Docker? Start it with --metrics 0.0.0.0:20241.",
+    fields: [
+      {
+        key: 'publicUrls',
+        label: 'Public addresses to check',
+        type: 'text',
+        optional: true,
+        placeholder: 'https://requests.example.com',
+        help: 'The addresses people open from the internet through this tunnel, e.g. your Seerr. Media Ops opens each one through Cloudflare every poll and alerts you if it stops loading. Separate several with commas.',
+      },
+    ],
+  },
+  {
     kind: 'ping',
     label: 'Other (up/down only)',
     group: 'Tools',

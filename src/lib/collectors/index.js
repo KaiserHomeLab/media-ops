@@ -22,6 +22,7 @@ const { deluge } = require('./deluge');
 const { clonarr } = require('./clonarr');
 const { unraid } = require('./unraid');
 const { truenas } = require('./truenas');
+const { cloudflared } = require('./cloudflared');
 const { ping } = require('./ping');
 
 /** @type {Record<string, (svc: any) => Promise<import('../types').CollectorResult>>} */
@@ -47,5 +48,6 @@ module.exports = {
   clonarr,
   unraid,
   truenas,
+  cloudflared,
   ping,
 };

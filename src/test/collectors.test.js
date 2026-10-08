@@ -470,6 +470,63 @@ test('ping: 401 still counts as up, 5xx is down', async t => {
   await assert.rejects(c.ping({ url: `${srv.url}/down` }));
 });
 
+test('cloudflared: connections and version from metrics; public addresses checked through Cloudflare', async t => {
+  const metrics = [
+    '# HELP build_info Build and version information',
+    'build_info{goversion="go1.24",revision="abc",type="",version="2026.9.1"} 1',
+    'cloudflared_tunnel_ha_connections 4',
+    'cloudflared_tunnel_total_requests 1834',
+    'cloudflared_tunnel_request_errors 3',
+    'cloudflared_tunnel_server_locations{connection_id="0",edge_location="dfw08"} 1',
+    'cloudflared_tunnel_server_locations{connection_id="1",edge_location="iah01"} 1',
+    'cloudflared_tunnel_server_locations{connection_id="2",edge_location="ord02"} 0',
+  ].join('\n');
+  const tunnel = await fakeServer({
+    '/ready': { status: 200, body: '{"status":200,"readyConnections":4}' },
+    '/metrics': metrics,
+  });
+  const site = await fakeServer({
+    '/': { status: 302, headers: { Location: '/login' } }, // Seerr's login redirect: reachable
+    '/gone': { status: 530, headers: { 'cf-ray': '1-DFW' }, body: 'error code: 1033' },
+    '/app-down': { status: 502, headers: { 'cf-ray': '1-DFW' }, body: 'Bad gateway' },
+  });
+  t.after(() => (tunnel.close(), site.close()));
+
+  const r = await c.cloudflared({
+    url: tunnel.url,
+    publicUrls: `${site.url}/, ${site.url}/gone\n${site.url}/app-down not-a-url http://127.0.0.1:1/`,
+  });
+  assert.equal(r.version, '2026.9.1');
+  assert.equal(r.data.stats.connections, 4);
+  assert.deepEqual(r.data.stats.locations, ['dfw08', 'iah01']);
+  assert.equal(r.data.stats.requests, 1834);
+  assert.deepEqual(
+    r.data.public.map(p => [p.ok, p.problem]),
+    [
+      [true, undefined],
+      [false, 'Cloudflare has no connected tunnel for this address'],
+      [false, "the tunnel can't reach the app behind it"],
+      [false, "it can't be reached"],
+    ],
+  );
+  assert.equal(r.data.stats.publicOk, 1);
+  assert.equal(r.data.stats.publicTotal, 4);
+  // One live error per failing address, worded without changing numbers (event keys are hashes).
+  assert.equal(r.data.events.filter(e => e.source === 'Public address' && e.live).length, 3);
+  assert.match(r.data.note, /^4 connections to Cloudflare \(dfw08, iah01\)\./);
+
+  // No connections: the tunnel is down.
+  const off = await fakeServer({ '/ready': { status: 503, body: '{"status":503,"readyConnections":0}' } });
+  t.after(() => off.close());
+  await assert.rejects(c.cloudflared({ url: off.url }), /not connected to Cloudflare/);
+  // An older cloudflared without /ready: the connection count from /metrics decides.
+  const old = await fakeServer({ '/metrics': 'cloudflared_tunnel_ha_connections 1' });
+  t.after(() => old.close());
+  const r2 = await c.cloudflared({ url: old.url });
+  assert.equal(r2.data.stats.connections, 1);
+  assert.match(r2.data.events[0].message, /only one connection/);
+});
+
 test('truenas websocket: text outside ASCII is framed by its length in bytes', async t => {
   const rpc = require('../lib/jsonrpc-ws');
   const nas = await fakeTrueNAS({ __users: { u: 'k' }, 'core.echo': params => params });

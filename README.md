@@ -50,6 +50,8 @@ memory, GPU load and your Docker containers.
 - Downloads in progress (SABnzbd, NZBGet, qBittorrent, Transmission or Deluge), what's coming
   up this week, and what was just added to your media server
 - Seerr requests you can approve or decline right from the dashboard
+- Your Cloudflare Tunnel in the top bar: connected or not, and whether the sites it serves
+  (Seerr, for example) actually load from the internet
 - How close each indexer is to its daily API limit
 - Watch stats from Tautulli, and 24-hour charts of streams, bandwidth and download speed
 - A forecast of when each disk will be full
@@ -201,6 +203,16 @@ with your server's address and that key.
 and create a key for that user. In Media Ops, add **TrueNAS** with the address, the username
 and the key.
 
+### Setting up a Cloudflare Tunnel
+
+Add **Cloudflare Tunnel** with the address of cloudflared's metrics server. The cloudflared
+Docker image serves it on port `20241`, so if both containers share a Docker network that's
+`http://cloudflared:20241` (Settings finds it in Docker). Otherwise publish port 20241 on the
+cloudflared container, or start cloudflared with `--metrics 0.0.0.0:20241`. Under **Public
+addresses to check**, list the addresses people use, such as `https://requests.example.com`.
+Media Ops opens them through Cloudflare on every poll, shows the result in the top bar, and
+alerts you when one stops loading.
+
 ## If something isn't working
 
 Go to **Settings → Diagnostics → Run diagnostics**. It checks every app and shows exactly what
@@ -269,7 +281,7 @@ Media Ops is free and open source under the [MIT License](LICENSE).
 
 It's only possible because of the apps it talks to: Plex, Jellyfin, Emby, Sonarr, Radarr, Lidarr, Readarr,
 Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
-TRaSH Guides, Unraid and TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
+TRaSH Guides, cloudflared, Unraid and TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
 APIs and doesn't include any of their code. Licenses and links are in
 [THIRD-PARTY-NOTICES.md](src/THIRD-PARTY-NOTICES.md).
 

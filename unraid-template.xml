@@ -16,7 +16,7 @@
   <Category>MediaServer:Other Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:8484]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/KaiserHomeLab/media-ops/main/unraid-template.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/KaiserHomeLab/media-ops/main/public/icon.png</Icon>
+  <Icon>https://raw.githubusercontent.com/KaiserHomeLab/media-ops/main/src/public/icon.png</Icon>
   <Config Name="WebUI" Target="8484" Default="8484" Mode="tcp" Description="Dashboard port" Type="Port" Display="always" Required="true" Mask="false">8484</Config>
   <Config Name="Appdata" Target="/config" Default="/mnt/user/appdata/media-ops" Mode="rw" Description="Saved settings (app addresses, API keys)" Type="Path" Display="advanced-hide" Required="true" Mask="false">/mnt/user/appdata/media-ops</Config>
   <Config Name="Docker socket" Target="/var/run/docker.sock" Default="/var/run/docker.sock" Mode="ro" Description="Optional: lets the dashboard list your containers and their health" Type="Path" Display="always" Required="false" Mask="false">/var/run/docker.sock</Config>

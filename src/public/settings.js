@@ -924,6 +924,7 @@ function renderGeneral() {
   f.uploadMbps.value = S.general.uploadMbps ?? '';
   f.mapEnabled.checked = S.general.mapEnabled;
   f.mapHome.value = S.general.mapHome;
+  f.mapAsgard.checked = S.general.mapAsgard;
   f.cleanupDays.value = S.general.cleanupDays;
   f.checkUpdates.checked = S.general.checkUpdates;
 }
@@ -940,6 +941,7 @@ $form('general-form').addEventListener('submit', async e => {
         paths: f.paths.value,
         mapEnabled: f.mapEnabled.checked,
         mapHome: f.mapHome.value,
+        mapAsgard: f.mapAsgard.checked,
         uploadMbps: f.uploadMbps.value,
         cleanupDays: f.cleanupDays.value,
         checkUpdates: f.checkUpdates.checked,

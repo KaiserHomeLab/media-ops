@@ -18,6 +18,9 @@ To stay on one version instead of `latest`, use a version tag such as
   the public addresses it serves (for example Seerr) load from the internet. A badge in the top
   bar shows it at all times, and you're alerted when the tunnel drops or a site stops loading.
   Settings finds cloudflared in Docker.
+- Stream map: viewers it can't place now go to Asgard, a gold star in the sky, connected to your
+  server by a rainbow Bifröst. The list beside the map still says why each one couldn't be
+  placed. Not a fan? Turn it off in Settings → General.
 
 ### Changed
 

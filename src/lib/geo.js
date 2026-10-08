@@ -153,6 +153,7 @@ async function enrich(results, cfg) {
           : null;
     }
     r.data.mapEnabled = enabled;
+    r.data.mapAsgard = cfg.map?.asgard !== false;
   }
   // How the last poll's remote viewers were placed, for the debug report: counts only.
   /** @type {Record<string, number>} */

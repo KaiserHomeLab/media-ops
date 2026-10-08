@@ -37,7 +37,7 @@ export interface Config {
   services: Service[];
   auth: { salt: string; hash: string } | null;
   dashboardAuth?: boolean;
-  map: { enabled: boolean; home: string };
+  map: { enabled: boolean; home: string; asgard?: boolean };
   uploadMbps?: number | null;
   cleanupDays?: number;
   checkUpdates?: boolean;

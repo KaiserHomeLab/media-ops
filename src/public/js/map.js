@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 KaiserHomeLab
 //
-// The stream map: viewers on a world map with a line back to the server.
+// The stream map: viewers on a world map with a line back to the server. Viewers it can't
+// place go to Asgard, up in the sky, across a rainbow Bifröst (Settings can turn the joke off).
 import { $, closest, esc, mbps, placeTip, rollUp, setHTML, tip } from './util.js';
 
 // --------------------------------------------------------------------- stream map
@@ -37,8 +38,8 @@ const MAP_GRATICULE = (() => {
 })();
 
 /** @typedef {{ x: number, y: number, geo: any, streams: any[] }} Cluster viewers in one place */
-/** @type {{ clusters: Cluster[], atHome: any[], home: any }} */
-let mapModel = { clusters: [], atHome: [], home: null };
+/** @type {{ clusters: Cluster[], atHome: any[], home: any, unknown: any[] }} */
+let mapModel = { clusters: [], atHome: [], home: null, unknown: [] };
 /** @param {any} g a geo lookup result */
 const place = g =>
   [g.city, g.region && g.region !== g.city ? g.region : null, g.code || g.country].filter(Boolean).join(', ');
@@ -94,7 +95,7 @@ export function renderMap(src) {
     else clusters.push({ x, y, geo: s.geo, streams: [s] });
   }
   const hp = home ? project(home.lon, home.lat) : null;
-  mapModel = { clusters, atHome, home };
+  mapModel = { clusters, atHome, home, unknown };
 
   // Zoom to fit home + viewers (never tighter than ~a third of the world); whole world when
   // nobody remote is watching. k converts "screen-sized" marks into map units at this zoom.
@@ -122,8 +123,34 @@ export function renderMap(src) {
   const k = Math.max(vw / Math.max(240, mapEl.clientWidth || 800), tvFit) * 1.3;
   /** @param {number} v */
   const f = v => v.toFixed(1);
-  let svg = `<svg viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}" role="img" aria-label="World map: ${remote.length} remote and ${atHome.length} local streams">`;
+  let svg = `<svg viewBox="${f(vx)} ${f(vy)} ${f(vw)} ${f(vh)}" role="img" aria-label="World map: ${remote.length} remote and ${atHome.length} local streams${unknown.length ? `, ${unknown.length} without a location` : ''}">`;
   svg += `<path class="grat" d="${MAP_GRATICULE}"/><path class="land" d="${land}"/>`;
+
+  // Asgard: high in the sky of whatever part of the world is in view, a little east of home.
+  const asgard =
+    src.asgard && unknown.length
+      ? {
+          x: Math.min(vx + vw * 0.88, Math.max(vx + vw * 0.12, hp ? hp[0] + vw * 0.14 : vx + vw / 2)),
+          y: vy + vh * 0.1,
+          r: 7 * k,
+        }
+      : null;
+  // The Bifröst: six rainbow bands from home up to Asgard, bowed to one side.
+  if (asgard && hp) {
+    const [x1, y1] = hp,
+      { x: x2, y: y2 } = asgard;
+    const dist = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const nx = -(y2 - y1) / dist,
+      ny = (x2 - x1) / dist; // unit normal
+    const cx = (x1 + x2) / 2 + nx * dist * 0.3,
+      cy = (y1 + y2) / 2 + ny * dist * 0.3;
+    let bands = '';
+    for (let i = 0; i < 6; i++) {
+      const o = (i - 2.5) * 2.2 * k;
+      bands += `<path class="band b${i + 1}" style="stroke-width:${f(2.6 * k)}" d="M${f(x1 + nx * o)} ${f(y1 + ny * o)}Q${f(cx + nx * o)} ${f(cy + ny * o)} ${f(x2 + nx * o)} ${f(y2 + ny * o)}"/>`;
+    }
+    svg += `<g class="bifrost">${bands}</g>`;
+  }
 
   // Arcs from the server to each viewer, bowed toward the pole so they read as flight paths.
   if (hp)
@@ -140,6 +167,7 @@ export function renderMap(src) {
   const marks = clusters.map(c => ({ ...c, r: (5 + Math.min(c.streams.length - 1, 3) * 1.5) * k }));
   const taken = [
     ...marks.map(m => [m.x - m.r, m.y - m.r, m.x + m.r, m.y + m.r]),
+    ...(asgard ? [[asgard.x - asgard.r, asgard.y - asgard.r, asgard.x + asgard.r, asgard.y + asgard.r]] : []),
     ...(hp ? [[hp[0] - 7 * k, hp[1] - 7 * k, hp[0] + 7 * k, hp[1] + 7 * k]] : []),
   ];
   /** @param {number[]} b a box: left, top, right, bottom */
@@ -180,8 +208,25 @@ export function renderMap(src) {
     if (n > 1) svg += `<text class="n" x="${f(m.x)}" y="${f(m.y)}" style="font-size:${f(9 * k)}px">${n}</text>`;
     if (m.geo.city) labels += label(m.x, m.y, m.r, m.geo.city);
   }
+  if (asgard) {
+    // A five-pointed star.
+    const star = Array.from({ length: 10 }, (_, i) => {
+      const a = (Math.PI / 5) * i - Math.PI / 2,
+        r = i % 2 ? asgard.r * 0.45 : asgard.r * 1.15;
+      return `${f(asgard.x + r * Math.cos(a))},${f(asgard.y + r * Math.sin(a))}`;
+    }).join(' ');
+    svg += `<polygon class="asgard" points="${star}"/>`;
+    labels += label(
+      asgard.x,
+      asgard.y,
+      asgard.r,
+      `Asgard${unknown.length > 1 ? ` · ${unknown.length}` : ''}`,
+      'asgard',
+    );
+  }
   svg += labels;
   // Hit targets bigger than the marks, drawn last so they sit on top.
+  if (asgard) svg += `<circle class="hit" data-asgard cx="${f(asgard.x)}" cy="${f(asgard.y)}" r="${f(14 * k)}"/>`;
   if (hp) svg += `<circle class="hit" data-home cx="${f(hp[0])}" cy="${f(hp[1])}" r="${f(14 * k)}"/>`;
   marks.forEach(
     (m, i) => (svg += `<circle class="hit" data-i="${i}" cx="${f(m.x)}" cy="${f(m.y)}" r="${f(14 * k)}"/>`),
@@ -208,7 +253,9 @@ export function renderMap(src) {
     ...atHome.map(s => li('home', s, `Home network${s.bandwidth ? ` · ${mbps(s.bandwidth)}` : ''}`)),
     ...unknown.map(s => {
       const [short, long] = UNKNOWN_WHY[s.geoWhy] || UNKNOWN_WHY.failed;
-      return li('unknown', s, `Remote · location unknown · ${esc(short)}`, long);
+      return src.asgard
+        ? li('asgard', s, `Asgard · location unknown · ${esc(short)}`, long)
+        : li('unknown', s, `Remote · location unknown · ${esc(short)}`, long);
     }),
   ];
   setHTML($('viewers'), rows.join('') || '<li class="muted">Nobody is watching right now.</li>');
@@ -217,6 +264,7 @@ export function renderMap(src) {
     [
       'Dots are remote viewers and pulse while playing. Lines run from your server; the ring is home.',
       'Locations are city-level, from Plex’s own GeoIP lookup.',
+      asgard ? 'Viewers who can’t be placed are in Asgard (the star); the list says why.' : '',
       home ? '' : '<br><b>Home location unknown.</b> Set it under <a href="/settings">Settings → General</a>.',
     ].join(' '),
   );
@@ -228,7 +276,17 @@ $('map').addEventListener('mousemove', e => {
     tip.hidden = true;
     return;
   }
-  if ('home' in hit.dataset) {
+  if ('asgard' in hit.dataset) {
+    tip.innerHTML =
+      `<div style="margin-bottom:4px"><b>Asgard</b> <span class="muted">· no place on Midgard</span></div>` +
+      mapModel.unknown
+        .map(s => {
+          const [short] = UNKNOWN_WHY[s.geoWhy] || UNKNOWN_WHY.failed;
+          return `<div>${streamLine(s)}</div><div class="muted" style="margin-bottom:4px">Location unknown · ${esc(short)}</div>`;
+        })
+        .join('') +
+      '<div class="muted">Heimdall let them across the Bifröst.</div>';
+  } else if ('home' in hit.dataset) {
     const h = mapModel.home;
     tip.innerHTML =
       `<div style="margin-bottom:4px"><b>Your server</b>${h?.city ? ` · ${esc(place(h))}` : ''}</div>` +

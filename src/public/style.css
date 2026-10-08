@@ -39,6 +39,14 @@
   --serious: #ec835a;
   --critical: #d03b3b;
   --track: #2e2e2b;
+  /* The stream map's joke: Asgard (gold star) and the rainbow Bifröst leading to it. */
+  --asgard: #f2c94c;
+  --bifrost-1: #ff5f5f;
+  --bifrost-2: #ff9d42;
+  --bifrost-3: #ffd84d;
+  --bifrost-4: #4fd17c;
+  --bifrost-5: #4aa8ff;
+  --bifrost-6: #a67cff;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
   --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
@@ -60,6 +68,13 @@
     --series-2: #eb6834;
     --series-3: #1baf7a;
     --track: #e7e6e1;
+    --asgard: #b8860b;
+    --bifrost-1: #e03131;
+    --bifrost-2: #f08c00;
+    --bifrost-3: #e0b000;
+    --bifrost-4: #2f9e44;
+    --bifrost-5: #1c7ed6;
+    --bifrost-6: #7048e8;
   }
 }
 :root[data-theme='light'] {
@@ -77,6 +92,13 @@
   --series-2: #eb6834;
   --series-3: #1baf7a;
   --track: #e7e6e1;
+  --asgard: #b8860b;
+  --bifrost-1: #e03131;
+  --bifrost-2: #f08c00;
+  --bifrost-3: #e0b000;
+  --bifrost-4: #2f9e44;
+  --bifrost-5: #1c7ed6;
+  --bifrost-6: #7048e8;
 }
 
 /* Accent presets (Settings → Appearance). */
@@ -560,9 +582,51 @@ h3 {
   fill: transparent;
   cursor: pointer;
 }
+.map .bifrost .band {
+  fill: none;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+.map .bifrost {
+  animation: shimmer 3s ease-in-out infinite;
+}
+@keyframes shimmer {
+  50% {
+    opacity: 0.65;
+  }
+}
+.map .band.b1 {
+  stroke: var(--bifrost-1);
+}
+.map .band.b2 {
+  stroke: var(--bifrost-2);
+}
+.map .band.b3 {
+  stroke: var(--bifrost-3);
+}
+.map .band.b4 {
+  stroke: var(--bifrost-4);
+}
+.map .band.b5 {
+  stroke: var(--bifrost-5);
+}
+.map .band.b6 {
+  stroke: var(--bifrost-6);
+}
+.map .asgard {
+  fill: var(--asgard);
+  stroke: var(--surface-1);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.map .lbl.asgard {
+  fill: var(--text-primary);
+  font-weight: 600;
+}
 @media (prefers-reduced-motion: reduce) {
   .map .arc,
-  .map .pulse {
+  .map .pulse,
+  .map .bifrost {
     animation: none;
   }
   .map .pulse {
@@ -596,6 +660,11 @@ h3 {
 }
 .viewers .sw.paused {
   background: var(--text-muted);
+}
+.viewers .sw.asgard {
+  background: var(--asgard);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
 }
 .viewers .sw.unknown {
   background: transparent;

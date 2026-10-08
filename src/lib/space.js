@@ -12,7 +12,9 @@
 'use strict';
 
 const DAY = 864e5;
+/** @type {Record<string, string>} */
 const PATHS = { series: 'series', movie: 'movie', artist: 'artist' };
+/** @param {unknown} t */
 const norm = t =>
   String(t || '')
     .toLowerCase()
@@ -20,6 +22,7 @@ const norm = t =>
     .replace(/&/g, 'and')
     .replace(/[^a-z0-9]/g, '');
 
+/** @param {import('./types').Polled[]} results @param {import('./types').Config} cfg @param {number} [now] */
 function build(results, cfg, now = Date.now()) {
   const days = Number(cfg.cleanupDays) || 365;
   const byId = new Map(cfg.services.map(s => [s.id, s]));
@@ -59,11 +62,11 @@ function build(results, cfg, now = Date.now()) {
   downloaded.sort((a, b) => b.bytes - a.bytes);
 
   // Cleanup needs Tautulli.
-  const taut = results.find(r => r.kind === 'tautulli' && r.up && r.data?._watch);
+  const watch = results.find(r => r.kind === 'tautulli' && r.up && r.data?._watch)?.data?._watch;
   /** @type {object | null} */
   let cleanup = null;
-  if (taut) {
-    const { items: watched, since } = taut.data._watch;
+  if (watch) {
+    const { items: watched, since } = watch;
     const exact = new Map(),
       loose = new Map();
     for (const w of watched) {
@@ -99,9 +102,11 @@ function build(results, cfg, now = Date.now()) {
   };
 }
 
+/** @param {any} item */
 const strip = ({ app, kind, title, year, size, added, link }) => ({ app, kind, title, year, size, added, link });
 
 // The per-title lists are only for build(); drop them so they aren't sent to the browser.
+/** @param {import('./types').Polled[]} results */
 function stripPrivate(results) {
   for (const r of results) if (r.data) for (const k of Object.keys(r.data)) if (k.startsWith('_')) delete r.data[k];
 }

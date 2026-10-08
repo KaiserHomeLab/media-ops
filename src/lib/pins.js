@@ -40,6 +40,7 @@ function save() {
 }
 
 // Same host:port the TrueNAS collector connects to (always wss, port 443 unless an https:// address names one).
+/** @param {string} url */
 const keyOf = url => {
   try {
     const u = new URL(url);
@@ -50,6 +51,7 @@ const keyOf = url => {
 };
 
 // Returns null if the fingerprint is trusted (recording it the first time), else an error message.
+/** @param {string} hostPort @param {string | null} fingerprint */
 function check(hostPort, fingerprint) {
   if (!fingerprint) return 'The server sent no certificate.';
   const pinned = all();
@@ -64,6 +66,7 @@ function check(hostPort, fingerprint) {
     : "TrueNAS's certificate has changed since Media Ops first connected, so the connection was refused. If you replaced the certificate, open TrueNAS in Settings and click Test or Save to trust the new one. If you didn't, something on your network may be impersonating it.";
 }
 
+/** @param {string} url */
 function forget(url) {
   const k = keyOf(url);
   const pinned = all();

@@ -24,6 +24,7 @@ const { unraid } = require('./unraid');
 const { truenas } = require('./truenas');
 const { ping } = require('./ping');
 
+/** @type {Record<string, (svc: any) => Promise<import('../types').CollectorResult>>} */
 module.exports = {
   plex,
   jellyfin,

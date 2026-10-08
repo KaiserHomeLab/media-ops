@@ -56,6 +56,7 @@ const ALWAYS_OPEN = new Set([
   '/icon-maskable-512.png',
   '/fonts/InterVariable.woff2',
 ]);
+/** @param {import('node:http').IncomingMessage} req @param {string} pathname */
 function dashboardLocked(req, pathname) {
   const cfg = config.load();
   if (!cfg.dashboardAuth || !cfg.auth || ALWAYS_OPEN.has(pathname) || pathname.startsWith('/api/settings'))
@@ -64,11 +65,14 @@ function dashboardLocked(req, pathname) {
 }
 
 // Pages get the appearance settings written in (lib/appearance.js).
+/** @type {Record<string, string>} */
 const PAGE_OF = { 'index.html': 'dashboard', 'settings.html': 'settings', 'status.html': 'status' };
+/** @type {{ key: () => string, apply: (html: string, file: string) => string }} */
 const PAGE_RENDER = {
   key: () => appearance.pageKey(config.load()),
   apply: (html, file) => appearance.renderPage(html, config.load(), PAGE_OF[path.basename(file)] || 'other'),
 };
+/** @param {import('node:http').ServerResponse} res */
 function brandingLogo(res) {
   const saved = config.load().appearance?.logo;
   if (!saved?.data) return send(res, 404);

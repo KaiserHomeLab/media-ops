@@ -26,9 +26,11 @@ const PLATFORMS = [
   { id: 'docker-desktop', label: 'Docker Desktop', test: /linuxkit|docker ?desktop/i, vm: true },
   { id: 'proxmox', label: 'Proxmox', test: /-pve$|proxmox/i },
 ];
+/** @type {{ id: string, label: string, vm?: boolean }} */
 const LINUX = { id: 'linux', label: 'Linux' };
 
 function detect(hint = process.env.HOST_OS, release = os.release()) {
+  /** @param {string | undefined} s @returns {(typeof PLATFORMS)[number] | null} */
   const pick = s => (s && PLATFORMS.find(p => p.test.test(String(s).trim()))) || null;
   const p = pick(hint) || pick(release) || LINUX;
   return { id: p.id, label: p.label, vm: !!p.vm };

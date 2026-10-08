@@ -10,16 +10,18 @@ const { trace } = require('./http');
 const pkg = require('../package.json');
 
 // The last 50 warnings/errors the server logged, for the report.
+/** @type {{ at: string, level: string, text: string }[]} */
 const recentLog = [];
-for (const level of ['error', 'warn']) {
+for (const level of /** @type {const} */ (['error', 'warn'])) {
   const original = console[level].bind(console);
-  console[level] = (...args) => {
+  console[level] = (/** @type {unknown[]} */ ...args) => {
     recentLog.push({ at: new Date().toISOString(), level, text: args.map(String).join(' ').slice(0, 500) });
     if (recentLog.length > 50) recentLog.shift();
     original(...args);
   };
 }
 
+/** @param {import('./types').Service} svc @param {(s: import('./types').Service) => Promise<import('./types').Polled>} runService */
 async function runOne(svc, runService) {
   const store = { calls: [] };
   const t0 = performance.now();
@@ -38,6 +40,7 @@ async function runOne(svc, runService) {
   };
 }
 
+/** @param {import('./types').Service[]} services @param {(s: import('./types').Service) => Promise<import('./types').Polled>} runService */
 async function run(services, runService) {
   const results = await Promise.all(services.filter(s => s.enabled !== false).map(s => runOne(s, runService)));
   return {

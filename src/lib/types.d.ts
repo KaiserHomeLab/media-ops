@@ -66,6 +66,32 @@ export interface Config {
   [key: string]: any;
 }
 
+/**
+ * What a collector returns as `data` (see lib/collectors). It's another app's information in
+ * our shape; the common lists are named, the rest varies by app.
+ */
+export interface CollectorData {
+  streams?: any[];
+  events?: any[];
+  queue?: any[];
+  items?: any[];
+  [key: string]: any;
+}
+
+/** One app in a poll result (lib/poll.js runService): up with its data, or down with an error. */
+export interface Polled {
+  id: string;
+  kind: string;
+  name: string;
+  link?: string;
+  up: boolean;
+  error?: string;
+  version?: string | null;
+  latency?: number | null;
+  data?: CollectorData;
+  [key: string]: any;
+}
+
 /** Options for lib/http.js req(). */
 export interface ReqOptions {
   headers?: Record<string, string>;

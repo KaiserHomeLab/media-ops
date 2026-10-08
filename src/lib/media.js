@@ -7,12 +7,15 @@
 'use strict';
 
 const MEDIA_KINDS = ['plex', 'jellyfin', 'emby'];
+/** @param {string} kind */
 const isMedia = kind => MEDIA_KINDS.includes(kind);
 
 // The media servers that answered this poll.
+/** @param {import('./types').Polled[]} services */
 const mediaServers = services => services.filter(s => s.up && isMedia(s.kind));
 
 // Every stream on every media server, each tagged with its server's id (for posters and Stop).
+/** @param {import('./types').Polled[]} services @returns {any[]} */
 const allStreams = services =>
   mediaServers(services).flatMap(m => (m.data?.streams || []).map(st => ({ ...st, server: m.id })));
 

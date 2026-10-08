@@ -26,6 +26,7 @@ const pkg = require('../package.json');
 
 const DEMO = ['1', 'truenas'].includes(process.env.DEMO ?? ''); // DEMO=truenas: the demo server runs TrueNAS instead of Unraid
 
+/** @param {any} e an Error, maybe from fetch with a `cause` */
 function describeError(e) {
   // Node's fetch wraps the socket error, sometimes as an AggregateError (IPv4 + IPv6 attempts).
   const code = e.cause?.code || e.cause?.errors?.[0]?.code;
@@ -38,6 +39,7 @@ function describeError(e) {
 }
 
 // Run one collector with a hard 15 s cap. Never throws: a failure becomes { up: false, error }.
+/** @param {import('./types').Service} s @param {number} [limitMs] @returns {Promise<import('./types').Polled>} */
 async function runService(s, limitMs = 15000) {
   const base = { id: s.id, kind: s.kind, name: s.name, link: s.link || s.url };
   let timer;
@@ -104,10 +106,13 @@ async function polled() {
 
 // Every open tab asks for the overview, but the poll result only changes every few seconds:
 // build the errors feed (hashes, hints) once per poll result and reuse it.
+/** @type {WeakMap<object, any[]>} */
 const collected = new WeakMap();
+/** @param {{ services: import('./types').Polled[] }} raw @returns {any[]} */
 function eventsOf(raw) {
-  if (!collected.has(raw.services)) collected.set(raw.services, feed.collect(raw.services));
-  return collected.get(raw.services).map(e => ({ ...e })); // apply() marks dismissals on its own copy
+  let list = collected.get(raw.services);
+  if (!list) collected.set(raw.services, (list = feed.collect(raw.services)));
+  return list.map(e => ({ ...e })); // apply() marks dismissals on its own copy
 }
 
 // Poll results + the unified errors feed with dismissals applied.
@@ -116,7 +121,10 @@ async function overview() {
   const cfg = config.load();
   const { events, changed } = feed.apply(eventsOf(raw), raw.services, cfg.dismissed);
   if (changed) config.update(c => ({ ...c, dismissed: changed }));
-  const services = raw.services.map(s => ({ ...s, actions: actions.capabilities(s.kind, s.name) }));
+  const services = /** @type {import('./types').Polled[]} */ (raw.services).map(s => ({
+    ...s,
+    actions: actions.capabilities(s.kind, s.name),
+  }));
   return {
     ...raw,
     services,
@@ -169,7 +177,7 @@ function statusPayload() {
   if (!DEMO) return status.payload(config.load(), cache.value);
   const raw = demo.overview(hostStats());
   const hist = demo.history();
-  const services = raw.services.map(s => ({ id: s.id, kind: s.kind, name: s.name }));
+  const services = raw.services.map(s => ({ id: s.id, kind: s.kind, name: s.name, url: '' }));
   return status.payload({ services, statusPage: { enabled: true } }, raw, id => hist.uptime[id]);
 }
 

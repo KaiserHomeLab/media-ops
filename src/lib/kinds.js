@@ -3,8 +3,18 @@
 'use strict';
 // Every app the dashboard can connect to: what the settings form asks for, and where to find it.
 
+/**
+ * One input on an app's Settings form. `secret` fields are never sent back to the browser.
+ * @typedef {{ key: string, label: string, type: 'text' | 'secret', help?: string, optional?: boolean,
+ *   link?: string, placeholder?: string }} Field
+ * @typedef {{ kind: string, label: string, group: string, port: number | null, note?: string,
+ *   fields: Field[] }} Kind
+ */
+
+/** @param {string} where @returns {Field} */
 const apiKey = where => ({ key: 'apiKey', label: 'API key', type: 'secret', help: where });
 
+/** @type {Kind[]} */
 const KINDS = [
   {
     kind: 'plex',
@@ -213,11 +223,13 @@ const KINDS = [
   },
 ];
 
+/** @type {Record<string, Kind>} */
 const BY_KIND = Object.fromEntries(KINDS.map(k => [k.kind, k]));
 // Older config names that map onto a current kind.
 BY_KIND.overseerr = { ...BY_KIND.seerr, kind: 'overseerr', label: 'Overseerr' };
 BY_KIND.jellyseerr = { ...BY_KIND.seerr, kind: 'jellyseerr', label: 'Jellyseerr' };
 
+/** @param {string} kind */
 const secretKeys = kind => (BY_KIND[kind]?.fields || []).filter(f => f.type === 'secret').map(f => f.key);
 
 module.exports = { KINDS, BY_KIND, secretKeys };

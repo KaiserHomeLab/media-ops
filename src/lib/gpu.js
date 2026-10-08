@@ -14,6 +14,7 @@ const path = require('node:path');
 const { execFile } = require('node:child_process');
 
 const ROOT = () => process.env.GPU_SYSFS || '/sys/class/drm';
+/** @param {string} p @returns {string | null} */
 const read = p => {
   try {
     return fs.readFileSync(p, 'utf8').trim();
@@ -21,14 +22,17 @@ const read = p => {
     return null;
   }
 };
+/** @param {string} p */
 const num = p => {
   const v = read(p);
   return v == null || v === '' ? null : Number(v);
 };
+/** @type {Record<string, string>} */
 const VENDORS = { '0x8086': 'Intel', '0x1002': 'AMD', '0x10de': 'Nvidia' };
 
 const lastIdle = new Map(); // card -> { idleMs, at }
 
+/** @param {string} card @param {string} dir */
 function intelBusy(card, dir) {
   const idle = [
     path.join(dir, 'power', 'rc6_residency_ms'),
@@ -55,7 +59,7 @@ function fromSysfs() {
   const out = [];
   for (const card of cards) {
     const dir = path.join(ROOT(), card);
-    const vendor = VENDORS[read(path.join(dir, 'device', 'vendor'))];
+    const vendor = VENDORS[read(path.join(dir, 'device', 'vendor')) || ''];
     if (!vendor || vendor === 'Nvidia') continue; // Nvidia comes from nvidia-smi
     /** @type {{ card: string, vendor: string, name: string, busy: number | null, freqMhz: number | null, maxMhz: number | null }} */
     const g = { card, vendor, name: `${vendor} GPU`, busy: null, freqMhz: null, maxMhz: null };
@@ -91,8 +95,10 @@ function fromNvidiaSmi() {
             .filter(Boolean)
             .map((line, i) => {
               const [name, util, memUsed, memTotal, temp, enc] = line.split(',').map(x => x.trim());
+              /** @param {string} v */
               const n = v => (v === '' || /N\/A|Not Supported/i.test(v) ? null : Number(v));
               // nvidia-smi reports memory in MiB
+              /** @param {string} v */
               const mib = v => {
                 const x = n(v);
                 return x ? x * 1048576 : null;

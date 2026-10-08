@@ -13,6 +13,7 @@ const crypto = require('node:crypto');
 // One header value: no line breaks (they would start a new header), and RFC 2047 encoding when
 // it isn't plain ASCII (emoji in the title): chunks of whole characters, each encoded word
 // within the 75-character limit, folded onto continuation lines.
+/** @param {string} s */
 const headerText = s => {
   const flat = String(s).replace(/[\r\n]+/g, ' ');
   if (/^[\x20-\x7e]*$/.test(flat)) return flat;
@@ -30,7 +31,9 @@ const headerText = s => {
 };
 // A bare address: something@something, nothing that could break out of <…> or a command.
 const ADDRESS = /^[^\s<>@,;"\\]+@[^\s<>@,;"\\]+$/;
+/** @param {unknown} a */
 const isAddress = a => ADDRESS.test(String(a || ''));
+/** @param {unknown} s @returns {string[]} */
 const addressList = s =>
   String(s || '')
     .split(/[,;\s]+/)
@@ -39,6 +42,7 @@ const addressList = s =>
 // Reads SMTP replies ("250-first\r\n250 last\r\n") from whichever socket is current.
 function replies() {
   let buf = '';
+  /** @type {string[]} */
   let lines = [];
   /** @type {{ code: number, text: string }[]} */
   const ready = [];
@@ -46,6 +50,7 @@ function replies() {
   const waiting = [];
   /** @type {Error | null} */
   let failed = null;
+  /** @param {{ code: number, text: string }} r */
   const deliver = r => (waiting.length ? waiting.shift()?.resolve(r) : ready.push(r));
   return {
     /** @param {Buffer | string} chunk */
@@ -98,6 +103,7 @@ async function sendMail(m) {
     s.once('error', reject);
     s.setTimeout(timeout, () => s.destroy(new Error('Timed out')));
   });
+  /** @param {net.Socket} s */
   const listen = s => {
     s.on('data', d => r.data(d));
     s.on('error', e => r.fail(e));

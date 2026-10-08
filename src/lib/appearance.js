@@ -24,6 +24,7 @@ const ACCENTS = [
 ];
 const LOGO_MAX = 256 * 1024;
 // Raster images only, recognised by their first bytes: an SVG can carry script.
+/** @type {{ type: string, magic: (b: Buffer) => boolean }[]} */
 const LOGO_TYPES = [
   { type: 'image/png', magic: b => b.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) },
   { type: 'image/jpeg', magic: b => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
@@ -33,6 +34,7 @@ const LOGO_TYPES = [
   },
 ];
 
+/** @param {any} v @param {string[]} list @param {string} def @returns {string} */
 const pick = (v, list, def) => (list.includes(v) ? v : def);
 
 /** The saved settings, with defaults. The logo comes back as just { type, hash }. @param {any} cfg */
@@ -53,6 +55,7 @@ function settingsOf(cfg) {
 }
 
 // Settings form -> what's saved (the logo is kept; it has its own upload and remove).
+/** @param {any} input @param {any} current the saved appearance (its logo is kept) */
 function clean(input, current) {
   const title = String(input?.title ?? '').trim();
   if (title.length > 40) throw new Error('Title is too long (40 characters at most)');
@@ -72,6 +75,7 @@ function clean(input, current) {
 }
 
 // An uploaded logo (base64) -> { type, data, hash }, or an error message for the form.
+/** @param {unknown} base64 */
 function logoFrom(base64) {
   const data = Buffer.from(String(base64 || ''), 'base64');
   if (!data.length) throw new Error('No image received');
@@ -85,8 +89,10 @@ function logoFrom(base64) {
   };
 }
 
-const escapeHtml = s =>
-  String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+/** @type {Record<string, string>} */
+const HTML_ENTITY = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+/** @param {unknown} s */
+const escapeHtml = s => String(s).replace(/[&<>"']/g, c => HTML_ENTITY[c]);
 
 /**
  * Put the appearance into a page's HTML. `page` is 'dashboard', 'settings' or 'status'.
@@ -118,6 +124,7 @@ function renderPage(html, cfg, page) {
 }
 
 // What changes the pages: part of their cache key and ETag.
+/** @param {any} cfg */
 const pageKey = cfg => JSON.stringify(settingsOf(cfg));
 
 module.exports = { THEMES, ACCENTS, settingsOf, clean, logoFrom, renderPage, pageKey, LOGO_MAX };

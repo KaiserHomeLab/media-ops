@@ -470,6 +470,17 @@ test('ping: 401 still counts as up, 5xx is down', async t => {
   await assert.rejects(c.ping({ url: `${srv.url}/down` }));
 });
 
+test('truenas websocket: text outside ASCII is framed by its length in bytes', async t => {
+  const rpc = require('../lib/jsonrpc-ws');
+  const nas = await fakeTrueNAS({ __users: { u: 'k' }, 'core.echo': params => params });
+  t.after(() => nas.close());
+  const conn = await rpc.connect('127.0.0.1', Number(new URL(nas.url).port));
+  t.after(() => conn.close());
+  await conn.call('auth.login_ex', [{ mechanism: 'API_KEY_PLAIN', username: 'u', api_key: 'k' }]);
+  const text = 'Café Tönnies · 名前 ✓'; // 4 more bytes than characters, and more
+  assert.deepEqual(await conn.call('core.echo', [text]), [text]);
+});
+
 test('truenas: logs in over wss with the key, reuses the connection, maps pools, disks, alerts, apps', async t => {
   const big = 'x'.repeat(70000); // forces the 64-bit frame length path
   const nas = await fakeTrueNAS({

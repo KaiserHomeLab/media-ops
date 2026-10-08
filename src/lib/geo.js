@@ -19,10 +19,12 @@ const PLEX_HEADERS = {
 // LAN, loopback, link-local, CGNAT/Tailscale (100.64/10) and IPv6 private ranges can't be located.
 const PRIVATE =
   /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|::1$|::$|f[cd][0-9a-f]{2}:|fe80:)/i;
+/** @param {unknown} ip */
 const clean = ip =>
   String(ip || '')
     .replace(/^::ffff:/i, '')
     .trim();
+/** @param {string | null | undefined} ip */
 const isPublic = ip => !!ip && !PRIVATE.test(ip);
 
 // plex.tv answers in XML: <location city="…" subdivisions="…" country="…" code="US" coordinates="41.85, -87.65" …/>
@@ -31,11 +33,13 @@ const ENTITIES = { amp: '&', quot: '"', '#39': "'", apos: "'", lt: '<', gt: '>' 
 /** @param {string | undefined} s */
 const unescapeXml = s =>
   s?.replace(/&(amp|quot|#39|apos|lt|gt);/g, (_, e) => ENTITIES[/** @type {keyof typeof ENTITIES} */ (e)]);
+/** @param {string} xml @param {string} name */
 const attr = (xml, name) => unescapeXml(new RegExp(`\\b${name}="([^"]*)"`).exec(xml)?.[1]) || null;
 
 // Successful lookups are kept for a week, failures for 10 minutes (so a plex.tv hiccup retries).
 // Concurrent callers for the same key share one request.
 const memo = new Map();
+/** @param {string} key @param {() => Promise<any>} fn @returns {Promise<any>} */
 function remember(key, fn) {
   const hit = memo.get(key);
   if (hit && Date.now() < hit.until) return hit.value;
@@ -47,6 +51,7 @@ function remember(key, fn) {
   return value;
 }
 
+/** @param {string} ip @param {string} token */
 function lookup(ip, token) {
   return remember(`ip:${ip}`, async () => {
     const xml = await req(`https://plex.tv/api/v2/geoip?ip_address=${encodeURIComponent(ip)}`, {
@@ -70,6 +75,7 @@ function lookup(ip, token) {
 }
 
 // "lat, lon" typed in Settings, e.g. "41.88, -87.63".
+/** @param {unknown} text */
 function parseLatLon(text) {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(String(text || ''));
   if (!m) return null;
@@ -79,6 +85,7 @@ function parseLatLon(text) {
 }
 
 // The server's own location: a manual override from Settings, or Plex's public address, geolocated.
+/** @param {import('./types').Service} plex @param {string | undefined} override */
 async function home(plex, override) {
   const manual = parseLatLon(override);
   if (manual) return { ...manual, city: null, country: null, manual: true };
@@ -86,11 +93,11 @@ async function home(plex, override) {
     const xml = await req(join(plex.url, '/myplex/account'), {
       as: 'text',
       timeout: 5000,
-      headers: { ...PLEX_HEADERS, 'X-Plex-Token': plex.token },
+      headers: { ...PLEX_HEADERS, 'X-Plex-Token': plex.token || '' },
     });
     return attr(xml, 'publicAddress');
   });
-  return publicIp && isPublic(publicIp) ? lookup(publicIp, plex.token) : null;
+  return publicIp && isPublic(publicIp) ? lookup(publicIp, plex.token || '') : null;
 }
 
 // Add `geo` to each remote stream and `home` to each media server's result, then drop raw IPs.
@@ -99,6 +106,7 @@ async function home(plex, override) {
 // share it with a third party. Those show in the viewer list as "location unknown". The
 // server's own location can still come from a Plex server (it's the server's address, not a
 // viewer's) or from Settings.
+/** @param {import('./types').Polled[]} results @param {import('./types').Config} cfg */
 async function enrich(results, cfg) {
   const enabled = cfg.map?.enabled !== false;
   const plexes = cfg.services.filter(s => s.kind === 'plex' && s.enabled !== false && s.token);
@@ -111,7 +119,7 @@ async function enrich(results, cfg) {
         r.data.streams.map(async st => {
           // Plex: `address` is what Plex sees; `remotePublicAddress` is what plex.tv sees (helps behind relays).
           const ip = [st.ip, st.publicIp].map(clean).find(isPublic);
-          st.geo = own?.kind === 'plex' && !st.local && ip ? await lookup(ip, own.token) : null;
+          st.geo = own?.kind === 'plex' && !st.local && ip ? await lookup(ip, own.token || '') : null;
         }),
       );
       r.data.home = plex

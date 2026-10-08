@@ -86,6 +86,7 @@ const HINTS = [
   ],
 ];
 
+/** @param {{ message?: string, source?: string, detail?: string | null }} e an errors-feed entry */
 function hintFor(e) {
   const text = `${e.source || ''} ${e.message || ''} ${e.detail || ''}`;
   for (const [re, hint] of HINTS) if (re.test(text)) return hint;

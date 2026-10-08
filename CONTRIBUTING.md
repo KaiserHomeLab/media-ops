@@ -22,6 +22,7 @@ npm run demo          # http://localhost:8484 with made-up data, no apps needed
 ```bash
 npm run lint          # ESLint
 npm run format        # Prettier (or format:check to only check)
+npm run typecheck     # TypeScript's checker on the JavaScript
 npm test              # unit and server tests
 ```
 
@@ -46,6 +47,16 @@ them. Please add or update a test for any change in behaviour, and add user-visi
 **Adding an app** touches a few places: a collector in `lib/collectors/` (exported from
 `index.js`), its form in `lib/kinds.js`, a renderer in `public/js/`, demo data in
 `lib/demo.js`, and a test in `test/collectors.test.js` using `fakeServer()`.
+
+## Types
+
+The code is plain JavaScript, checked by TypeScript (`npm run typecheck`) using JSDoc comments;
+nothing is compiled. Shared shapes (a saved app, the config, request options) live in
+`lib/types.d.ts`; use them like `/** @param {import('./types').Service} svc */`.
+
+It's being tightened step by step. Today the server code (`server.js`, `lib/`) is checked in
+strict mode, except that parameters may still be untyped (`noImplicitAny` is off). Next: add
+JSDoc types to every parameter and turn that on, then bring in `public/js/`.
 
 ## Rules that keep it safe
 

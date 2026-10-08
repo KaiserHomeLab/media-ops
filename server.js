@@ -59,7 +59,7 @@ const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   let url;
   try {
-    url = new URL(req.url, 'http://x');
+    url = new URL(req.url ?? '/', 'http://x');
   } catch {
     return send(res, 400);
   }

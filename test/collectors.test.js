@@ -303,3 +303,14 @@ test('truenas: a changed certificate is refused before the key is sent; Test/Sav
   await assert.rejects(c.truenas(cfg), /refused the API key/, 'now it connects (and this key is wrong on purpose)');
   assert.ok(nas.state.calls.includes('auth.login_ex'));
 });
+
+test('truenas: alert HTML becomes plain text, with no stray angle brackets left', () => {
+  const { stripHtml } = require('../lib/collectors/truenas');
+  assert.equal(
+    stripHtml('Pool <b>tank</b> is <i>DEGRADED</i>.<br>Replace disk sda.'),
+    'Pool tank is DEGRADED. Replace disk sda.',
+  );
+  assert.equal(stripHtml('a&nbsp;b'), 'a b');
+  for (const tricky of ['<scr<script>ipt>alert(1)</script>', '<<b>img src=x onerror=alert(1)>', 'x < y > z'])
+    assert.doesNotMatch(stripHtml(tricky), /[<>]/, tricky);
+});

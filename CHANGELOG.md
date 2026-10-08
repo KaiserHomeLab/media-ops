@@ -11,6 +11,10 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- Jellyfin and Emby support: streams (with why each one transcodes), Stop, libraries, recently
+  added with posters, update badge, history and notifications, just like Plex. You can run
+  more than one media server at once. Jellyfin and Emby viewers aren't geolocated (that would
+  send their addresses to plex.tv), so they show on the stream map without a location.
 - NZBGet, Transmission and Deluge as download clients, next to SABnzbd and qBittorrent: speeds
   and queue on the dashboard, failed NZBGet downloads and log warnings in the errors list.
 - Telegram and email notifications. Email works with any mail server (Gmail, Fastmail, your

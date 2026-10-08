@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 KaiserHomeLab
 //
-// Now playing: one card per Plex stream.
-import { $, clock, esc, initials, mbps, setHTML } from './util.js';
+// Now playing: one card per stream, from every media server (Plex, Jellyfin, Emby).
+import { $, clock, esc, initials, mbps, setHTML, thumbUrl } from './util.js';
 
-export function renderStreams(streams, demo, plexId) {
+export function renderStreams(streams, demo) {
   $('np-count').textContent = streams.length ? `${streams.length} active` : '';
   if (!streams.length) return setHTML($('streams'), '<div class="empty">Nothing playing. The server is resting.</div>');
 
@@ -12,7 +12,7 @@ export function renderStreams(streams, demo, plexId) {
     .map(s => {
       const poster =
         s.thumb && !demo
-          ? `<img class="poster" loading="lazy" alt="" src="/api/plex/thumb?p=${encodeURIComponent(s.thumb)}" data-fallback="${initials(s.title)}">`
+          ? `<img class="poster" loading="lazy" alt="" src="${thumbUrl(s.server, s.thumb)}" data-fallback="${initials(s.title)}">`
           : `<div class="poster" aria-hidden="true">${initials(s.title)}</div>`;
       const dc = s.decision.startsWith('Transcode') ? 'tc' : s.decision === 'Direct Play' ? 'dp' : 'ds';
       const chips = [
@@ -32,7 +32,7 @@ export function renderStreams(streams, demo, plexId) {
       return `<article class="stream ${esc(s.type)}">
       ${poster}
       <div style="min-width:0">
-        <div class="row1"><div class="title">${esc(s.title)}</div><span class="state">${s.state === 'paused' ? '❚❚ paused' : s.state === 'buffering' ? '◌ buffering' : '▶ playing'}${s.sessionId && plexId ? `<button class="mini-btn" type="button" data-stop="${esc(s.sessionId)}" data-svc="${esc(plexId)}" data-user="${esc(s.user)}" title="Stop this stream">■ Stop</button>` : ''}</span></div>
+        <div class="row1"><div class="title">${esc(s.title)}</div><span class="state">${s.state === 'paused' ? '❚❚ paused' : s.state === 'buffering' ? '◌ buffering' : '▶ playing'}${s.sessionId && s.server ? `<button class="mini-btn" type="button" data-stop="${esc(s.sessionId)}" data-svc="${esc(s.server)}" data-user="${esc(s.user)}" title="Stop this stream">■ Stop</button>` : ''}</span></div>
         <div class="subtitle">${esc(s.subtitle)}</div>
         <div class="who"><b>${esc(s.user)}</b> on ${esc(s.player || s.product)} · ${esc(s.product)}${s.platform ? ` (${esc(s.platform)})` : ''}</div>
         <div class="chips">${chips}</div>

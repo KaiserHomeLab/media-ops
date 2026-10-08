@@ -12,7 +12,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/KaiserHomeLab/media-ops/issues</Support>
   <Project>https://github.com/KaiserHomeLab/media-ops</Project>
-  <Overview>Live dashboard for a Plex + arr media server: what's up or down, who's streaming, library stats, downloads, upcoming releases, and one feed of errors from every app. Add your apps under Settings in the web UI. Built on the linuxserver.io Alpine base image (PUID/PGID/UMASK/TZ, Docker Mods).</Overview>
+  <Overview>Live dashboard for a Plex, Jellyfin or Emby + arr media server: what's up or down, who's streaming, library stats, downloads, upcoming releases, and one feed of errors from every app. Add your apps under Settings in the web UI. Built on the linuxserver.io Alpine base image (PUID/PGID/UMASK/TZ, Docker Mods).</Overview>
   <Category>MediaServer:Other Tools:Utilities</Category>
   <WebUI>http://[IP]:[PORT:8484]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/KaiserHomeLab/media-ops/main/unraid-template.xml</TemplateURL>

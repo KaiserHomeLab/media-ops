@@ -5,7 +5,7 @@
 // configured app, and exposes the JSON API the pages use:
 //
 //   GET  /api/overview                     poll results + errors feed (cached a few seconds)
-//   GET  /api/plex/thumb?p=…               Plex poster proxy (keeps the Plex token server-side)
+//   GET  /api/media/thumb?s=…&p=…          poster proxy for Plex/Jellyfin/Emby (keeps tokens server-side)
 //   POST /api/events/dismiss|restore       hide / unhide errors-feed entries
 //   POST /api/events/services/:id/clear    clear an app's own log (needs login if a password is set)
 //   POST /api/events/services/:id/recheck  re-run an app's health checks
@@ -28,7 +28,7 @@ const history = require('./lib/history');
 const { loggedIn } = require('./lib/auth');
 const { SECURITY_HEADERS, sameOrigin, send, serveStatic } = require('./lib/web');
 const { DEMO, overview, monitorTick, historyPayload, statusEnabled, statusPayload } = require('./lib/poll');
-const { eventsApi, plexThumb } = require('./lib/dashboard-api');
+const { eventsApi, mediaThumb } = require('./lib/dashboard-api');
 const { settingsApi } = require('./lib/settings-api');
 
 const PUBLIC = path.join(__dirname, 'public');
@@ -79,7 +79,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/status') return send(res, 200, statusPayload());
     if (url.pathname === '/api/overview') return send(res, 200, await overview());
     if (url.pathname === '/api/history') return send(res, 200, historyPayload());
-    if (url.pathname === '/api/plex/thumb') return plexThumb(res, url.searchParams.get('p'));
+    if (url.pathname === '/api/media/thumb')
+      return mediaThumb(res, url.searchParams.get('s'), url.searchParams.get('p'));
     if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
     if (url.pathname.startsWith('/api/events/')) {
       if (!sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });

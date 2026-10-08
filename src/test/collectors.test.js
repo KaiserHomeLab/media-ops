@@ -341,6 +341,91 @@ test('deluge: logs in, connects the Web UI to its daemon, renews an expired sess
   await assert.rejects(c.deluge({ url: srv.url, password: 'nope' }), /login failed/);
 });
 
+test('jellyfin: streams with the transcode reason, libraries, recently added; API key in the header', async t => {
+  const srv = await fakeServer({
+    '/System/Info': req =>
+      req.headers.authorization === 'MediaBrowser Token="k"'
+        ? { Version: '10.11.2', HasUpdateAvailable: false }
+        : { status: 401, body: '' },
+    '/Sessions': fixture('jellyfin-sessions'),
+    '/Library/VirtualFolders': [
+      { Name: 'Movies', CollectionType: 'movies', ItemId: 'm1' },
+      { Name: 'Shows', CollectionType: 'tvshows', ItemId: 't1' },
+    ],
+    '/Items': (req, url) => {
+      const q = Object.fromEntries(url.searchParams);
+      if (q.SortBy === 'DateCreated')
+        return {
+          Items: [
+            {
+              Id: 'e1',
+              Type: 'Episode',
+              Name: 'Pilot',
+              SeriesName: 'Andor',
+              SeriesId: 's9',
+              ParentIndexNumber: 1,
+              IndexNumber: 1,
+              DateCreated: '2026-10-01T10:00:00Z',
+            },
+            { Id: 'm9', Type: 'Movie', Name: 'Sinners', ProductionYear: 2025, DateCreated: '2026-09-30T10:00:00Z' },
+          ],
+        };
+      const counts = { 'm1:Movie': 812, 't1:Series': 64, 't1:Episode': 3120 };
+      return { Items: [], TotalRecordCount: counts[`${q.ParentId}:${q.IncludeItemTypes}`] ?? 0 };
+    },
+  });
+  t.after(() => srv.close());
+  clearCache();
+  const r = await c.jellyfin({ url: srv.url, apiKey: 'k' });
+  assert.equal(r.version, '10.11.2');
+  const [ep, movie] = r.data.streams;
+  assert.equal(r.data.streams.length, 2, 'idle sessions are skipped');
+  assert.equal(ep.title, 'Severance');
+  assert.equal(ep.subtitle, 'S02E07 · Chikhai Bardo');
+  assert.equal(ep.decision, 'Transcode');
+  assert.equal(ep.reason, "client can't play HEVC → H264 · audio EAC3 → AAC");
+  assert.equal(ep.fourKTranscode, true);
+  assert.equal(ep.hw, true);
+  assert.equal(ep.resolution, '4k');
+  assert.equal(ep.offset, 1_260_000);
+  assert.equal(ep.bandwidth, 12000);
+  assert.equal(ep.local, true);
+  assert.equal(ep.thumb, '/Items/22222222222222222222222222222222/Images/Primary', 'the series poster');
+  assert.equal(movie.decision, 'Direct Play');
+  assert.equal(movie.state, 'paused');
+  assert.equal(movie.ip, '2001:db8::42', 'IPv6 endpoint with a port');
+  assert.equal(movie.local, false);
+  assert.equal(movie.bandwidth, 8256);
+  assert.deepEqual(r.data.libraries, [
+    { title: 'Movies', type: 'movie', count: 812 },
+    { title: 'Shows', type: 'show', count: 64, episodes: 3120 },
+  ]);
+  assert.deepEqual(
+    r.data.recentlyAdded.map(x => [x.title, x.sub, x.thumb]),
+    [
+      ['Andor', 'S01E01 · Pilot', '/Items/s9/Images/Primary'],
+      ['Sinners', '2025', '/Items/m9/Images/Primary'],
+    ],
+  );
+  await assert.rejects(c.jellyfin({ url: srv.url, apiKey: 'wrong' }), /HTTP 401/);
+});
+
+test('emby: same data, API key as X-Emby-Token', async t => {
+  const seen = [];
+  const srv = await fakeServer({
+    '/System/Info': req => (seen.push(req.headers['x-emby-token']), { Version: '4.9.1.80', HasUpdateAvailable: true }),
+    '/Sessions': [],
+    '/Library/VirtualFolders': [],
+    '/Items': { Items: [] },
+  });
+  t.after(() => srv.close());
+  clearCache();
+  const r = await c.emby({ url: srv.url, apiKey: 'k2' });
+  assert.equal(r.version, '4.9.1.80');
+  assert.deepEqual(r.data.update, { version: null }, 'update available');
+  assert.deepEqual(seen, ['k2']);
+});
+
 test('tautulli: home stats and plays by date', async t => {
   const srv = await fakeServer({
     '/api/v2': (req, url) => ({

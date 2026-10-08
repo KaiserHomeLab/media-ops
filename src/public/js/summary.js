@@ -119,8 +119,11 @@ export function renderServices(services) {
   );
 }
 
-export function renderLibrary(plex, services) {
-  const libs = plex?.data.libraries || [];
+export function renderLibrary(media, services) {
+  // With more than one media server, each library says which one it's on.
+  const libs = media.flatMap(m =>
+    (m.data.libraries || []).map(l => ({ ...l, title: media.length > 1 ? `${l.title} · ${m.name}` : l.title })),
+  );
   const icon = { movie: '🎬', show: '📺', artist: '🎵', photo: '📷' };
   setHTML(
     $('libraries'),
@@ -135,7 +138,7 @@ export function renderLibrary(plex, services) {
               : '';
         return `<div class="lib"><div class="k">${icon[l.type] || '📁'} ${esc(l.title)}</div><div class="n">${num(l.count)}</div><div class="x">${unit}${extra ? ' · ' + extra : ''}</div></div>`;
       })
-      .join('') || (plex ? '' : '<div class="empty">Plex not configured or unreachable.</div>'),
+      .join('') || (media.length ? '' : '<div class="empty">No media server (Plex, Jellyfin or Emby) connected.</div>'),
   );
 
   const rows = {

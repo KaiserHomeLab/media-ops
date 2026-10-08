@@ -10,6 +10,7 @@
 'use strict';
 const { sonarr, radarr, lidarr, readarr, prowlarr } = require('./arr');
 const { plex } = require('./plex');
+const { jellyfin, emby } = require('./jellyfin');
 const { tautulli } = require('./tautulli');
 const { bazarr } = require('./bazarr');
 const { overseerr } = require('./seerr');
@@ -25,6 +26,8 @@ const { ping } = require('./ping');
 
 module.exports = {
   plex,
+  jellyfin,
+  emby,
   tautulli,
   sonarr,
   radarr,

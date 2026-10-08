@@ -5,9 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/): a new feature bu
 number, a fix the last one.
 
 To stay on one version instead of `latest`, use a version tag such as
-`ghcr.io/kaiserhomelab/media-ops:1.16` (gets fixes, not new features) or `:1.16.0` (never changes).
+`ghcr.io/kaiserhomelab/media-ops:1.17` (gets fixes, not new features) or `:1.17.0` (never changes).
 
 ## [Unreleased]
+
+## [1.17.0] - 2026-10-08
 
 ### Added
 
@@ -203,7 +205,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 First public release.
 
-[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.16.0...HEAD
+[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.17.0...HEAD
+[1.17.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.1...v1.16.0
 [1.15.1]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/KaiserHomeLab/media-ops/releases/tag/v1.15.0

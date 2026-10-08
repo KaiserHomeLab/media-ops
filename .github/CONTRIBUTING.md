@@ -64,14 +64,14 @@ The code is plain JavaScript, checked by TypeScript (`npm run typecheck`) using 
 nothing is compiled. Shared shapes (a saved app, the config, request options) live in
 `lib/types.d.ts`; use them like `/** @param {import('./types').Service} svc */`.
 
-The server code (`server.js`, `lib/`, `bin/`) is checked in strict mode, including
-`noImplicitAny`: every function parameter has a JSDoc type. Data from another app's API is typed
-`any` honestly (its shape isn't ours to promise); read its lists through `list()` in
-`lib/collectors/shared.js`, which also turns a missing list into an empty one. The browser code (`public/js/`,
-`public/settings.js`) has its own config, `public/tsconfig.json`, and is being brought in file by
-file: `scripts/typecheck-web.js` (run by `npm run typecheck`) fails on errors in the files it
-lists. Shared shapes for it (`Overview`, `ServiceState`, `Answered`) are in
-`public/globals.d.ts`.
+Everything is checked in strict mode, including `noImplicitAny`: every function parameter has a
+JSDoc type. The server code (`server.js`, `lib/`, `bin/`) uses `tsconfig.json`; the browser
+code (`public/js/`, `public/settings.js`) uses `public/tsconfig.json`, with its shared shapes
+(`Overview`, `ServiceState`, `SettingsPayload`…) in `public/globals.d.ts`. Data from another
+app's API is typed `any` honestly (its shape isn't ours to promise); read its lists through
+`list()` (`lib/collectors/shared.js`, `public/js/util.js`), which also turns a missing list
+into an empty one. In the browser, look elements up with `$()` (or `$form()`, `$input()` in
+Settings): the ids are ours, so they're typed as always there.
 
 ## Rules that keep it safe
 

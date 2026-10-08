@@ -62,6 +62,19 @@ them. Please add or update a test for any change in behaviour, and add user-visi
 
 [SECURITY.md](SECURITY.md) explains these in more detail.
 
+## Releasing
+
+1. In a pull request, move the **Unreleased** notes in `CHANGELOG.md` under a new version heading
+   (`## [1.16.0] - YYYY-MM-DD`, plus its link at the bottom) and set the same `version` in
+   `package.json`. New features bump the middle number, fixes the last one.
+2. After it's merged, tag that commit and push the tag:
+   ```bash
+   git checkout main && git pull
+   git tag v1.16.0 && git push origin v1.16.0
+   ```
+3. CI checks the tag matches `package.json`, publishes `:1.16.0` and `:1.16` with a signed
+   provenance attestation, and creates the GitHub release from the changelog notes.
+
 ## Commits and pull requests
 
 - Keep each pull request to one change; it's squash-merged into a single commit on `main`.

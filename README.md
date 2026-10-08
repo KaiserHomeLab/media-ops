@@ -121,6 +121,11 @@ docker run -d --name media-ops --restart unless-stopped -p 8484:8484 `
 Then open `http://<that-computer's-ip>:8484`. To show free space for your media drives, map
 them into the container too; the [install guide](docs/install.md) shows how for each system.
 
+**Want to control when it updates?** `latest` always has the newest version. Use `:1.15` instead
+to get fixes but not new features, or `:1.15.0` to stay on exactly that version. What changed in
+each version is in the [changelog](CHANGELOG.md) and on the
+[releases page](https://github.com/KaiserHomeLab/media-ops/releases).
+
 ## First steps
 
 1. **Set a password.** Go to **Settings → Security**. Until you do, anyone on your network can

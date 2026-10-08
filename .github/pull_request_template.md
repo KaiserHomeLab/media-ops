@@ -10,6 +10,6 @@
 
 <!-- Tests added or run, and anything checked by hand (which app, which page). -->
 
-- [ ] `npm run lint`, `npm run format:check` and `npm test` pass
+- [ ] `npm run lint`, `npm run format:check`, `npm run typecheck` and `npm test` pass
 - [ ] User-visible changes are in `CHANGELOG.md` under "Unreleased"
 - [ ] No API keys, tokens, IP addresses or personal data in code, tests or screenshots

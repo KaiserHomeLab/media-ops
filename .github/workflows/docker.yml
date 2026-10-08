@@ -3,6 +3,7 @@
 #
 # CI for every pull request and every push to main:
 #   lint    ESLint and Prettier (formatting)
+#   types   TypeScript's checker on the JavaScript (JSDoc types), nothing is compiled
 #   test    the unit and server tests, on the Node versions we support
 #   build   builds the image and smoke-tests it (starts it, checks it serves the dashboard);
 #           on main and on version tags it then publishes the multi-arch image to
@@ -43,6 +44,18 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
 
+  types:
+    name: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
   test:
     name: test (node ${{ matrix.node }})
     runs-on: ubuntu-latest
@@ -60,7 +73,7 @@ jobs:
 
   build:
     name: build
-    needs: [lint, test]
+    needs: [lint, types, test]
     runs-on: ubuntu-latest
     permissions:
       contents: read

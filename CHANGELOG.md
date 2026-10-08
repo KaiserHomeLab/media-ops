@@ -9,6 +9,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-10-08
+
 ### Security
 
 - After logging in, Settings could be tricked into sending you to another website by a crafted
@@ -138,7 +140,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 First public release.
 
-[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.0...HEAD
+[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.1...HEAD
+[1.15.1]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/KaiserHomeLab/media-ops/releases/tag/v1.15.0
 [1.14.2]: https://github.com/KaiserHomeLab/media-ops/commit/b0bb6a9
 [1.14.1]: https://github.com/KaiserHomeLab/media-ops/commit/478a5c7

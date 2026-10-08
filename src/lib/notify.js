@@ -2,7 +2,7 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // Notifications: decide what's worth telling you about after each background poll, and send
-// it to Discord, ntfy, Pushover, Gotify or a generic JSON webhook (set up under Settings).
+// it to Discord, Telegram, ntfy, Pushover, Gotify, email or a JSON webhook (set up under Settings).
 //
 // Noise control:
 //   - an app must fail two polls in a row before "down" fires; "back up" only follows a "down"
@@ -13,6 +13,7 @@
 const crypto = require('node:crypto');
 const { originOf } = require('./config');
 const { req } = require('./http');
+const smtp = require('./smtp');
 
 // ------------------------------------------------------------------ destination types (Settings form)
 const secret = (key, label, help, optional) => ({ key, label, type: 'secret', help, optional });
@@ -27,6 +28,23 @@ const TYPES = [
         'webhookUrl',
         'Webhook URL',
         'Discord channel → Edit channel → Integrations → Webhooks → New Webhook → Copy Webhook URL.',
+      ),
+    ],
+  },
+  {
+    type: 'telegram',
+    label: 'Telegram',
+    fields: [
+      secret(
+        'botToken',
+        'Bot token',
+        'Message @BotFather in Telegram, send /newbot, and copy the token it gives you (like 123456:ABC-DEF…).',
+      ),
+      text(
+        'chatId',
+        'Chat ID',
+        'Send your bot a message, then open api.telegram.org/bot<token>/getUpdates and copy "chat":{"id":…}. Group IDs start with -. A public channel can use @name.',
+        '123456789',
       ),
     ],
   },
@@ -59,6 +77,47 @@ const TYPES = [
       text('url', 'Server', 'Your Gotify server address.', 'http://192.168.1.10:8070'),
       secret('appToken', 'App token', 'Gotify → Apps → Create application → copy its token.'),
     ],
+  },
+  {
+    type: 'email',
+    label: 'Email',
+    fields: [
+      text(
+        'smtpHost',
+        'Mail server (SMTP)',
+        'For example smtp.gmail.com, smtp.fastmail.com, or your own.',
+        'smtp.example.com',
+      ),
+      text(
+        'smtpPort',
+        'Port',
+        '587 (STARTTLS) is the usual one; 465 for an encrypted connection from the start. The connection is always encrypted when a password is set.',
+        '587',
+        true,
+      ),
+      text(
+        'username',
+        'Username',
+        'Usually your email address. Leave blank for a relay that needs no login.',
+        '',
+        true,
+      ),
+      secret(
+        'password',
+        'Password',
+        'Gmail, iCloud, Outlook and Fastmail need an app password, not your normal one.',
+        true,
+      ),
+      text(
+        'from',
+        'From',
+        'The address the email comes from. Most servers need it to be your own.',
+        'media-ops@example.com',
+      ),
+      text('to', 'To', 'Where to send it. Separate several addresses with commas.', 'you@example.com'),
+    ],
+    // A saved password is only reused for the same mail server.
+    where: t => `smtp://${String(t?.smtpHost || '').toLowerCase()}:${Number(t?.smtpPort) || 587}`,
   },
   {
     type: 'webhook',
@@ -111,11 +170,13 @@ function mergeTarget(existing, input) {
     events: Object.fromEntries(EVENTS.map(e => [e.key, input.events?.[e.key] ?? existing?.events?.[e.key] ?? e.def])),
   };
   // Where this destination sends to; a saved token is only reused for the same server.
-  const where = t =>
-    def.fields
-      .filter(f => /url|server/i.test(f.key) && f.type !== 'secret')
-      .map(f => originOf(t?.[f.key] || (f.key === 'server' ? 'https://ntfy.sh' : '')))
-      .join(' ');
+  const where =
+    def.where ||
+    (t =>
+      def.fields
+        .filter(f => /url|server/i.test(f.key) && f.type !== 'secret')
+        .map(f => originOf(t?.[f.key] || (f.key === 'server' ? 'https://ntfy.sh' : '')))
+        .join(' '));
   for (const f of def.fields)
     if (f.type !== 'secret')
       out[f.key] = String(input[f.key] ?? '').trim() || (f.key === 'server' ? 'https://ntfy.sh' : '');
@@ -133,6 +194,19 @@ function mergeTarget(existing, input) {
     if (/url|server/i.test(f.key) && out[f.key] && !/^https?:\/\//i.test(out[f.key]))
       throw new Error(`${f.label} must start with http:// or https://`);
   }
+  if (type === 'telegram' && !/^(-?\d{1,20}|@\w{4,64})$/.test(out.chatId))
+    throw new Error('Chat ID must be a number (like 123456789 or -100123…) or a channel @name');
+  if (type === 'email') {
+    if (!/^[a-z0-9.-]{1,253}$/i.test(out.smtpHost))
+      throw new Error('Mail server must be a host name like smtp.example.com');
+    const port = Number(out.smtpPort || 587);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be a number from 1 to 65535');
+    out.smtpPort = String(port);
+    if (!smtp.isAddress(out.from)) throw new Error('From must be an email address');
+    const to = smtp.addressList(out.to);
+    if (!to.length || to.length > 10 || !to.every(smtp.isAddress))
+      throw new Error('To must be one or more email addresses, separated by commas');
+  }
   return out;
 }
 
@@ -143,7 +217,26 @@ const LEVEL_COLOR = { error: 0xd03b3b, warn: 0xfab219, good: 0x0ca30c, info: 0x3
  * @param {import('./types').Target} target
  * @param {{ title: string, lines: string[], level?: string, events?: { kind: string, level: string, text: string }[] }} message
  */
-async function send(target, { title, lines, level = 'info', events = [] }) {
+async function send(target, message) {
+  try {
+    return await deliver(target, message);
+  } catch (e) {
+    // Error messages show in Settings and the log, and some secrets live in the address
+    // (Telegram's bot token, a Discord webhook's token): blank out every saved secret.
+    for (const k of secretKeys(target.type)) {
+      const v = String(target[k] || '');
+      if (v.length < 4) continue;
+      // A secret URL (Discord webhook) shows up in errors as just its path.
+      const path = URL.canParse(v) ? new URL(v).pathname : '';
+      for (const form of new Set([v, encodeURIComponent(v), path.length > 1 ? path : v]))
+        e.message = e.message.split(form).join('•••');
+    }
+    throw e;
+  }
+}
+
+/** @param {import('./types').Target} target @param {Parameters<typeof send>[1]} message */
+async function deliver(target, { title, lines, level = 'info', events = [] }) {
   const message = lines.join('\n');
   const post = (url, body, headers = {}) => req(url, { method: 'POST', as: 'text', timeout: 10000, body, headers });
   const json = o => JSON.stringify(o);
@@ -165,6 +258,24 @@ async function send(target, { title, lines, level = 'info', events = [] }) {
         }),
         { 'Content-Type': 'application/json' },
       );
+    case 'telegram':
+      // Plain text (no parse_mode), so text from an app can't inject formatting or links.
+      return post(
+        `https://api.telegram.org/bot${target.botToken}/sendMessage`,
+        json({ chat_id: target.chatId, text: `${title}\n\n${message}`.slice(0, 4096), disable_web_page_preview: true }),
+        { 'Content-Type': 'application/json' },
+      );
+    case 'email':
+      return smtp.sendMail({
+        host: target.smtpHost,
+        port: Number(target.smtpPort) || 587,
+        username: target.username,
+        password: target.password,
+        from: target.from,
+        to: target.to,
+        subject: title,
+        text: message,
+      });
     case 'ntfy':
       return post(`${target.server.replace(/\/+$/, '')}/${encodeURIComponent(target.topic)}`, message, {
         Title: title.replace(/[^\x20-\x7e]/g, ''), // HTTP headers must be plain ASCII

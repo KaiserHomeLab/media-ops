@@ -434,7 +434,15 @@ function openForm(kind, svc = null) {
 }
 
 // --------------------------------------------------------------------- notifications
-const NOTIF_ICON = { discord: 'Di', ntfy: 'nt', pushover: 'Po', gotify: 'Go', webhook: '{}' };
+const NOTIF_ICON = {
+  discord: 'Di',
+  telegram: 'Tg',
+  ntfy: 'nt',
+  pushover: 'Po',
+  gotify: 'Go',
+  email: '@',
+  webhook: '{}',
+};
 const sinceText = t => {
   const m = Math.round((Date.now() - t) / 60e3);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;

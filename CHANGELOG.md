@@ -13,11 +13,15 @@ To stay on one version instead of `latest`, use a version tag such as
 
 - NZBGet, Transmission and Deluge as download clients, next to SABnzbd and qBittorrent: speeds
   and queue on the dashboard, failed NZBGet downloads and log warnings in the errors list.
+- Telegram and email notifications. Email works with any mail server (Gmail, Fastmail, your
+  own): the password is only ever sent over an encrypted connection.
 - Torrents in an error state (missing files, disk full, tracker errors) show up in the errors
   list and in "failed or stuck downloads" notifications, for every torrent client.
 
 ### Fixed
 
+- A failed Discord notification could show the webhook's token in Settings and the log (it's
+  part of the address in the error). Saved secrets are now blanked out of every send error.
 - Testing a qBittorrent login in Settings with a different password could pass by reusing the
   session from the saved one.
 

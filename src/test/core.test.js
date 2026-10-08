@@ -22,6 +22,7 @@ http.req = async (url, opts) => {
     return '<location city="Chicago" subdivisions="Illinois" country="United States" code="US" coordinates="41.85, -87.65"/>';
   if (url.includes('198.51.100.7'))
     return '<location city="London" country="United Kingdom" code="GB" coordinates="51.5, -0.12"/>';
+  if (url.includes('198.51.100.66')) return '<location city="Unknown" country="" code="" coordinates="0.0, 0.0"/>';
   throw new Error('HTTP 404');
 };
 
@@ -193,6 +194,46 @@ test('geo: Jellyfin and Emby viewers are never sent to plex.tv; the home locatio
   results = jf();
   await geo.enrich(results, { services: [{ id: 'j', kind: 'jellyfin' }], map: { enabled: false } });
   assert.ok(!('ip' in results[0].data.streams[0]), 'stripped with the map off too');
+});
+
+test('geo: every viewer without a location says why; plex.tv "Unknown" at 0, 0 is not a location', async () => {
+  const results = [
+    {
+      kind: 'plex',
+      id: 'p',
+      up: true,
+      data: {
+        streams: [
+          { local: false, ip: '198.51.100.7' }, // London
+          { local: false, ip: '198.51.100.66' }, // plex.tv: Unknown, 0, 0
+          { local: false, ip: '100.100.1.1' }, // Tailscale, no public address
+          { local: false, ip: '203.0.113.200' }, // plex.tv errors
+          { local: true, ip: '192.168.1.5' },
+        ],
+      },
+    },
+    { kind: 'jellyfin', id: 'j', up: true, data: { streams: [{ local: false, ip: '198.51.100.7' }] } },
+  ];
+  await geo.enrich(results, {
+    services: [
+      { id: 'p', kind: 'plex', url: 'http://pms', token: 't' },
+      { id: 'j', kind: 'jellyfin' },
+    ],
+    map: {},
+  });
+  const [london, zero, tailscale, broken, home] = results[0].data.streams;
+  assert.equal(london.geo.city, 'London');
+  assert.equal(zero.geo, null, 'not a dot at 0, 0');
+  assert.equal(zero.geoWhy, 'no-location');
+  assert.equal(tailscale.geoWhy, 'private');
+  assert.equal(broken.geoWhy, 'failed');
+  assert.equal(home.geoWhy, undefined, 'viewers at home need no reason');
+  assert.equal(results[1].data.streams[0].geoWhy, 'not-plex');
+  assert.deepEqual(geo.summary(), {
+    remote: 5,
+    located: 1,
+    unknown: { 'no-location': 1, private: 1, failed: 1, 'not-plex': 1 },
+  });
 });
 
 test('settings: blank API key keeps the saved one, but only for the same address; secrets never public', () => {

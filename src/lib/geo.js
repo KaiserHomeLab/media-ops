@@ -10,6 +10,9 @@ const { join, req } = require('./http');
 const { isMedia } = require('./media');
 
 const DAY = 864e5;
+// The last poll's remote viewers: how many were placed, and why the rest weren't (no addresses).
+/** @type {{ remote: number, located: number, unknown: Record<string, number> } | null} */
+let last = null;
 const PLEX_HEADERS = {
   'X-Plex-Product': 'Media Ops',
   'X-Plex-Client-Identifier': 'media-ops',
@@ -36,7 +39,8 @@ const unescapeXml = s =>
 /** @param {string} xml @param {string} name */
 const attr = (xml, name) => unescapeXml(new RegExp(`\\b${name}="([^"]*)"`).exec(xml)?.[1]) || null;
 
-// Successful lookups are kept for a week, failures for 10 minutes (so a plex.tv hiccup retries).
+// Found locations are kept for a week; anything else (no location, a failed lookup) for 10
+// minutes, so a plex.tv hiccup retries.
 // Concurrent callers for the same key share one request.
 const memo = new Map();
 /** @param {string} key @param {() => Promise<any>} fn @returns {Promise<any>} */
@@ -47,22 +51,32 @@ function remember(key, fn) {
   if (memo.size > 2000) for (const [k, v] of memo) if (Date.now() >= v.until) memo.delete(k);
   const value = fn().catch(() => null);
   memo.set(key, { value, until: Infinity });
-  value.then(v => memo.set(key, { value: Promise.resolve(v), until: Date.now() + (v ? 7 * DAY : 10 * 60e3) }));
+  value.then(v =>
+    memo.set(key, { value: Promise.resolve(v), until: Date.now() + (v && v.lat != null ? 7 * DAY : 10 * 60e3) }),
+  );
   return value;
 }
 
+// A location, or { why } when there isn't one: 'no-location' (plex.tv doesn't know the address;
+// it answers city "Unknown" at 0, 0, which must not become a dot in the ocean) or 'failed'.
 /** @param {string} ip @param {string} token */
 function lookup(ip, token) {
   return remember(`ip:${ip}`, async () => {
-    const xml = await req(`https://plex.tv/api/v2/geoip?ip_address=${encodeURIComponent(ip)}`, {
-      as: 'text',
-      timeout: 5000,
-      headers: { ...PLEX_HEADERS, 'X-Plex-Token': token },
-    });
+    let xml;
+    try {
+      xml = await req(`https://plex.tv/api/v2/geoip?ip_address=${encodeURIComponent(ip)}`, {
+        as: 'text',
+        timeout: 5000,
+        headers: { ...PLEX_HEADERS, 'X-Plex-Token': token },
+      });
+    } catch (e) {
+      return { why: 'failed', detail: e.message };
+    }
     const [lat, lon] = String(attr(xml, 'coordinates') || '')
       .split(',')
       .map(Number);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0) || attr(xml, 'city') === 'Unknown')
+      return { why: 'no-location' };
     return {
       city: attr(xml, 'city'),
       region: attr(xml, 'subdivisions'),
@@ -97,7 +111,8 @@ async function home(plex, override) {
     });
     return attr(xml, 'publicAddress');
   });
-  return publicIp && isPublic(publicIp) ? lookup(publicIp, plex.token || '') : null;
+  const g = publicIp && isPublic(publicIp) ? await lookup(publicIp, plex.token || '') : null;
+  return g?.lat != null ? g : null;
 }
 
 // Add `geo` to each remote stream and `home` to each media server's result, then drop raw IPs.
@@ -117,9 +132,18 @@ async function enrich(results, cfg) {
     if (enabled) {
       await Promise.all(
         r.data.streams.map(async st => {
+          st.geo = null;
+          if (st.local) return;
           // Plex: `address` is what Plex sees; `remotePublicAddress` is what plex.tv sees (helps behind relays).
           const ip = [st.ip, st.publicIp].map(clean).find(isPublic);
-          st.geo = own?.kind === 'plex' && !st.local && ip ? await lookup(ip, own.token || '') : null;
+          // Why a remote viewer isn't on the map, shown next to "location unknown".
+          if (own?.kind !== 'plex') st.geoWhy = 'not-plex';
+          else if (!ip) st.geoWhy = 'private';
+          else {
+            const g = await lookup(ip, own.token || '');
+            if (g?.lat != null) st.geo = g;
+            else st.geoWhy = g?.why || 'failed';
+          }
         }),
       );
       r.data.home = plex
@@ -130,6 +154,19 @@ async function enrich(results, cfg) {
     }
     r.data.mapEnabled = enabled;
   }
+  // How the last poll's remote viewers were placed, for the debug report: counts only.
+  /** @type {Record<string, number>} */
+  const reasons = {};
+  let remote = 0,
+    located = 0;
+  for (const r of results)
+    for (const st of r.data?.streams || [])
+      if (!st.local) {
+        remote++;
+        if (st.geo) located++;
+        else reasons[st.geoWhy || 'map-off'] = (reasons[st.geoWhy || 'map-off'] || 0) + 1;
+      }
+  last = { remote, located, unknown: reasons };
   // Viewer IPs never reach the browser, whatever the server or setting.
   for (const r of results)
     for (const st of r.data?.streams || []) {
@@ -138,4 +175,6 @@ async function enrich(results, cfg) {
     }
 }
 
-module.exports = { enrich, parseLatLon, unescapeXml };
+const summary = () => last;
+
+module.exports = { enrich, parseLatLon, unescapeXml, summary };

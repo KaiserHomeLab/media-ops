@@ -22,6 +22,11 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Fixed
 
+- Stream map: a viewer plex.tv can't place came back as "Unknown" at 0, 0 and was drawn as a
+  dot in the ocean off West Africa; it now counts as having no location.
+- Stream map: every viewer shown as "location unknown" now says why (watching on Jellyfin/Emby,
+  a private address from a VPN, Tailscale or reverse proxy, no GeoIP match, or a failed
+  lookup), with more on hover. The debug report counts the reasons (no addresses).
 - On phones the live summary took the title's space even before it appeared.
 - The live summary no longer fades in when the device asks for reduced motion.
 - Jellyfin and Emby had grey icons in Settings; they have their own colors now.

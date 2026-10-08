@@ -276,11 +276,12 @@ function overview(realHost) {
           streams: [
             {
               user: 'robin',
-              player: 'Bedroom TV',
+              player: 'Living Room TV',
               product: 'Jellyfin Android TV',
               platform: null,
               state: 'playing',
-              local: true,
+              local: false,
+              geoWhy: 'not-plex', // Jellyfin viewers aren't looked up at plex.tv
               type: 'episode',
               title: 'The Bear',
               subtitle: 'S04E03 · Scallop',

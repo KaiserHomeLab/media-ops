@@ -46,6 +46,25 @@ const place = g =>
 const streamLine = s =>
   `<b>${esc(s.user)}</b> · ${esc(s.title)}${s.subtitle && s.type !== 'movie' ? ` <span class="muted">${esc(s.subtitle.split(' · ')[0])}</span>` : ''}`;
 
+// Why a remote viewer has no location (lib/geo.js sets `geoWhy`): a short note for the list,
+// and a longer one on hover.
+/** @type {Record<string, [string, string]>} */
+const UNKNOWN_WHY = {
+  'not-plex': [
+    'Jellyfin/Emby',
+    "Viewers on Jellyfin or Emby aren't looked up: their address would have to go to plex.tv, a third party to them.",
+  ],
+  private: [
+    'private address',
+    'The media server only sees a private address for this viewer, so there is nothing to look up. This happens when they connect through a VPN or Tailscale, or when a reverse proxy or tunnel sits in front of the server.',
+  ],
+  'no-location': [
+    'no GeoIP match',
+    "Plex's GeoIP service doesn't know where this address is (common for some mobile networks).",
+  ],
+  failed: ['lookup failed', 'Looking the address up at plex.tv failed; it is tried again in 10 minutes.'],
+};
+
 // src: { streams, home, enabled } from util.js mapSource(), or null without a media server.
 /** @param {ReturnType<typeof import('./util.js').mapSource>} src */
 export function renderMap(src) {
@@ -175,9 +194,9 @@ export function renderMap(src) {
     : 'nobody watching';
 
   // Side list doubles as the text alternative to the map.
-  /** @param {string} cls @param {any} s @param {string} where */
-  const li = (cls, s, where) =>
-    `<li><span class="sw ${cls}" aria-hidden="true"></span><span>${streamLine(s)}</span><span class="where">${where}</span></li>`;
+  /** @param {string} cls @param {any} s @param {string} where already-escaped HTML @param {string} [why] a longer explanation */
+  const li = (cls, s, where, why = '') =>
+    `<li${why ? ` title="${esc(why)}"` : ''}><span class="sw ${cls}" aria-hidden="true"></span><span>${streamLine(s)}</span><span class="where">${where}</span></li>`;
   const rows = [
     ...remote.map(s =>
       li(
@@ -187,7 +206,10 @@ export function renderMap(src) {
       ),
     ),
     ...atHome.map(s => li('home', s, `Home network${s.bandwidth ? ` · ${mbps(s.bandwidth)}` : ''}`)),
-    ...unknown.map(s => li('unknown', s, 'Remote · location unknown')),
+    ...unknown.map(s => {
+      const [short, long] = UNKNOWN_WHY[s.geoWhy] || UNKNOWN_WHY.failed;
+      return li('unknown', s, `Remote · location unknown · ${esc(short)}`, long);
+    }),
   ];
   setHTML($('viewers'), rows.join('') || '<li class="muted">Nobody is watching right now.</li>');
   setHTML(

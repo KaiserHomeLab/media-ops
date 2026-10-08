@@ -51,6 +51,8 @@ async function run(services, runService) {
     container: !!process.env.LSIO_FIRST_PARTY || require('node:fs').existsSync('/.dockerenv'),
     uptimeSeconds: Math.round(process.uptime()),
     apps: results,
+    // Stream map: remote viewers placed, and why the rest show "location unknown" (counts only).
+    streamMap: require('./geo').summary(),
     recentLog: recentLog.slice(-50),
   };
 }

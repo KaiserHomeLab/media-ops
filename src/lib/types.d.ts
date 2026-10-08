@@ -54,6 +54,8 @@ export interface Config {
   layout?: { order: string[]; hidden: string[] } | null;
   /** Fix stuck downloads automatically (lib/autofix.js); null = off. */
   autoFix?: { enabled: boolean; minutes: number } | null;
+  /** Prometheus /metrics (lib/metrics.js); the token is a secret, only shown when created. */
+  metrics?: { enabled: boolean; token: string | null } | null;
   /** Settings → Appearance (lib/appearance.js); the logo is base64 so backups carry it. */
   appearance?: {
     theme: string;

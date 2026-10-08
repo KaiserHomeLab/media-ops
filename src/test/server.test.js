@@ -363,6 +363,43 @@ test('appearance: written into every page (new ETag), logo served only as the im
   assert.doesNotMatch(await (await fetch(`${base}/`)).text(), /data-theme|data-accent/);
 });
 
+test('metrics: 404 until turned on; then only with the token, even with the dashboard locked', async () => {
+  assert.equal((await fetch(`${base}/metrics`)).status, 404);
+  let r = await json('PUT', '/api/settings/metrics', { enabled: true });
+  const { token, metrics } = await r.json();
+  assert.match(token, /^[\w-]{32}$/);
+  assert.deepEqual(metrics, { enabled: true, tokenSet: true });
+  assert.equal((await (await fetch(`${base}/api/settings`)).json()).metrics.token, undefined, 'never sent back');
+  r = await json('PUT', '/api/settings/metrics', { enabled: true });
+  assert.equal((await r.json()).token, null, 'saving again keeps the token and does not show it');
+
+  assert.equal((await fetch(`${base}/metrics`)).status, 401);
+  assert.equal((await fetch(`${base}/metrics`, { headers: { Authorization: 'Bearer wrong' } })).status, 401);
+  r = await fetch(`${base}/metrics`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type'), /^text\/plain; version=0\.0\.4/);
+  assert.match(await r.text(), /^media_ops_info\{version="[\d.]+"\} 1$/m);
+
+  r = await json('PUT', '/api/settings/password', { next: 'metrics-pw-123' });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  await json('PUT', '/api/settings/security', { dashboardAuth: true }, { Cookie: cookie });
+  assert.equal(
+    (await fetch(`${base}/metrics`, { headers: { Authorization: `Bearer ${token}` }, redirect: 'manual' })).status,
+    200,
+    'not behind the dashboard login',
+  );
+  const fresh = await (await json('POST', '/api/settings/metrics/token', {}, { Cookie: cookie })).json();
+  assert.notEqual(fresh.token, token);
+  assert.equal(
+    (await fetch(`${base}/metrics`, { headers: { Authorization: `Bearer ${token}` } })).status,
+    401,
+    'old token dead',
+  );
+  await json('PUT', '/api/settings/metrics', { enabled: false }, { Cookie: cookie });
+  assert.equal((await fetch(`${base}/metrics`)).status, 404);
+  await json('PUT', '/api/settings/password', { current: 'metrics-pw-123', next: '' }, { Cookie: cookie });
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

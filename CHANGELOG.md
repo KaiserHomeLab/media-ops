@@ -9,6 +9,12 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Added
+
+- Prometheus metrics at `/metrics` (Settings → Metrics, off until you turn it on): apps up,
+  latency and updates, streams and bandwidth, download speeds and queues, wanted/missing,
+  requests, errors and disk space. Prometheus authenticates with a token Settings creates.
+
 ### Changed
 
 - The demo (`DEMO=1`) now has a Jellyfin server next to Plex and a qBittorrent client, and the

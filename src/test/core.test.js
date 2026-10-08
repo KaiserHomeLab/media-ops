@@ -519,3 +519,86 @@ test('appearance: settings checked, logo must be a real PNG/JPEG/WebP, pages get
     assert.match(block, new RegExp(`--accent-light: ${a.light};`), `${a.id} light`);
   }
 });
+
+test('metrics: Prometheus text with escaped labels, nothing private, bearer token checked', () => {
+  const metrics = require('../lib/metrics');
+  const raw = {
+    generatedAt: 1_760_000_000_000,
+    host: { cpu: 25, memTotal: 1000, memUsed: 400 },
+    services: [
+      {
+        id: 'p',
+        kind: 'plex',
+        name: 'Plex "Main"',
+        up: true,
+        latency: 20,
+        url: 'http://192.0.2.9:32400',
+        data: {
+          streams: [
+            { decision: 'Transcode', local: false, bandwidth: 8000, user: 'casey', ip: '198.51.100.7' },
+            { decision: 'Direct Play', local: true, bandwidth: 20000, user: 'alex' },
+          ],
+        },
+      },
+      {
+        id: 's',
+        kind: 'sonarr',
+        name: 'Sonarr',
+        up: true,
+        latency: 15,
+        data: { queue: [{}, {}], stats: { missing: 12 }, update: { version: '4.1' } },
+      },
+      {
+        id: 'q',
+        kind: 'qbittorrent',
+        name: 'qBit\\',
+        up: true,
+        latency: 5,
+        data: { client: 'torrent', downBps: 100, upBps: 50, items: [{}] },
+      },
+      { id: 'r', kind: 'radarr', name: 'Radarr', up: false, error: 'Connection refused' },
+    ],
+  };
+  const events = [
+    { level: 'error', t: Date.now() },
+    { level: 'warn', t: Date.now() },
+    { level: 'error', t: Date.now(), dismissed: true },
+  ];
+  const text = metrics.render(raw, events, [{ path: '/mnt/user', total: 1000, free: 250 }]);
+  const has = line => assert.ok(text.split('\n').includes(line), `missing: ${line}`);
+  has('media_ops_app_up{app="Plex \\"Main\\"",kind="plex"} 1');
+  has('media_ops_app_up{app="Radarr",kind="radarr"} 0');
+  has('media_ops_app_latency_seconds{app="Sonarr",kind="sonarr"} 0.015');
+  has('media_ops_app_update_available{app="Sonarr",kind="sonarr"} 1');
+  has('media_ops_arr_queue_items{app="Sonarr",kind="sonarr"} 2');
+  has('media_ops_arr_missing{app="Sonarr",kind="sonarr"} 12');
+  has('media_ops_download_bytes_per_second{client="qBit\\\\",protocol="torrent"} 100');
+  has('media_ops_streams{server="Plex \\"Main\\"",decision="transcode"} 1');
+  has('media_ops_streams{server="Plex \\"Main\\"",decision="direct_stream"} 0');
+  has('media_ops_stream_bandwidth_bits_per_second{server="Plex \\"Main\\"",location="wan"} 8000000');
+  has('media_ops_events{level="error"} 1');
+  has('media_ops_events{level="warning"} 1');
+  has('media_ops_disk_used_bytes{path="/mnt/user"} 750');
+  has('media_ops_host_cpu_ratio 0.25');
+  assert.match(text, /^# HELP media_ops_info .*\n# TYPE media_ops_info gauge\n/m);
+  assert.doesNotMatch(text, /192\.0\.2|198\.51|casey|alex|refused/, 'no addresses, viewers or error text');
+  assert.equal(
+    metrics
+      .render(null, [], [])
+      .split('\n')
+      .filter(l => l && !l.startsWith('#')).length,
+    3,
+    'only info and event counts before the first poll',
+  );
+
+  const cfg = { metrics: { enabled: true, token: 'abc123' } };
+  assert.equal(metrics.authorized('Bearer abc123', cfg), true);
+  assert.equal(metrics.authorized('bearer abc123', cfg), true);
+  for (const bad of [undefined, '', 'Bearer abc124', 'Bearer abc12', 'Basic abc123', 'abc123'])
+    assert.equal(metrics.authorized(bad, cfg), false, String(bad));
+  assert.equal(
+    metrics.authorized('Bearer ', { metrics: { enabled: true, token: '' } }),
+    false,
+    'no token set: nothing passes',
+  );
+});

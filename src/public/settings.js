@@ -61,6 +61,7 @@ async function load() {
   renderLayout(S.layout);
   renderAutoFix();
   renderAppearance();
+  renderMetrics(null);
   renderSecurity();
   loadStatus();
   // The page fills in after loading, so jump to a #section (e.g. #security from the dashboard) now.
@@ -1027,6 +1028,63 @@ $('logo-remove').addEventListener('click', async () => {
     renderLogo();
   } catch (err) {
     showError($('appearance-error'), err.message);
+  }
+});
+
+// --------------------------------------------------------------------- Prometheus metrics
+// The token is only in the reply that creates it, so it's shown once, right then.
+function renderMetrics(token) {
+  const m = S.metrics;
+  const f = $('metrics-form');
+  f.enabled.checked = m.enabled;
+  $('metrics-regen').hidden = !m.tokenSet;
+  const row = $('metrics-token-row');
+  if (token) {
+    row.innerHTML = `<span>Token <em>copy it now: it won't be shown again</em></span>
+      <div class="logo-row"><input id="metrics-token" readonly spellcheck="false"><button class="btn small" type="button" id="metrics-copy">Copy</button></div>`;
+    $('metrics-token').value = token;
+    $('metrics-copy').addEventListener('click', async () => {
+      $('metrics-token').select();
+      try {
+        await navigator.clipboard.writeText(token);
+        $('metrics-copy').textContent = 'Copied';
+      } catch {
+        /* not https: the text is selected, so Ctrl+C works */
+      }
+    });
+  } else {
+    row.innerHTML = m.tokenSet
+      ? '<small>A token is set. Lost it? Make a new one; the old one stops working.</small>'
+      : '<small>Saving with this on creates the token Prometheus needs.</small>';
+  }
+  $('metrics-example').textContent = `scrape_configs:
+  - job_name: media-ops
+    metrics_path: /metrics
+    authorization:
+      credentials: ${token || '<the token>'}
+    static_configs:
+      - targets: ['${location.host}']`;
+}
+$('metrics-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  showError($('metrics-error'), '');
+  try {
+    const r = await api('/metrics', { method: 'PUT', body: { enabled: e.target.enabled.checked } });
+    S.metrics = r.metrics;
+    renderMetrics(r.token);
+    flash($('metrics-saved'));
+  } catch (err) {
+    showError($('metrics-error'), err.message);
+  }
+});
+$('metrics-regen').addEventListener('click', async () => {
+  if (!confirm('Make a new token? Prometheus stops getting data until you give it the new one.')) return;
+  try {
+    const r = await api('/metrics/token', { method: 'POST' });
+    S.metrics = r.metrics;
+    renderMetrics(r.token);
+  } catch (err) {
+    showError($('metrics-error'), err.message);
   }
 });
 

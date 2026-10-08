@@ -75,6 +75,21 @@ test('dashboard: every card fills in from the demo data', async () => {
   await page.close();
 });
 
+test('stream map: a viewer without a location goes to Asgard, across the Bifröst', async () => {
+  const { page, problems } = await open('/');
+  await page.waitForSelector('#map svg .asgard');
+  const m = await page.evaluate(() => ({
+    bands: document.querySelectorAll('#map .bifrost .band').length,
+    label: [...document.querySelectorAll('#map .lbl.asgard')].map(e => e.textContent),
+    row: [...document.querySelectorAll('#viewers li')].find(li => li.querySelector('.sw.asgard'))?.textContent,
+  }));
+  assert.equal(m.bands, 6, 'six rainbow bands');
+  assert.deepEqual(m.label, ['Asgard']);
+  assert.match(m.row || '', /Asgard · location unknown · Jellyfin\/Emby/, 'the list still says why');
+  noProblems(problems);
+  await page.close();
+});
+
 test('live strip: hidden at the top, shown after scrolling, and its links land on the card', async () => {
   const { page, problems } = await open('/');
   await page.waitForSelector('.strip-item', { state: 'attached' }); // exists, but hidden at first

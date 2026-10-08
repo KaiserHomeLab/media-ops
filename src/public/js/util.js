@@ -142,7 +142,8 @@ export const mediaServers = services => services.filter(answered).filter(s => ME
 /** @param {ServiceState[]} services @returns {any[]} */
 export const allStreams = services =>
   mediaServers(services).flatMap(m => list(m.data.streams).map(st => ({ ...st, server: m.id })));
-// What the stream map needs: every stream, the server's location, and whether it's on.
+// What the stream map needs: every stream, the server's location, whether it's on, and whether
+// viewers it can't place go to Asgard.
 /** @param {ServiceState[]} services */
 export function mapSource(services) {
   const media = mediaServers(services);
@@ -151,6 +152,7 @@ export function mapSource(services) {
     streams: allStreams(services),
     home: media.find(m => m.data.home)?.data.home || null,
     enabled: media.some(m => m.data.mapEnabled !== false),
+    asgard: media.some(m => m.data.mapAsgard !== false),
   };
 }
 // A poster through the server's proxy (tokens stay on the server).

@@ -111,6 +111,8 @@
           <label class="field toggle"><input type="checkbox" name="checkUpdates"><span>Check for Media Ops updates</span>
             <small>Reads the current version from GitHub every 6 hours. Nothing about your server is sent.</small></label>
           <label class="field toggle wide"><input type="checkbox" name="mapEnabled"><span>Show the stream map</span></label>
+          <label class="field toggle wide"><input type="checkbox" name="mapAsgard"><span>Send viewers the map can't place to Asgard</span>
+            <small>A little joke: viewers without a location get a star in the sky, across a rainbow Bifröst from your server. The list next to the map still says why they couldn't be placed.</small></label>
           <label class="field wide"><span>Home location for the map <em>optional · latitude, longitude</em></span><input name="mapHome" placeholder="Found automatically from your Plex server, or type e.g. 41.88, -87.63" spellcheck="false">
             <small>Plex viewers are located city-level with Plex's own GeoIP service (the same one Tautulli uses), so IPs aren't sent anywhere else. Jellyfin and Emby viewers aren't looked up (that would send their addresses to Plex), so they show without a location. The map is visible to anyone who can open the dashboard.</small></label>
           <div class="form-error" id="general-error" hidden></div>

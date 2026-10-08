@@ -100,6 +100,7 @@ interface SettingsPayload {
     dockerSocket: string;
     mapEnabled: boolean;
     mapHome: string;
+    mapAsgard: boolean;
     uploadMbps: number | string;
     cleanupDays: number;
     checkUpdates: boolean;

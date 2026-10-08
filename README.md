@@ -63,7 +63,8 @@ the rest. Every screen, TV mode included, uses the same layout.
 
 **Settings → Appearance** sets light or dark (or follows each device), the accent color (Plex
 amber, Jellyfin purple, Emby green, blue, teal or red), your own title and logo, and the look of
-the status page. Every accent is checked for readable contrast in both light and dark, and the
+the status page, and whether the top bar shows a live summary (streams, download speed, apps up,
+errors) once you scroll down. Every accent is checked for readable contrast in both light and dark, and the
 up, warning and down colors never change, so a problem always looks like a problem.
 
 ## TV mode

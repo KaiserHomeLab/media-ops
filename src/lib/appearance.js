@@ -47,6 +47,7 @@ function settingsOf(cfg) {
     ),
     title: typeof a.title === 'string' ? a.title.slice(0, 40) : '',
     statusTheme: pick(a.statusTheme, THEMES, 'auto'),
+    liveStrip: a.liveStrip !== false,
     logo: a.logo?.data ? { type: a.logo.type, hash: a.logo.hash } : null,
   };
 }
@@ -65,6 +66,7 @@ function clean(input, current) {
     ),
     title,
     statusTheme: pick(input?.statusTheme, THEMES, 'auto'),
+    liveStrip: input?.liveStrip !== false,
     logo: current?.logo?.data ? current.logo : null,
   };
 }
@@ -93,7 +95,11 @@ const escapeHtml = s =>
 function renderPage(html, cfg, page) {
   const a = settingsOf(cfg);
   const theme = page === 'status' ? a.statusTheme : a.theme;
-  const attrs = [theme !== 'auto' && `data-theme="${theme}"`, a.accent !== 'amber' && `data-accent="${a.accent}"`]
+  const attrs = [
+    theme !== 'auto' && `data-theme="${theme}"`,
+    a.accent !== 'amber' && `data-accent="${a.accent}"`,
+    page === 'dashboard' && !a.liveStrip && 'data-strip="off"',
+  ]
     .filter(Boolean)
     .join(' ');
   let out = html;

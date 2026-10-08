@@ -61,6 +61,11 @@ memory, GPU load and your Docker containers.
 **Settings → Dashboard** lets you turn off the cards you never look at and change the order of
 the rest. Every screen, TV mode included, uses the same layout.
 
+**Settings → Appearance** sets light or dark (or follows each device), the accent color (Plex
+amber, Jellyfin purple, Emby green, blue, teal or red), your own title and logo, and the look of
+the status page. Every accent is checked for readable contrast in both light and dark, and the
+up, warning and down colors never change, so a problem always looks like a problem.
+
 ## TV mode
 
 A full-screen view for a spare tablet or TV. It sticks to what's worth seeing at a glance and

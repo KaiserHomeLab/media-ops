@@ -1,8 +1,10 @@
 /* SPDX-License-Identifier: MIT
  * Copyright (c) 2026 KaiserHomeLab
  *
- * Styles for both pages. Colors are tokens on :root: dark by default, light via
- * prefers-color-scheme. Chart series use a colorblind-checked categorical palette
+ * Styles for every page. Colors are tokens on :root: dark by default, light via
+ * prefers-color-scheme, or forced by data-theme="dark|light" on <html> (Settings → Appearance,
+ * written in by the server). data-accent swaps the accent: each preset has a dark-mode and a
+ * light-mode shade, both checked for 4.5:1 contrast as text and under button text (--on-accent). Chart series use a colorblind-checked categorical palette
  * (TV, Movies, Music), and status colors (good/warning/serious/critical) are only
  * ever shown next to an icon or label, never as the only signal.
  */
@@ -25,7 +27,10 @@
   --text-primary: #f4f3ee;
   --text-secondary: #c3c2b7;
   --text-muted: #8b8a80;
-  --accent: #e5a00d; /* Plex amber */
+  --accent-dark: #e5a00d; /* Plex amber */
+  --accent-light: #8f6200;
+  --accent: var(--accent-dark);
+  --on-accent: #1a1a19; /* text on an accent background */
   --series-1: #3987e5; /* TV */
   --series-2: #d95926; /* Movies */
   --series-3: #199e70; /* Music */
@@ -37,6 +42,8 @@
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
   --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+/* Light: from the system setting unless dark is forced, or forced light. Same values twice,
+   because one rule can't be both inside and outside the media query. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
     color-scheme: light;
@@ -47,12 +54,51 @@
     --text-primary: #0b0b0b;
     --text-secondary: #52514e;
     --text-muted: #77766f;
-    --accent: #b27a00;
+    --accent: var(--accent-light);
+    --on-accent: #fff;
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-3: #1baf7a;
     --track: #e7e6e1;
   }
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f3f2ee;
+  --surface-1: #fcfcfb;
+  --surface-2: #f0efec;
+  --line: #e2e1dc;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #77766f;
+  --accent: var(--accent-light);
+  --on-accent: #fff;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --track: #e7e6e1;
+}
+
+/* Accent presets (Settings → Appearance). */
+:root[data-accent='purple'] {
+  --accent-dark: #b98cf0;
+  --accent-light: #7a3fbf;
+}
+:root[data-accent='green'] {
+  --accent-dark: #5cc46a;
+  --accent-light: #2c7a35;
+}
+:root[data-accent='blue'] {
+  --accent-dark: #6aa6f2;
+  --accent-light: #1f63c7;
+}
+:root[data-accent='teal'] {
+  --accent-dark: #3cc4b2;
+  --accent-light: #00756a;
+}
+:root[data-accent='red'] {
+  --accent-dark: #f07a70;
+  --accent-light: #c0302a;
 }
 
 * {
@@ -115,6 +161,10 @@ button {
   flex: none;
   clip-path: none;
   position: relative;
+}
+img.logo {
+  object-fit: cover;
+  background: none;
 }
 .logo::after {
   content: '';
@@ -1414,7 +1464,7 @@ table.data th {
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #1a1a19;
+  color: var(--on-accent);
 }
 .btn.primary:hover {
   filter: brightness(1.08);
@@ -2922,11 +2972,22 @@ body.tv .rq-acts {
   margin: 0 auto;
   padding: 48px 16px 32px;
 }
+.stp-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.stp-brand .logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
 .stp-head h1 {
   font-size: 26px;
   font-weight: 650;
   letter-spacing: -0.01em;
-  margin: 0 0 14px;
+  margin: 0;
 }
 .stp-overall {
   margin: 0;
@@ -3069,4 +3130,66 @@ body.tv .rq-acts {
 }
 .fix-log li.bad b {
   color: var(--critical);
+}
+
+/* settings: appearance */
+fieldset.events.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.swatch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.swatch i {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sw-dark);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) .swatch i {
+    background: var(--sw-light);
+  }
+}
+:root[data-theme='light'] .swatch i {
+  background: var(--sw-light);
+}
+.swatch:has(input:checked) {
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--text-primary);
+}
+.swatch:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-preview img {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
 }

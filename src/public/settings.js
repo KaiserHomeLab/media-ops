@@ -60,6 +60,7 @@ async function load() {
   renderGeneral();
   renderLayout(S.layout);
   renderAutoFix();
+  renderAppearance();
   renderSecurity();
   loadStatus();
   // The page fills in after loading, so jump to a #section (e.g. #security from the dashboard) now.
@@ -927,6 +928,98 @@ $('layout-save').addEventListener('click', async () => {
     flash($('layout-saved'));
   } catch (err) {
     showError($('layout-error'), err.message);
+  }
+});
+
+// --------------------------------------------------------------------- appearance
+// Theme and accent preview on this page as soon as they're picked (the server writes the saved
+// ones into every page); Save keeps them.
+function previewAppearance(theme, accent) {
+  const root = document.documentElement;
+  if (theme === 'auto') delete root.dataset.theme;
+  else root.dataset.theme = theme;
+  if (accent === 'amber') delete root.dataset.accent;
+  else root.dataset.accent = accent;
+}
+function renderAppearance() {
+  const a = S.appearance;
+  const f = $('appearance-form');
+  f.querySelector(`[name=theme][value="${a.theme}"]`).checked = true;
+  f.querySelector(`[name=statusTheme][value="${a.statusTheme}"]`).checked = true;
+  f.title.value = a.title;
+  $('accent-swatches').innerHTML = S.accents
+    .map(
+      x =>
+        `<label class="swatch" title="${esc(x.label)}"><input type="radio" name="accent" value="${esc(x.id)}" ${x.id === a.accent ? 'checked' : ''}><i style="--sw-dark:${esc(x.dark)};--sw-light:${esc(x.light)}" aria-hidden="true"></i><span>${esc(x.label)}</span></label>`,
+    )
+    .join('');
+  renderLogo();
+}
+function renderLogo() {
+  const logo = S.appearance.logo;
+  $('logo-preview').innerHTML = logo ? `<img src="/branding/logo?v=${esc(logo.hash)}" alt="Current logo">` : '';
+  $('logo-remove').hidden = !logo;
+  // The header logo here too.
+  const head = document.querySelector('header.top .logo');
+  if (head) {
+    const next = logo
+      ? Object.assign(document.createElement('img'), {
+          className: 'logo custom',
+          alt: '',
+          src: `/branding/logo?v=${logo.hash}`,
+        })
+      : Object.assign(document.createElement('span'), { className: 'logo' });
+    if (!logo) next.setAttribute('aria-hidden', 'true');
+    head.replaceWith(next);
+  }
+}
+$('appearance-form').addEventListener('change', e => {
+  if (e.target.name === 'theme' || e.target.name === 'accent') {
+    const f = $('appearance-form');
+    previewAppearance(f.theme.value, f.accent.value);
+  }
+});
+$('appearance-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  showError($('appearance-error'), '');
+  try {
+    const r = await api('/appearance', {
+      method: 'PUT',
+      body: { theme: f.theme.value, accent: f.accent.value, title: f.title.value, statusTheme: f.statusTheme.value },
+    });
+    S.appearance = r.appearance;
+    document.querySelector('header.top .sub').textContent = S.appearance.title || 'Media Ops';
+    flash($('appearance-saved'));
+  } catch (err) {
+    showError($('appearance-error'), err.message);
+  }
+});
+$('logo-file').addEventListener('change', async e => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  if (!file) return;
+  showError($('appearance-error'), '');
+  if (file.size > 256 * 1024) return showError($('appearance-error'), 'The logo must be 256 KB or smaller');
+  try {
+    const data = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = () => reject(new Error("Couldn't read that file"));
+      r.readAsDataURL(file);
+    });
+    S.appearance = (await api('/logo', { method: 'PUT', body: { data } })).appearance;
+    renderLogo();
+  } catch (err) {
+    showError($('appearance-error'), err.message);
+  }
+});
+$('logo-remove').addEventListener('click', async () => {
+  try {
+    S.appearance = (await api('/logo', { method: 'DELETE' })).appearance;
+    renderLogo();
+  } catch (err) {
+    showError($('appearance-error'), err.message);
   }
 });
 

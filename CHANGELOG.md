@@ -5,9 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/): a new feature bu
 number, a fix the last one.
 
 To stay on one version instead of `latest`, use a version tag such as
-`ghcr.io/kaiserhomelab/media-ops:1.17` (gets fixes, not new features) or `:1.17.0` (never changes).
+`ghcr.io/kaiserhomelab/media-ops:1.18` (gets fixes, not new features) or `:1.18.0` (never changes).
 
 ## [Unreleased]
+
+## [1.18.0] - 2026-10-08
 
 ### Added
 
@@ -19,8 +21,8 @@ To stay on one version instead of `latest`, use a version tag such as
   bar shows it at all times, and you're alerted when the tunnel drops or a site stops loading.
   Settings finds cloudflared in Docker.
 - Stream map: viewers it can't place now go to Asgard, a gold star in the sky, joined to your
-  server by the Bifröst: a glowing beam of light with sparks racing up it. The list beside the map still says why each one couldn't be
-  placed. Not a fan? Turn it off in Settings → General.
+  server by the Bifröst: a glowing beam of light with sparks racing up it. The list beside the
+  map still says why each one couldn't be placed. Not a fan? Turn it off in Settings → General.
 
 ### Changed
 
@@ -236,7 +238,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 First public release.
 
-[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.17.0...HEAD
+[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.1...v1.16.0
 [1.15.1]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.0...v1.15.1

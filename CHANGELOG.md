@@ -18,7 +18,8 @@ To stay on one version instead of `latest`, use a version tag such as
   Settings password when one is set), and the card shows who has watched a title since it was
   queued and whether you've Kept it before. **Remove** sends a title to Media Review's pinned
   "Leaving Soon" collection in Plex, and the card lists what's Leaving Soon with the days left and
-  **Keep after all**. Nothing is deleted from Media Ops.
+  **Keep after all**. Nothing is deleted from Media Ops. When Media Review couldn't delete a
+  Leaving Soon title overnight, the card says why.
 
 ## [1.18.0] - 2026-10-08
 

@@ -614,6 +614,7 @@ function overview(realHost) {
               library: 'Movies',
               endsAt: ago(-9 * 24 * 60), // nine days from now
               daysLeft: 9,
+              deleteError: null,
             },
           ],
         },

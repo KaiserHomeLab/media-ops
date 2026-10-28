@@ -227,13 +227,31 @@ export function renderRequests(seerrs) {
 
 // --------------------------------------------------------------------- Media Review queue
 // Titles friends have Downvoted past Media Review's threshold. Media Review decides what's here;
-// this only shows it, with who Downvoted and how much each vote weighed, and sends the Owner's Keep back.
+// this only shows it, with who Downvoted and how much each vote weighed, and sends the Owner's Keep or Remove
+// back. Removed titles are listed under Leaving Soon, with Keep after all.
 /** @param {Answered[]} reviews */
 export function renderReviewQueue(reviews) {
   const queue = reviews.flatMap(s => list(s.data.reviewQueue).map(q => ({ ...q, svcId: s.id })));
+  const leaving = reviews.flatMap(s => list(s.data.leavingSoon).map(l => ({ ...l, svcId: s.id })));
   $('review-card').hidden = !reviews.length;
-  $('review-count').textContent = queue.length ? `${queue.length} to decide` : 'nothing to decide';
-  if (rollUp('review-card', !queue.length)) return;
+  $('review-count').textContent =
+    (queue.length ? `${queue.length} to decide` : 'nothing to decide') +
+    (leaving.length ? ` · ${leaving.length} leaving soon` : '');
+  if (rollUp('review-card', !queue.length && !leaving.length)) return;
+  $('review-leaving-h').hidden = !leaving.length;
+  setHTML(
+    $('review-leaving'),
+    leaving
+      .map(
+        l => `<li>
+      <div class="rq-main"><b>${esc(l.title)}</b>${l.year ? ` <span class="muted">(${esc(l.year)})</span>` : ''}
+        <span class="chip">${esc(l.library || (l.kind === 'show' ? 'Show' : 'Movie'))}</span>
+        <div class="muted">${l.daysLeft <= 0 ? 'leaves today' : l.daysLeft === 1 ? 'leaves tomorrow' : `leaves in ${esc(l.daysLeft)} days`}</div></div>
+      <div class="rq-acts"><button class="btn small" type="button" data-rv="leaving-keep" data-svc="${esc(l.svcId)}" data-id="${esc(l.ratingKey)}" data-title="${esc(l.title)}">Keep after all</button></div>
+    </li>`,
+      )
+      .join(''),
+  );
   setHTML(
     $('review'),
     queue
@@ -249,7 +267,8 @@ export function renderReviewQueue(reviews) {
             ? `<div class="muted">Watched it since: ${list(q.watchedSince).map(esc).join(', ')}</div>`
             : ''
         }${q.kept ? `<div class="muted">Kept ${q.kept === 1 ? 'once' : `${esc(q.kept)} times`} before</div>` : ''}</div>
-      <div class="rq-acts"><button class="btn small" type="button" data-rv="keep" data-svc="${esc(q.svcId)}" data-id="${esc(q.ratingKey)}" data-title="${esc(q.title)}">Keep</button></div>
+      <div class="rq-acts"><button class="btn small" type="button" data-rv="keep" data-svc="${esc(q.svcId)}" data-id="${esc(q.ratingKey)}" data-title="${esc(q.title)}">Keep</button>
+        <button class="btn small danger" type="button" data-rv="remove" data-svc="${esc(q.svcId)}" data-id="${esc(q.ratingKey)}" data-title="${esc(q.title)}">Remove</button></div>
     </li>`,
       )
       .join('') || '<li class="empty">Nothing waiting for review.</li>',

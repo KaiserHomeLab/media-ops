@@ -19,6 +19,7 @@ async function mediareview(cfg) {
     title: e.title?.name || 'Unknown title',
     year: e.title?.year ?? null,
     kind: e.title?.kind === 'show' ? 'show' : 'movie',
+    library: e.title?.library ? String(e.title.library) : null, // the Plex library: Movies, TV Shows, Anime…
     queuedAt: e.queuedAt,
     audience: e.audience,
     audienceWeight: e.audienceWeight,

@@ -240,7 +240,7 @@ export function renderReviewQueue(reviews) {
       .map(
         q => `<li>
       <div class="rq-main"><b>${esc(q.title)}</b>${q.year ? ` <span class="muted">(${esc(q.year)})</span>` : ''}
-        <span class="chip">${q.kind === 'show' ? 'Show' : 'Movie'}</span>
+        <span class="chip">${esc(q.library || (q.kind === 'show' ? 'Show' : 'Movie'))}</span>
         <div class="muted">${esc(num(q.downvoteWeight))} of ${esc(num(q.audienceWeight))} weight from an Audience of ${esc(q.audience)} · queued ${ago(new Date(q.queuedAt).getTime())}</div>
         <div class="muted">Downvoted by ${list(q.downvotes)
           .map(d => `${esc(d.voter)} (${esc(num(d.voteWeight))})`)

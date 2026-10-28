@@ -458,7 +458,7 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
         ? {
             reviewQueue: [
               {
-                title: { ratingKey: '500', kind: 'movie', name: 'Dull Movie', year: 2020 },
+                title: { ratingKey: '500', kind: 'movie', name: 'Dull Movie', year: 2020, library: 'Movies' },
                 queuedAt: '2026-10-28T21:20:40.000Z',
                 audience: 3,
                 audienceWeight: 9,
@@ -482,6 +482,7 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
     title: 'Dull Movie',
     year: 2020,
     kind: 'movie',
+    library: 'Movies',
     queuedAt: '2026-10-28T21:20:40.000Z',
     audience: 3,
     audienceWeight: 9,

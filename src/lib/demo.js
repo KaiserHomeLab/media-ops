@@ -591,6 +591,7 @@ function overview(realHost) {
               title: 'The Long Hallway',
               year: 2019,
               kind: 'movie',
+              library: 'Movies',
               queuedAt: ago(95),
               audience: 4,
               audienceWeight: 10.4,

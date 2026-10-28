@@ -9,6 +9,13 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Added
+
+- Media Review (optional): a Review Queue card listing the titles your Plex friends have
+  Downvoted past Media Review's threshold, with who Downvoted each and how much each vote
+  weighed. Add it under Settings → Add app → Media Review. Media Review keeps all the rules;
+  Media Ops only shows the queue. Keep and Remove from the card come in a later release.
+
 ## [1.18.0] - 2026-10-08
 
 ### Added

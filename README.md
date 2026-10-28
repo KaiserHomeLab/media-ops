@@ -280,7 +280,7 @@ options work:
 Media Ops is free and open source under the [MIT License](LICENSE).
 
 It's only possible because of the apps it talks to: Plex, Jellyfin, Emby, Sonarr, Radarr, Lidarr, Readarr,
-Prowlarr, Bazarr, Tautulli, Seerr, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
+Prowlarr, Bazarr, Tautulli, Seerr, Media Review, SABnzbd, NZBGet, qBittorrent, Transmission, Deluge, Clonarr,
 TRaSH Guides, cloudflared, Unraid and TrueNAS. Thanks also to linuxserver.io for the base image. Media Ops only uses their public
 APIs and doesn't include any of their code. Licenses and links are in
 [THIRD-PARTY-NOTICES.md](src/THIRD-PARTY-NOTICES.md).

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 KaiserHomeLab
 //
-// Downloads, coming up, indexer limits, recently added and Seerr requests.
+// Downloads, coming up, indexer limits, recently added, Seerr requests and the Media Review queue.
 import {
   $,
   ago,
@@ -222,5 +222,31 @@ export function renderRequests(seerrs) {
     </li>`,
       )
       .join('') || '<li class="empty">No requests waiting. 🎉</li>',
+  );
+}
+
+// --------------------------------------------------------------------- Media Review queue
+// Titles friends have Downvoted past Media Review's threshold. Media Review decides what's here;
+// this only shows it, with who Downvoted and how much each vote weighed.
+/** @param {Answered[]} reviews */
+export function renderReviewQueue(reviews) {
+  const queue = reviews.flatMap(s => list(s.data.reviewQueue));
+  $('review-card').hidden = !reviews.length;
+  $('review-count').textContent = queue.length ? `${queue.length} to decide` : 'nothing to decide';
+  if (rollUp('review-card', !queue.length)) return;
+  setHTML(
+    $('review'),
+    queue
+      .map(
+        q => `<li>
+      <div class="rq-main"><b>${esc(q.title)}</b>${q.year ? ` <span class="muted">(${esc(q.year)})</span>` : ''}
+        <span class="chip">${q.kind === 'show' ? 'Show' : 'Movie'}</span>
+        <div class="muted">${esc(num(q.downvoteWeight))} of ${esc(num(q.audienceWeight))} weight from an Audience of ${esc(q.audience)} · queued ${ago(new Date(q.queuedAt).getTime())}</div>
+        <div class="muted">Downvoted by ${list(q.downvotes)
+          .map(d => `${esc(d.voter)} (${esc(num(d.voteWeight))})`)
+          .join(', ')}</div></div>
+    </li>`,
+      )
+      .join('') || '<li class="empty">Nothing waiting for review.</li>',
   );
 }

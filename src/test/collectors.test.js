@@ -449,6 +449,49 @@ test('tautulli: home stats and plays by date', async t => {
   assert.deepEqual(r.data.playsByDate.series[0].data, [3, 5]);
 });
 
+test('mediareview: Review Queue with each Downvote, API key in the header', async t => {
+  const srv = await fakeServer({
+    '/api/v1/status': req =>
+      req.headers['x-api-key'] === 'mk' ? { app: 'media-review', version: '0.1.0' } : { status: 401 },
+    '/api/v1/review-queue': req =>
+      req.headers['x-api-key'] === 'mk'
+        ? {
+            reviewQueue: [
+              {
+                title: { ratingKey: '500', kind: 'movie', name: 'Dull Movie', year: 2020 },
+                queuedAt: '2026-10-28T21:20:40.000Z',
+                audience: 3,
+                audienceWeight: 9,
+                downvoteWeight: 6,
+                downvotes: [
+                  { voter: 'alice', voteWeight: 3, inAudience: true },
+                  { voter: 'bob', voteWeight: 3, inAudience: true },
+                ],
+              },
+            ],
+          }
+        : { status: 401 },
+  });
+  t.after(() => srv.close());
+  const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
+  assert.equal(r.version, '0.1.0');
+  assert.deepEqual(r.data.reviewQueue[0], {
+    ratingKey: '500',
+    title: 'Dull Movie',
+    year: 2020,
+    kind: 'movie',
+    queuedAt: '2026-10-28T21:20:40.000Z',
+    audience: 3,
+    audienceWeight: 9,
+    downvoteWeight: 6,
+    downvotes: [
+      { voter: 'alice', voteWeight: 3 },
+      { voter: 'bob', voteWeight: 3 },
+    ],
+  });
+  await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));
+});
+
 test('clonarr: widget summary, and graceful fallback when the endpoint is missing', async t => {
   const full = await fakeServer({
     '/api/widget/summary': req => (req.headers['x-api-key'] === 'ck' ? fixture('clonarr-summary') : { status: 401 }),

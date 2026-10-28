@@ -453,6 +453,23 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
   const srv = await fakeServer({
     '/api/v1/status': req =>
       req.headers['x-api-key'] === 'mk' ? { app: 'media-review', version: '0.1.0' } : { status: 401 },
+    '/api/v1/leaving-soon': req =>
+      req.headers['x-api-key'] === 'mk'
+        ? {
+            leavingSoon: [
+              {
+                ratingKey: '600',
+                kind: 'show',
+                name: 'Slow Show',
+                year: 2019,
+                library: 'Anime',
+                removedAt: '2026-10-20T10:00:00.000Z',
+                endsAt: '2026-11-03T10:00:00.000Z',
+                daysLeft: 6,
+              },
+            ],
+          }
+        : { status: 401 },
     '/api/v1/review-queue': req =>
       req.headers['x-api-key'] === 'mk'
         ? {
@@ -494,7 +511,28 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
     watchedSince: ['bob'],
     kept: 1,
   });
+  assert.deepEqual(r.data.leavingSoon, [
+    {
+      ratingKey: '600',
+      title: 'Slow Show',
+      year: 2019,
+      kind: 'show',
+      library: 'Anime',
+      endsAt: '2026-11-03T10:00:00.000Z',
+      daysLeft: 6,
+    },
+  ]);
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));
+});
+
+test('mediareview: an older Media Review without Leaving Soon still shows its queue', async t => {
+  const srv = await fakeServer({
+    '/api/v1/status': { app: 'media-review', version: '0.1.0' },
+    '/api/v1/review-queue': { reviewQueue: [] },
+  });
+  t.after(() => srv.close());
+  const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
+  assert.deepEqual(r.data, { reviewQueue: [], leavingSoon: [] });
 });
 
 test('clonarr: widget summary, and graceful fallback when the endpoint is missing', async t => {

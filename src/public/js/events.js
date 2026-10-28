@@ -199,7 +199,12 @@ document.addEventListener('click', e => {
     );
   }
   if ('rv' in b.dataset) {
-    if (!confirm(`Keep ${b.dataset.title}? All its Downvotes are cleared, so it starts again from zero.`)) return;
+    const question = /** @type {Record<string, string>} */ ({
+      keep: `Keep ${b.dataset.title}? All its Downvotes are cleared, so it starts again from zero.`,
+      remove: `Remove ${b.dataset.title}? It goes to Leaving Soon, pinned in Plex for everyone, and only then is it deleted.`,
+      'leaving-keep': `Keep ${b.dataset.title} after all? It leaves Leaving Soon, and its Downvotes are cleared.`,
+    })[String(b.dataset.rv)];
+    if (!question || !confirm(question)) return;
     return runAction(b, () =>
       post(`/services/${encodeURIComponent(String(b.dataset.svc))}/review-${b.dataset.rv}`, {
         ratingKey: b.dataset.id,

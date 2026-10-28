@@ -29,9 +29,10 @@ async function eventsApi(req, res, route) {
     return send(res, 200, { ok: true });
   }
 
-  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep)
+  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|
+  //   review-remove|review-leaving-keep)
   const m =
-    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep)$/.exec(
+    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep)$/.exec(
       route,
     );
   if (!m) return send(res, 404, { error: 'Not found' });
@@ -60,6 +61,8 @@ async function eventsApi(req, res, route) {
       'request-approve': () => actions.seerrRequest(svc, body.requestId, 'approve'),
       'request-decline': () => actions.seerrRequest(svc, body.requestId, 'decline'),
       'review-keep': () => actions.reviewDecision(svc, body.ratingKey, 'keep'),
+      'review-remove': () => actions.reviewDecision(svc, body.ratingKey, 'remove'),
+      'review-leaving-keep': () => actions.reviewDecision(svc, body.ratingKey, 'leaving-keep'),
     };
     const message = await runs[action]();
     invalidate(); // re-fetch logs/health right away

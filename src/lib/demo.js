@@ -605,6 +605,17 @@ function overview(realHost) {
               kept: 1,
             },
           ],
+          leavingSoon: [
+            {
+              ratingKey: '51277',
+              title: 'Beige Horizon',
+              year: 2021,
+              kind: 'movie',
+              library: 'Movies',
+              endsAt: ago(-9 * 24 * 60), // nine days from now
+              daysLeft: 9,
+            },
+          ],
         },
       }),
       svc('seerr', 'Seerr', '3.0.1', {

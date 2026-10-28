@@ -145,16 +145,23 @@ async function seerrRequest(svc, requestId, decision) {
   return decision === 'approve' ? 'Request approved' : 'Request declined';
 }
 
-// The Owner's decision on a Title in Media Review's Review Queue. Media Review carries it out.
+// The Owner's decision on a Title in Media Review. Media Review carries it out. keep and remove are
+// for the Review Queue; leaving-keep is Keep after all, for a Title Leaving Soon.
+const REVIEW = /** @type {Record<string, [string, string]>} */ ({
+  keep: ['/review-queue/{id}/keep', 'Kept: its Downvotes are cleared'],
+  remove: ['/review-queue/{id}/remove', 'Removed: Leaving Soon in Plex until it is deleted'],
+  'leaving-keep': ['/leaving-soon/{id}/keep', 'Kept after all: it is no longer Leaving Soon'],
+});
 /** @param {import('./types').Service} svc @param {unknown} ratingKey @param {string} decision */
 async function reviewDecision(svc, ratingKey, decision) {
   if (svc.kind !== 'mediareview') throw Object.assign(new Error('Not Media Review'), { status: 400 });
-  if (decision !== 'keep' || !isId(ratingKey)) throw Object.assign(new Error('Bad request'), { status: 400 });
-  await req(join(svc.url, `/api/v1/review-queue/${Number(ratingKey)}/${decision}`), {
+  const how = Object.hasOwn(REVIEW, decision) ? REVIEW[decision] : null;
+  if (!how || !isId(ratingKey)) throw Object.assign(new Error('Bad request'), { status: 400 });
+  await req(join(svc.url, `/api/v1${how[0].replace('{id}', String(Number(ratingKey)))}`), {
     method: 'POST',
     headers: { 'X-Api-Key': svc.apiKey || '' },
   });
-  return 'Kept: its Downvotes are cleared';
+  return how[1];
 }
 
 module.exports = { capabilities, clear, recheck, stopStream, queueRetry, queueRemove, seerrRequest, reviewDecision };

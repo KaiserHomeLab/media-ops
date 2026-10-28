@@ -121,7 +121,7 @@ test('seerr: pending requests get titles; approve posts to /request/:id/approve'
   await assert.rejects(actions.seerrRequest({ kind: 'seerr', url: srv.url, apiKey: 'k' }, 41, 'delete'), /Bad request/);
 });
 
-test('mediareview: Keep goes to Media Review with the API key; only Keep, only numeric rating keys', async t => {
+test('mediareview: Keep, Remove and Keep after all go to Media Review with the API key; only those, only numeric rating keys', async t => {
   const srv = await fakeServer({ 'POST /api/v1/review-queue/500/keep': { kept: true } });
   t.after(() => srv.close());
   const svc = { kind: 'mediareview', url: srv.url, apiKey: 'mk' };
@@ -131,7 +131,20 @@ test('mediareview: Keep goes to Media Review with the API key; only Keep, only n
       x => x.method === 'POST' && x.path === '/api/v1/review-queue/500/keep' && x.headers['x-api-key'] === 'mk',
     ),
   );
+  const removeSrv = await fakeServer({
+    'POST /api/v1/review-queue/500/remove': { removed: true },
+    'POST /api/v1/leaving-soon/500/keep': { kept: true },
+  });
+  t.after(() => removeSrv.close());
+  const svc2 = { ...svc, url: removeSrv.url };
+  assert.match(await actions.reviewDecision(svc2, '500', 'remove'), /^Removed/);
+  assert.match(await actions.reviewDecision(svc2, '500', 'leaving-keep'), /^Kept after all/);
+  assert.deepEqual(
+    removeSrv.calls.map(x => `${x.method} ${x.path} ${x.headers['x-api-key']}`),
+    ['POST /api/v1/review-queue/500/remove mk', 'POST /api/v1/leaving-soon/500/keep mk'],
+  );
   await assert.rejects(actions.reviewDecision(svc, '500', 'delete'), /Bad request/);
+  await assert.rejects(actions.reviewDecision(svc, '500', 'toString'), /Bad request/);
   for (const bad of ['', '-1', '1/../2', '5e3'])
     await assert.rejects(actions.reviewDecision(svc, bad, 'keep'), /Bad request/);
   await assert.rejects(actions.reviewDecision({ ...svc, kind: 'seerr' }, '500', 'keep'), /Not Media Review/);

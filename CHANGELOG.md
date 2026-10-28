@@ -16,7 +16,9 @@ To stay on one version instead of `latest`, use a version tag such as
   weighed. Add it under Settings → Add app → Media Review. Media Review keeps all the rules;
   Media Ops only shows the queue. **Keep** on the card sends your decision back (behind the
   Settings password when one is set), and the card shows who has watched a title since it was
-  queued and whether you've Kept it before. Remove comes in a later release.
+  queued and whether you've Kept it before. **Remove** sends a title to Media Review's pinned
+  "Leaving Soon" collection in Plex, and the card lists what's Leaving Soon with the days left and
+  **Keep after all**. Nothing is deleted from Media Ops.
 
 ## [1.18.0] - 2026-10-08
 

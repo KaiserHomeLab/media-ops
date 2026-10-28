@@ -227,10 +227,10 @@ export function renderRequests(seerrs) {
 
 // --------------------------------------------------------------------- Media Review queue
 // Titles friends have Downvoted past Media Review's threshold. Media Review decides what's here;
-// this only shows it, with who Downvoted and how much each vote weighed.
+// this only shows it, with who Downvoted and how much each vote weighed, and sends the Owner's Keep back.
 /** @param {Answered[]} reviews */
 export function renderReviewQueue(reviews) {
-  const queue = reviews.flatMap(s => list(s.data.reviewQueue));
+  const queue = reviews.flatMap(s => list(s.data.reviewQueue).map(q => ({ ...q, svcId: s.id })));
   $('review-card').hidden = !reviews.length;
   $('review-count').textContent = queue.length ? `${queue.length} to decide` : 'nothing to decide';
   if (rollUp('review-card', !queue.length)) return;
@@ -240,11 +240,16 @@ export function renderReviewQueue(reviews) {
       .map(
         q => `<li>
       <div class="rq-main"><b>${esc(q.title)}</b>${q.year ? ` <span class="muted">(${esc(q.year)})</span>` : ''}
-        <span class="chip">${q.kind === 'show' ? 'Show' : 'Movie'}</span>
+        <span class="chip">${esc(q.library || (q.kind === 'show' ? 'Show' : 'Movie'))}</span>
         <div class="muted">${esc(num(q.downvoteWeight))} of ${esc(num(q.audienceWeight))} weight from an Audience of ${esc(q.audience)} · queued ${ago(new Date(q.queuedAt).getTime())}</div>
         <div class="muted">Downvoted by ${list(q.downvotes)
           .map(d => `${esc(d.voter)} (${esc(num(d.voteWeight))})`)
-          .join(', ')}</div></div>
+          .join(', ')}</div>${
+          list(q.watchedSince).length
+            ? `<div class="muted">Watched it since: ${list(q.watchedSince).map(esc).join(', ')}</div>`
+            : ''
+        }${q.kept ? `<div class="muted">Kept ${q.kept === 1 ? 'once' : `${esc(q.kept)} times`} before</div>` : ''}</div>
+      <div class="rq-acts"><button class="btn small" type="button" data-rv="keep" data-svc="${esc(q.svcId)}" data-id="${esc(q.ratingKey)}" data-title="${esc(q.title)}">Keep</button></div>
     </li>`,
       )
       .join('') || '<li class="empty">Nothing waiting for review.</li>',

@@ -19,11 +19,15 @@ async function mediareview(cfg) {
     title: e.title?.name || 'Unknown title',
     year: e.title?.year ?? null,
     kind: e.title?.kind === 'show' ? 'show' : 'movie',
+    library: e.title?.library ? String(e.title.library) : null, // the Plex library: Movies, TV Shows, Anime…
     queuedAt: e.queuedAt,
     audience: e.audience,
     audienceWeight: e.audienceWeight,
     downvoteWeight: e.downvoteWeight,
     downvotes: list(e.downvotes).map(d => ({ voter: String(d.voter), voteWeight: d.voteWeight })),
+    // Downvotes are frozen once queued; these downvoters have watched it since.
+    watchedSince: list(e.watchedSinceQueued).map(w => String(w.voter)),
+    kept: list(e.history).filter(h => h.decision === 'keep').length,
   }));
   return { version: status.version, latency, data: { reviewQueue } };
 }

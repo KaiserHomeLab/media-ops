@@ -2,7 +2,7 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // What the dashboard can do besides reading: dismiss errors, clear an app's log, re-check,
-// stop a stream, retry or replace a download, approve requests, and the poster proxy.
+// stop a stream, retry or replace a download, approve requests, Keep a Media Review title, and the poster proxy.
 'use strict';
 const config = require('./config');
 const feed = require('./events');
@@ -29,9 +29,11 @@ async function eventsApi(req, res, route) {
     return send(res, 200, { ok: true });
   }
 
-  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline)
+  // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep)
   const m =
-    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline)$/.exec(route);
+    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep)$/.exec(
+      route,
+    );
   if (!m) return send(res, 404, { error: 'Not found' });
   const [, id, action] = m;
   // Anything that changes or deletes something inside an app is behind the settings password
@@ -57,6 +59,7 @@ async function eventsApi(req, res, route) {
       'queue-remove': () => actions.queueRemove(svc, body.queueId),
       'request-approve': () => actions.seerrRequest(svc, body.requestId, 'approve'),
       'request-decline': () => actions.seerrRequest(svc, body.requestId, 'decline'),
+      'review-keep': () => actions.reviewDecision(svc, body.ratingKey, 'keep'),
     };
     const message = await runs[action]();
     invalidate(); // re-fetch logs/health right away

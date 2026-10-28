@@ -172,7 +172,7 @@ async function runAction(el, fn) {
 document.addEventListener('click', e => {
   const b = closest(
     e,
-    '[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed],[data-stop],[data-qretry],[data-qremove],[data-rq]',
+    '[data-dismiss],[data-dismiss-all],[data-restore],[data-recheck],[data-clear],[data-toggle-dismissed],[data-stop],[data-qretry],[data-qremove],[data-rq],[data-rv]',
   );
   if (!b) return;
   e.preventDefault(); // buttons inside <summary> must not toggle the row
@@ -195,6 +195,14 @@ document.addEventListener('click', e => {
     return runAction(b, () =>
       post(`/services/${encodeURIComponent(String(b.dataset.svc))}/request-${b.dataset.rq}`, {
         requestId: Number(b.dataset.id),
+      }),
+    );
+  }
+  if ('rv' in b.dataset) {
+    if (!confirm(`Keep ${b.dataset.title}? All its Downvotes are cleared, so it starts again from zero.`)) return;
+    return runAction(b, () =>
+      post(`/services/${encodeURIComponent(String(b.dataset.svc))}/review-${b.dataset.rv}`, {
+        ratingKey: b.dataset.id,
       }),
     );
   }

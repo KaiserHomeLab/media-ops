@@ -14,6 +14,7 @@ const { jellyfin, emby } = require('./jellyfin');
 const { tautulli } = require('./tautulli');
 const { bazarr } = require('./bazarr');
 const { overseerr } = require('./seerr');
+const { mediareview } = require('./mediareview');
 const { sabnzbd } = require('./sabnzbd');
 const { nzbget } = require('./nzbget');
 const { qbittorrent } = require('./qbittorrent');
@@ -40,6 +41,7 @@ module.exports = {
   overseerr,
   jellyseerr: overseerr,
   seerr: overseerr,
+  mediareview,
   sabnzbd,
   nzbget,
   qbittorrent,

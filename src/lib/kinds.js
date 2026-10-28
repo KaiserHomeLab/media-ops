@@ -103,6 +103,14 @@ const KINDS = [
     port: 5055,
     fields: [apiKey('Settings → General → API Key. (Overseerr and Jellyseerr work too.)')],
   },
+  {
+    kind: 'mediareview',
+    label: 'Media Review',
+    group: 'Requests',
+    port: 8485,
+    note: 'Titles your Plex friends have Downvoted, waiting for your decision.',
+    fields: [apiKey('Sign in to Media Review as the server owner → API key → Generate a key.')],
+  },
 
   {
     kind: 'sabnzbd',

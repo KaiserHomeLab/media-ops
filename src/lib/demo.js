@@ -583,6 +583,27 @@ function overview(realHost) {
           ],
         },
       }),
+      svc('mediareview', 'Media Review', '0.1.0', {
+        data: {
+          reviewQueue: [
+            {
+              ratingKey: '48211',
+              title: 'The Long Hallway',
+              year: 2019,
+              kind: 'movie',
+              queuedAt: ago(95),
+              audience: 4,
+              audienceWeight: 10.4,
+              downvoteWeight: 6.1,
+              downvotes: [
+                { voter: 'jordan', voteWeight: 2.9 },
+                { voter: 'sam', voteWeight: 2.6 },
+                { voter: 'alex', voteWeight: 0.6 },
+              ],
+            },
+          ],
+        },
+      }),
       svc('seerr', 'Seerr', '3.0.1', {
         data: {
           update: { version: null, behind: 4 },

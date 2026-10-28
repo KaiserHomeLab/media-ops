@@ -4,7 +4,14 @@
 // Dashboard entry point: polls /api/overview, renders every card, and starts TV mode when
 // the address asks for it (?tv=1).
 import { renderTrends, renderWatch } from './charts.js';
-import { renderDownloads, renderIndexers, renderRecent, renderRequests, renderUpcoming } from './downloads.js';
+import {
+  renderDownloads,
+  renderIndexers,
+  renderRecent,
+  renderRequests,
+  renderReviewQueue,
+  renderUpcoming,
+} from './downloads.js';
 import { renderEvents } from './events.js';
 import { renderMap } from './map.js';
 import { renderSpace } from './space.js';
@@ -131,6 +138,7 @@ export function render(d) {
   renderTrueNAS(up('truenas')[0]);
   renderRecent(media, arrs);
   renderRequests(all(['seerr', 'overseerr', 'jellyseerr']));
+  renderReviewQueue(up('mediareview'));
   renderDisks(d, arrs);
   renderHost(d.host, d.docker, d.gpus, media.find(m => m.data.resources)?.data.resources);
 }

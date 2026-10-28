@@ -24,6 +24,9 @@ async function mediareview(cfg) {
     audienceWeight: e.audienceWeight,
     downvoteWeight: e.downvoteWeight,
     downvotes: list(e.downvotes).map(d => ({ voter: String(d.voter), voteWeight: d.voteWeight })),
+    // Downvotes are frozen once queued; these downvoters have watched it since.
+    watchedSince: list(e.watchedSinceQueued).map(w => String(w.voter)),
+    kept: list(e.history).filter(h => h.decision === 'keep').length,
   }));
   return { version: status.version, latency, data: { reviewQueue } };
 }

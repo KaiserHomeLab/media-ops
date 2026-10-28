@@ -600,6 +600,8 @@ function overview(realHost) {
                 { voter: 'sam', voteWeight: 2.6 },
                 { voter: 'alex', voteWeight: 0.6 },
               ],
+              watchedSince: ['sam'],
+              kept: 1,
             },
           ],
         },

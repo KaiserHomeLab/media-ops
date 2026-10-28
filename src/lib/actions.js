@@ -145,4 +145,16 @@ async function seerrRequest(svc, requestId, decision) {
   return decision === 'approve' ? 'Request approved' : 'Request declined';
 }
 
-module.exports = { capabilities, clear, recheck, stopStream, queueRetry, queueRemove, seerrRequest };
+// The Owner's decision on a Title in Media Review's Review Queue. Media Review carries it out.
+/** @param {import('./types').Service} svc @param {unknown} ratingKey @param {string} decision */
+async function reviewDecision(svc, ratingKey, decision) {
+  if (svc.kind !== 'mediareview') throw Object.assign(new Error('Not Media Review'), { status: 400 });
+  if (decision !== 'keep' || !isId(ratingKey)) throw Object.assign(new Error('Bad request'), { status: 400 });
+  await req(join(svc.url, `/api/v1/review-queue/${Number(ratingKey)}/${decision}`), {
+    method: 'POST',
+    headers: { 'X-Api-Key': svc.apiKey || '' },
+  });
+  return 'Kept: its Downvotes are cleared';
+}
+
+module.exports = { capabilities, clear, recheck, stopStream, queueRetry, queueRemove, seerrRequest, reviewDecision };

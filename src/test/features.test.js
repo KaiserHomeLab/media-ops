@@ -121,6 +121,22 @@ test('seerr: pending requests get titles; approve posts to /request/:id/approve'
   await assert.rejects(actions.seerrRequest({ kind: 'seerr', url: srv.url, apiKey: 'k' }, 41, 'delete'), /Bad request/);
 });
 
+test('mediareview: Keep goes to Media Review with the API key; only Keep, only numeric rating keys', async t => {
+  const srv = await fakeServer({ 'POST /api/v1/review-queue/500/keep': { kept: true } });
+  t.after(() => srv.close());
+  const svc = { kind: 'mediareview', url: srv.url, apiKey: 'mk' };
+  assert.equal(await actions.reviewDecision(svc, '500', 'keep'), 'Kept: its Downvotes are cleared');
+  assert.ok(
+    srv.calls.some(
+      x => x.method === 'POST' && x.path === '/api/v1/review-queue/500/keep' && x.headers['x-api-key'] === 'mk',
+    ),
+  );
+  await assert.rejects(actions.reviewDecision(svc, '500', 'delete'), /Bad request/);
+  for (const bad of ['', '-1', '1/../2', '5e3'])
+    await assert.rejects(actions.reviewDecision(svc, bad, 'keep'), /Bad request/);
+  await assert.rejects(actions.reviewDecision({ ...svc, kind: 'seerr' }, '500', 'keep'), /Not Media Review/);
+});
+
 test('gpu: AMD busy %, Intel busy from idle residency, virtual GPUs ignored', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'drm-'));
   const card = (n, files) => {

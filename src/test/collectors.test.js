@@ -467,6 +467,8 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
                   { voter: 'alice', voteWeight: 3, inAudience: true },
                   { voter: 'bob', voteWeight: 3, inAudience: true },
                 ],
+                watchedSinceQueued: [{ voter: 'bob', at: '2026-10-29T10:00:00.000Z' }],
+                history: [{ decision: 'keep', at: '2026-09-01T10:00:00.000Z' }],
               },
             ],
           }
@@ -488,6 +490,8 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
       { voter: 'alice', voteWeight: 3 },
       { voter: 'bob', voteWeight: 3 },
     ],
+    watchedSince: ['bob'],
+    kept: 1,
   });
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));
 });

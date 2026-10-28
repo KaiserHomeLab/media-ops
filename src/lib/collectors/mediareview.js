@@ -41,6 +41,8 @@ async function mediareview(cfg) {
     library: l.library ? String(l.library) : null,
     endsAt: l.endsAt,
     daysLeft: Number(l.daysLeft ?? 0),
+    // Media Review deletes it overnight; when that failed, this says why. It tries again the next night.
+    deleteError: l.deleteError ? String(l.deleteError) : null,
   }));
   return { version: status.version, latency, data: { reviewQueue, leavingSoon } };
 }

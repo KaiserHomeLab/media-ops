@@ -246,7 +246,11 @@ export function renderReviewQueue(reviews) {
         l => `<li>
       <div class="rq-main"><b>${esc(l.title)}</b>${l.year ? ` <span class="muted">(${esc(l.year)})</span>` : ''}
         <span class="chip">${esc(l.library || (l.kind === 'show' ? 'Show' : 'Movie'))}</span>
-        <div class="muted">${l.daysLeft <= 0 ? 'leaves today' : l.daysLeft === 1 ? 'leaves tomorrow' : `leaves in ${esc(l.daysLeft)} days`}</div></div>
+        <div class="muted">${l.daysLeft <= 0 ? 'leaves today' : l.daysLeft === 1 ? 'leaves tomorrow' : `leaves in ${esc(l.daysLeft)} days`}</div>${
+          l.deleteError
+            ? `<div class="bad">Couldn't delete: ${esc(l.deleteError)}. Media Review tries again tonight.</div>`
+            : ''
+        }</div>
       <div class="rq-acts"><button class="btn small" type="button" data-rv="leaving-keep" data-svc="${esc(l.svcId)}" data-id="${esc(l.ratingKey)}" data-title="${esc(l.title)}">Keep after all</button></div>
     </li>`,
       )

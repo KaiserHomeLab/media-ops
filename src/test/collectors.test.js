@@ -466,6 +466,7 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
                 removedAt: '2026-10-20T10:00:00.000Z',
                 endsAt: '2026-11-03T10:00:00.000Z',
                 daysLeft: 6,
+                deleteError: 'not found in Sonarr or Sonarr (anime), so nothing was deleted',
               },
             ],
           }
@@ -520,6 +521,7 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
       library: 'Anime',
       endsAt: '2026-11-03T10:00:00.000Z',
       daysLeft: 6,
+      deleteError: 'not found in Sonarr or Sonarr (anime), so nothing was deleted',
     },
   ]);
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));

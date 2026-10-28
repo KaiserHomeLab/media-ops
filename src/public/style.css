@@ -2976,6 +2976,12 @@ fieldset.events legend {
   font-size: 12px;
   margin-top: 2px;
 }
+/* A problem with one item, e.g. a Media Review deletion that failed: always worded, never colour alone. */
+.requests .bad {
+  color: var(--critical);
+  font-size: 12px;
+  margin-top: 2px;
+}
 .rq-acts {
   display: flex;
   gap: 6px;

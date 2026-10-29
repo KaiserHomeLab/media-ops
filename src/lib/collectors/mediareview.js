@@ -2,7 +2,8 @@
 // Copyright (c) 2026 KaiserHomeLab
 //
 // Media Review (github.com/KaiserHomeLab/media-review): the Titles friends have Downvoted that
-// wait for the Owner's decision, and the ones Leaving Soon. Media Review holds every rule; this only shows its Review Queue.
+// wait for the Owner's decision, the ones Leaving Soon, and open Problem Reports. Media Review holds every rule; this
+// only shows them.
 'use strict';
 const { join, req, timed } = require('../http');
 const { list } = require('./shared');
@@ -13,9 +14,10 @@ async function mediareview(cfg) {
   /** @param {string} p */
   const api = p => req(join(cfg.url, `/api/v1${p}`), { headers });
   const [status, latency] = await timed(() => api('/status'));
-  const [queue, leaving] = await Promise.all([
+  const [queue, leaving, problems] = await Promise.all([
     api('/review-queue'),
     api('/leaving-soon').catch(() => null), // Media Review before 0.2 has no Leaving Soon
+    api('/problem-reports').catch(() => null), // nor Problem Reports
   ]);
   const reviewQueue = list(queue?.reviewQueue).map(e => ({
     ratingKey: String(e.title?.ratingKey ?? ''),
@@ -52,7 +54,20 @@ async function mediareview(cfg) {
     objectionWeight: Number(l.objectionWeight ?? 0),
     objectionBar: l.objectionBar == null ? null : Number(l.objectionBar),
   }));
-  return { version: status.version, latency, data: { reviewQueue, leavingSoon } };
+  // A friend says a copy is broken or poor: the whole Title, or one season or episode, and who else has it.
+  const problemReports = list(problems?.problemReports).map(r => ({
+    id: Number(r.id),
+    ratingKey: String(r.title?.ratingKey ?? ''),
+    title: r.title?.name || 'Unknown title',
+    year: r.title?.year ?? null,
+    kind: r.title?.kind === 'show' ? 'show' : 'movie',
+    library: r.title?.library ? String(r.title.library) : null,
+    part: r.part ? String(r.part) : null, // "S2 E3 · Title", "Season 2", or null for the whole Title
+    reason: String(r.reasonLabel ?? r.reason ?? ''),
+    reportedAt: r.reportedAt,
+    reporters: list(r.reporters).map(p => ({ voter: String(p.voter), note: p.note ? String(p.note) : null })),
+  }));
+  return { version: status.version, latency, data: { reviewQueue, leavingSoon, problemReports } };
 }
 
 module.exports = { mediareview };

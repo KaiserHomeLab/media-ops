@@ -211,6 +211,20 @@ document.addEventListener('click', e => {
       }),
     );
   }
+  if ('pr' in b.dataset) {
+    // Resolve: fixed. Close: not fixing it. Either way the reporters see it, with this note if one is given.
+    const note = prompt(
+      `${b.dataset.pr === 'resolve' ? 'Resolve' : 'Close'} the Problem Report on ${b.dataset.title}?\n\nNote for the people who reported it (optional):`,
+      '',
+    );
+    if (note === null) return;
+    return runAction(b, () =>
+      post(`/services/${encodeURIComponent(String(b.dataset.svc))}/problem-${b.dataset.pr}`, {
+        reportId: Number(b.dataset.id),
+        note,
+      }),
+    );
+  }
   if ('stop' in b.dataset) {
     const reason = prompt(
       `Stop ${b.dataset.user}'s stream?\n\nMessage shown on their screen:`,

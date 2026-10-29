@@ -11,6 +11,11 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- Media Review: open Problem Reports on the Review Queue card. Each shows what's wrong, which
+  part (the movie, a whole show, a season or one episode) and everyone who reported it, with their
+  notes. **Resolve** or **Close** sends the decision back to Media Review, with an optional note
+  for the reporters (behind the Settings password when one is set). Needs a Media Review with
+  Problem Reports; older ones still show their queue.
 - Media Review (optional): a Review Queue card listing the titles your Plex friends have
   Downvoted past Media Review's threshold, with who Downvoted each and how much each vote
   weighed. Add it under Settings → Add app → Media Review. Media Review keeps all the rules;

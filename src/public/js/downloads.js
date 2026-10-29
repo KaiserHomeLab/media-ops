@@ -228,16 +228,38 @@ export function renderRequests(seerrs) {
 // --------------------------------------------------------------------- Media Review queue
 // Titles friends have Downvoted past Media Review's threshold. Media Review decides what's here;
 // this only shows it, with who Downvoted and how much each vote weighed, and sends the Owner's Keep or Remove
-// back. Removed titles are listed under Leaving Soon, with Keep after all.
+// back. Open Problem Reports follow, with Resolve and Close. Removed titles are listed under Leaving Soon, with
+// Keep after all.
 /** @param {Answered[]} reviews */
 export function renderReviewQueue(reviews) {
   const queue = reviews.flatMap(s => list(s.data.reviewQueue).map(q => ({ ...q, svcId: s.id })));
   const leaving = reviews.flatMap(s => list(s.data.leavingSoon).map(l => ({ ...l, svcId: s.id })));
+  const problems = reviews.flatMap(s => list(s.data.problemReports).map(p => ({ ...p, svcId: s.id })));
   $('review-card').hidden = !reviews.length;
   $('review-count').textContent =
     (queue.length ? `${queue.length} to decide` : 'nothing to decide') +
+    (problems.length ? ` · ${problems.length} problem${problems.length === 1 ? '' : 's'}` : '') +
     (leaving.length ? ` · ${leaving.length} leaving soon` : '');
-  if (rollUp('review-card', !queue.length && !leaving.length)) return;
+  if (rollUp('review-card', !queue.length && !leaving.length && !problems.length)) return;
+  $('review-problems-h').hidden = !problems.length;
+  setHTML(
+    $('review-problems'),
+    problems
+      .map(
+        p => `<li>
+      <div class="rq-main"><b>${esc(p.title)}</b>${p.year ? ` <span class="muted">(${esc(p.year)})</span>` : ''}
+        <span class="chip">${esc(p.library || (p.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip">${esc(p.reason)}</span>
+        <div class="muted">${esc(p.part || (p.kind === 'show' ? 'Whole show' : 'The movie'))} · reported ${ago(new Date(p.reportedAt).getTime())}</div>${list(
+          p.reporters,
+        )
+          .map(r => `<div class="muted">${esc(r.voter)}${r.note ? `: “${esc(r.note)}”` : ''}</div>`)
+          .join('')}</div>
+      <div class="rq-acts"><button class="btn small" type="button" data-pr="resolve" data-svc="${esc(p.svcId)}" data-id="${esc(p.id)}" data-title="${esc(p.title)}">Resolve</button>
+        <button class="btn small ghost" type="button" data-pr="close" data-svc="${esc(p.svcId)}" data-id="${esc(p.id)}" data-title="${esc(p.title)}">Close</button></div>
+    </li>`,
+      )
+      .join(''),
+  );
   $('review-leaving-h').hidden = !leaving.length;
   setHTML(
     $('review-leaving'),

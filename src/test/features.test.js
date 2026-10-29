@@ -150,6 +150,28 @@ test('mediareview: Keep, Remove and Keep after all go to Media Review with the A
   await assert.rejects(actions.reviewDecision({ ...svc, kind: 'seerr' }, '500', 'keep'), /Not Media Review/);
 });
 
+test('mediareview: Resolve and Close a Problem Report with the note; only those, only numeric ids', async t => {
+  const srv = await fakeServer({
+    'POST /api/v1/problem-reports/4/resolve': { resolved: true },
+    'POST /api/v1/problem-reports/4/close': { closed: true },
+  });
+  t.after(() => srv.close());
+  const svc = { kind: 'mediareview', url: srv.url, apiKey: 'mk' };
+  assert.match(await actions.problemDecision(svc, 4, 'resolve', 'Replaced'), /^Resolved/);
+  assert.match(await actions.problemDecision(svc, '4', 'close', ''), /^Closed/);
+  assert.deepEqual(
+    srv.calls.map(x => `${x.method} ${x.path} ${x.headers['x-api-key']} ${x.body}`),
+    [
+      'POST /api/v1/problem-reports/4/resolve mk {"note":"Replaced"}',
+      'POST /api/v1/problem-reports/4/close mk {"note":""}',
+    ],
+  );
+  await assert.rejects(actions.problemDecision(svc, 4, 'delete', ''), /Bad request/);
+  for (const bad of ['', '-1', '1/../2', '5e3'])
+    await assert.rejects(actions.problemDecision(svc, bad, 'close', ''), /Bad request/);
+  await assert.rejects(actions.problemDecision({ ...svc, kind: 'seerr' }, 4, 'close', ''), /Not Media Review/);
+});
+
 test('gpu: AMD busy %, Intel busy from idle residency, virtual GPUs ignored', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'drm-'));
   const card = (n, files) => {

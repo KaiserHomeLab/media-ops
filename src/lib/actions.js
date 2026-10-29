@@ -164,4 +164,28 @@ async function reviewDecision(svc, ratingKey, decision) {
   return how[1];
 }
 
-module.exports = { capabilities, clear, recheck, stopStream, queueRetry, queueRemove, seerrRequest, reviewDecision };
+// Resolve (fixed) or close (not fixing it) a Media Review Problem Report. The note, if any, is shown to the reporters.
+/** @param {import('./types').Service} svc @param {unknown} reportId @param {string} decision @param {unknown} note */
+async function problemDecision(svc, reportId, decision, note) {
+  if (svc.kind !== 'mediareview') throw Object.assign(new Error('Not Media Review'), { status: 400 });
+  if (!['resolve', 'close'].includes(decision) || !isId(reportId))
+    throw Object.assign(new Error('Bad request'), { status: 400 });
+  await req(join(svc.url, `/api/v1/problem-reports/${Number(reportId)}/${decision}`), {
+    method: 'POST',
+    headers: { 'X-Api-Key': svc.apiKey || '', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note: String(note ?? '').slice(0, 500) }),
+  });
+  return decision === 'resolve' ? 'Resolved: the reporters are told' : 'Closed: the reporters are told';
+}
+
+module.exports = {
+  capabilities,
+  clear,
+  recheck,
+  stopStream,
+  queueRetry,
+  queueRemove,
+  seerrRequest,
+  reviewDecision,
+  problemDecision,
+};

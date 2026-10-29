@@ -104,7 +104,7 @@ export function renderEvents(d) {
       <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}${e.hint ? '<span class="hint-mark" title="Has a how-to-fix tip: click to open"> 💡</span>' : ''}</span>
       <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>
       <span class="ev-acts">${acts}</span>`;
-        const cls = `ev${e.dismissed ? ' is-dismissed' : ''}`;
+        const cls = `ev ev-${lvl}${e.dismissed ? ' is-dismissed' : ''}`;
         const body = `${e.hint ? `<p class="ev-hint"><b>How to fix:</b> ${esc(e.hint)}</p>` : ''}${e.detail ? `<pre>${esc(e.detail)}</pre>` : ''}`;
         return body
           ? `<details class="${cls}" data-key="${esc(e.key)}"${open.has(e.key) ? ' open' : ''}><summary>${cells}</summary>${body}</details>`

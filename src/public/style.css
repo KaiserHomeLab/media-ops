@@ -35,6 +35,7 @@
   --series-2: #d95926; /* Movies */
   --series-3: #199e70; /* Music */
   --good: #0ca30c;
+  --downvote: #e5a00d; /* Media Review's Downvotes and Review Queue: fixed, whatever the accent */
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
@@ -64,6 +65,7 @@
     --text-muted: #77766f;
     --accent: var(--accent-light);
     --on-accent: #fff;
+    --downvote: #8f6200;
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-3: #1baf7a;
@@ -88,6 +90,7 @@
   --text-muted: #77766f;
   --accent: var(--accent-light);
   --on-accent: #fff;
+  --downvote: #8f6200;
   --series-1: #2a78d6;
   --series-2: #eb6834;
   --series-3: #1baf7a;
@@ -2993,7 +2996,7 @@ body.tv .rq-acts {
 /* Media Review's three lists, told apart at a glance: Downvotes amber, Problem Reports blue, Leaving Soon red,
    on the sub-heading's badge and a bar down the side of every item. The words say it too. */
 .kind-downvote {
-  --kind: var(--accent);
+  --kind: var(--downvote);
 }
 .kind-problem {
   --kind: var(--series-1);
@@ -3518,4 +3521,49 @@ pre.code {
   font: 12px/1.5 var(--mono);
   overflow-x: auto;
   white-space: pre;
+}
+
+/* ------------------------------------------------------------------ card colors, as in Media Review
+   Each card has a fixed color by what it's about, on its top edge, the badge in its heading and a bar
+   beside each row of a list, so you learn where things are at a glance. They never follow the accent. */
+.sec-watch {
+  --sec: var(--series-1); /* who's watching: streams, map, trends, watch stats */
+}
+.sec-problem {
+  --sec: var(--critical); /* errors and warnings */
+}
+.sec-media {
+  --sec: var(--bifrost-3); /* the library: what's there, coming, added, requested */
+}
+.sec-download {
+  --sec: var(--series-2); /* downloads and indexers */
+}
+.sec-review {
+  --sec: var(--downvote); /* Media Review */
+}
+.sec-server {
+  --sec: var(--series-3); /* the server: apps, space, disks, host */
+}
+.card.sec {
+  --kind: var(--sec);
+  border-top: 3px solid var(--sec);
+}
+.card.sec > h2 {
+  align-items: center;
+}
+.card.sec .qitem,
+.card.sec .up-item,
+.card.sec .idx,
+.card.sec .imports li,
+.card.sec .requests:not([class*='kind-']) li:not(.empty) {
+  border-left: 3px solid var(--sec);
+  padding-left: 10px;
+}
+/* An error or warning's bar shows its level, as its label does: a warning never looks like an error. */
+.card.sec .ev {
+  border-left: 3px solid var(--critical);
+  padding-left: 10px;
+}
+.card.sec .ev.ev-warn {
+  border-left-color: var(--warning);
 }

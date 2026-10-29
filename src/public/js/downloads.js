@@ -248,7 +248,7 @@ export function renderReviewQueue(reviews) {
       .map(
         p => `<li>
       <div class="rq-main"><b>${esc(p.title)}</b>${p.year ? ` <span class="muted">(${esc(p.year)})</span>` : ''}
-        <span class="chip">${esc(p.library || (p.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip">${esc(p.reason)}</span>
+        <span class="chip">${esc(p.library || (p.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip kind">⚑ ${esc(p.reason)}</span>
         <div class="muted">${esc(p.part || (p.kind === 'show' ? 'Whole show' : 'The movie'))} · reported ${ago(new Date(p.reportedAt).getTime())}</div>${list(
           p.reporters,
         )
@@ -268,7 +268,7 @@ export function renderReviewQueue(reviews) {
         l => `<li>
       <div class="rq-main"><b>${esc(l.title)}</b>${l.year ? ` <span class="muted">(${esc(l.year)})</span>` : ''}
         <span class="chip">${esc(l.library || (l.kind === 'show' ? 'Show' : 'Movie'))}</span>
-        <div class="muted">${l.daysLeft <= 0 ? 'leaves today' : l.daysLeft === 1 ? 'leaves tomorrow' : `leaves in ${esc(l.daysLeft)} days`}</div>${
+<span class="chip kind">⏳ ${l.daysLeft <= 0 ? 'leaves today' : l.daysLeft === 1 ? 'leaves tomorrow' : `leaves in ${esc(l.daysLeft)} days`}</span>${
           !l.objectionsOpen
             ? '<div class="muted">Sent back once already: no Objections this time</div>'
             : list(l.objections).length
@@ -294,7 +294,7 @@ export function renderReviewQueue(reviews) {
       .map(
         q => `<li>
       <div class="rq-main"><b>${esc(q.title)}</b>${q.year ? ` <span class="muted">(${esc(q.year)})</span>` : ''}
-        <span class="chip">${esc(q.library || (q.kind === 'show' ? 'Show' : 'Movie'))}</span>${q.sentBack ? '<span class="chip">sent back by Objections</span>' : ''}
+        <span class="chip">${esc(q.library || (q.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip kind">▼ ${esc(list(q.downvotes).length)} Downvote${list(q.downvotes).length === 1 ? '' : 's'}</span>${q.sentBack ? '<span class="chip">sent back by Objections</span>' : ''}
         <div class="muted">${esc(num(q.downvoteWeight))} of ${esc(num(q.audienceWeight))} weight from an Audience of ${esc(q.audience)} · queued ${ago(new Date(q.queuedAt).getTime())}</div>
         <div class="muted">Downvoted by ${list(q.downvotes)
           .map(d => `${esc(d.voter)} (${esc(num(d.voteWeight))})`)

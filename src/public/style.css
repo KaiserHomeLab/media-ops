@@ -2990,6 +2990,45 @@ fieldset.events legend {
 body.tv .rq-acts {
   display: none;
 }
+/* Media Review's three lists, told apart at a glance: Downvotes amber, Problem Reports blue, Leaving Soon red,
+   on the sub-heading's badge and a bar down the side of every item. The words say it too. */
+.kind-downvote {
+  --kind: var(--accent);
+}
+.kind-problem {
+  --kind: var(--series-1);
+}
+.kind-leaving {
+  --kind: var(--critical);
+}
+.sub-h[class*='kind-'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--kind);
+}
+#review-h {
+  margin-top: 4px;
+}
+.kind-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--kind);
+  background: color-mix(in srgb, var(--kind) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--kind) 45%, transparent);
+}
+.requests[class*='kind-'] li:not(.empty) {
+  border-left: 3px solid var(--kind);
+  padding-left: 10px;
+}
+.requests[class*='kind-'] .chip.kind {
+  color: var(--kind);
+  border-color: color-mix(in srgb, var(--kind) 45%, var(--line));
+}
 
 /* settings: notification options, backup */
 .notif-options {

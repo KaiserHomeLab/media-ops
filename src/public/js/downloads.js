@@ -244,7 +244,8 @@ export function renderReviewQueue(reviews) {
     (problems.length ? ` · ${problems.length} problem${problems.length === 1 ? '' : 's'}` : '') +
     (held.length ? ` · ${held.length} asked back` : '') +
     (leaving.length ? ` · ${leaving.length} leaving soon` : '');
-  if (rollUp('review-card', !queue.length && !leaving.length && !problems.length && !held.length)) return;
+  if (rollUp('review-card', !queue.length && !leaving.length && !problems.length && !held.length && !building.length))
+    return;
   // Below the bar, closest first: a heads-up, with Keep now and Remove now.
   $('review-building-h').hidden = !building.length;
   $('review-building-label').textContent =

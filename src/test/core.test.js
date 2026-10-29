@@ -407,8 +407,15 @@ test('dashboard layout: only known rows and cards, every row placed, ids match i
   const all = layout.BLOCKS.map(b => b.id);
   assert.deepEqual(layout.clean(null), { order: all, hidden: [] });
   const c = layout.clean({ order: ['system', 'nope', 'system', 'map'], hidden: ['host-card', 'x', 'host-card'] });
-  assert.deepEqual(c.order.slice(0, 2), ['system', 'map']);
-  assert.equal(c.order.length, all.length, 'rows missing from the saved order are added at the end');
+  assert.ok(c.order.indexOf('system') < c.order.indexOf('map'), 'the saved order is kept');
+  assert.equal(c.order.length, all.length, 'every row is placed');
+  // A layout saved before the Review Queue had its own row: it lands right after Errors & warnings.
+  const before = all.filter(id => id !== 'review');
+  assert.deepEqual(layout.clean({ order: before }).order, all);
+  const moved = layout.clean({
+    order: ['events', 'summary', ...before.filter(id => !['events', 'summary'].includes(id))],
+  });
+  assert.deepEqual(moved.order.slice(0, 3), ['events', 'review', 'summary']);
   assert.deepEqual(c.hidden, ['host-card']);
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
   for (const b of layout.BLOCKS) {

@@ -86,6 +86,23 @@
       </div>
     </section>
 
+    <section class="card" id="review-card" data-block="review" data-tv-hide hidden>
+      <h2>Review Queue <span class="count" id="review-count"></span>
+        <button class="linkish roll-toggle" type="button" data-roll="review-card" aria-controls="review-body" hidden></button></h2>
+      <div class="roll-body" id="review-body">
+        <h3 class="sub-h kind-downvote" id="review-h"><span class="kind-badge" aria-hidden="true">▼</span>Downvotes: Keep or Remove</h3>
+        <ul class="requests kind-downvote" id="review"></ul>
+        <h3 class="sub-h kind-building" id="review-building-h" hidden><span class="kind-badge" aria-hidden="true">▽</span><span id="review-building-label">Building up: below the bar</span></h3>
+        <ul class="requests kind-building" id="review-building"></ul>
+        <h3 class="sub-h kind-problem" id="review-problems-h" hidden><span class="kind-badge" aria-hidden="true">⚑</span>Problem Reports: a broken or poor copy</h3>
+        <ul class="requests kind-problem" id="review-problems"></ul>
+        <h3 class="sub-h kind-held" id="review-held-h" hidden><span class="kind-badge" aria-hidden="true">↺</span>Asked back: deleted, blocked in Seerr</h3>
+        <ul class="requests kind-held" id="review-held"></ul>
+        <h3 class="sub-h kind-leaving" id="review-leaving-h" hidden><span class="kind-badge" aria-hidden="true">⏳</span>Leaving Soon: deleted when the days run out</h3>
+        <ul class="requests kind-leaving" id="review-leaving"></ul>
+      </div>
+    </section>
+
     <section class="card" id="library-card" data-block="library" data-tv-hide>
       <h2>Library</h2>
       <div id="libraries" class="libs"></div>
@@ -124,22 +141,6 @@
         <h2>Requests <span class="count" id="requests-count"></span>
           <button class="linkish roll-toggle" type="button" data-roll="requests-card" aria-controls="requests" hidden></button></h2>
         <ul class="requests roll-body" id="requests"></ul>
-      </section>
-      <section class="card" id="review-card" hidden>
-        <h2>Review Queue <span class="count" id="review-count"></span>
-          <button class="linkish roll-toggle" type="button" data-roll="review-card" aria-controls="review-body" hidden></button></h2>
-        <div class="roll-body" id="review-body">
-          <h3 class="sub-h kind-downvote" id="review-h"><span class="kind-badge" aria-hidden="true">▼</span>Downvotes: Keep or Remove</h3>
-          <ul class="requests kind-downvote" id="review"></ul>
-          <h3 class="sub-h kind-building" id="review-building-h" hidden><span class="kind-badge" aria-hidden="true">▽</span><span id="review-building-label">Building up: below the bar</span></h3>
-          <ul class="requests kind-building" id="review-building"></ul>
-          <h3 class="sub-h kind-problem" id="review-problems-h" hidden><span class="kind-badge" aria-hidden="true">⚑</span>Problem Reports: a broken or poor copy</h3>
-          <ul class="requests kind-problem" id="review-problems"></ul>
-          <h3 class="sub-h kind-held" id="review-held-h" hidden><span class="kind-badge" aria-hidden="true">↺</span>Asked back: deleted, blocked in Seerr</h3>
-          <ul class="requests kind-held" id="review-held"></ul>
-          <h3 class="sub-h kind-leaving" id="review-leaving-h" hidden><span class="kind-badge" aria-hidden="true">⏳</span>Leaving Soon: deleted when the days run out</h3>
-          <ul class="requests kind-leaving" id="review-leaving"></ul>
-        </div>
       </section>
     </div>
 

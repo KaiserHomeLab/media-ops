@@ -467,6 +467,10 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
                 endsAt: '2026-11-03T10:00:00.000Z',
                 daysLeft: 6,
                 deleteError: 'not found in Sonarr or Sonarr (anime), so nothing was deleted',
+                objectionsOpen: true,
+                objections: [{ voter: 'dave', voteWeight: 0.4 }],
+                objectionWeight: 0.4,
+                objectionBar: 2,
               },
             ],
           }
@@ -486,6 +490,8 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
                   { voter: 'bob', voteWeight: 3, inAudience: true },
                 ],
                 watchedSinceQueued: [{ voter: 'bob', at: '2026-10-29T10:00:00.000Z' }],
+                sentBack: true,
+                objections: [{ voter: 'carol', voteWeight: 3 }],
                 history: [{ decision: 'keep', at: '2026-09-01T10:00:00.000Z' }],
               },
             ],
@@ -511,6 +517,8 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
     ],
     watchedSince: ['bob'],
     kept: 1,
+    sentBack: true,
+    objections: [{ voter: 'carol', voteWeight: 3 }],
   });
   assert.deepEqual(r.data.leavingSoon, [
     {
@@ -522,6 +530,10 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
       endsAt: '2026-11-03T10:00:00.000Z',
       daysLeft: 6,
       deleteError: 'not found in Sonarr or Sonarr (anime), so nothing was deleted',
+      objectionsOpen: true,
+      objections: [{ voter: 'dave', voteWeight: 0.4 }],
+      objectionWeight: 0.4,
+      objectionBar: 2,
     },
   ]);
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));

@@ -19,7 +19,8 @@ To stay on one version instead of `latest`, use a version tag such as
   queued and whether you've Kept it before. **Remove** sends a title to Media Review's pinned
   "Leaving Soon" collection in Plex, and the card lists what's Leaving Soon with the days left and
   **Keep after all**. Nothing is deleted from Media Ops. When Media Review couldn't delete a
-  Leaving Soon title overnight, the card says why.
+  Leaving Soon title overnight, the card says why. Titles friends sent back with Objections are marked
+  "sent back by Objections" with who objected, and Leaving Soon titles show Objections so far.
 
 ## [1.18.0] - 2026-10-08
 

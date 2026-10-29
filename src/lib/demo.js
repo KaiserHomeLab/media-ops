@@ -603,6 +603,8 @@ function overview(realHost) {
               ],
               watchedSince: ['sam'],
               kept: 1,
+              sentBack: false,
+              objections: [],
             },
           ],
           leavingSoon: [
@@ -615,6 +617,10 @@ function overview(realHost) {
               endsAt: ago(-9 * 24 * 60), // nine days from now
               daysLeft: 9,
               deleteError: null,
+              objectionsOpen: true,
+              objections: [{ voter: 'riley', voteWeight: 0.8 }],
+              objectionWeight: 0.8,
+              objectionBar: 2,
             },
           ],
         },

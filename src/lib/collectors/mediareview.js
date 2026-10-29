@@ -31,6 +31,9 @@ async function mediareview(cfg) {
     // Downvotes are frozen once queued; these downvoters have watched it since.
     watchedSince: list(e.watchedSinceQueued).map(w => String(w.voter)),
     kept: list(e.history).filter(h => h.decision === 'keep').length,
+    // Back from Leaving Soon because friends objected, and who did.
+    sentBack: !!e.sentBack,
+    objections: list(e.objections).map(o => ({ voter: String(o.voter), voteWeight: o.voteWeight })),
   }));
   // Removed, and in Plex's Leaving Soon collection until it's deleted. The Owner can still Keep it after all.
   const leavingSoon = list(leaving?.leavingSoon).map(l => ({
@@ -43,6 +46,11 @@ async function mediareview(cfg) {
     daysLeft: Number(l.daysLeft ?? 0),
     // Media Review deletes it overnight; when that failed, this says why. It tries again the next night.
     deleteError: l.deleteError ? String(l.deleteError) : null,
+    // Friends' Objections so far, against the Objection bar that sends it back; closed on a second round.
+    objectionsOpen: l.objectionsOpen !== false,
+    objections: list(l.objections).map(o => ({ voter: String(o.voter), voteWeight: o.voteWeight })),
+    objectionWeight: Number(l.objectionWeight ?? 0),
+    objectionBar: l.objectionBar == null ? null : Number(l.objectionBar),
   }));
   return { version: status.version, latency, data: { reviewQueue, leavingSoon } };
 }

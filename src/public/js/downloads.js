@@ -247,6 +247,16 @@ export function renderReviewQueue(reviews) {
       <div class="rq-main"><b>${esc(l.title)}</b>${l.year ? ` <span class="muted">(${esc(l.year)})</span>` : ''}
         <span class="chip">${esc(l.library || (l.kind === 'show' ? 'Show' : 'Movie'))}</span>
         <div class="muted">${l.daysLeft <= 0 ? 'leaves today' : l.daysLeft === 1 ? 'leaves tomorrow' : `leaves in ${esc(l.daysLeft)} days`}</div>${
+          !l.objectionsOpen
+            ? '<div class="muted">Sent back once already: no Objections this time</div>'
+            : list(l.objections).length
+              ? `<div class="muted">Objections: ${esc(num(l.objectionWeight))} of ${esc(num(l.objectionBar))} · ${list(
+                  l.objections,
+                )
+                  .map(o => `${esc(o.voter)} (${esc(num(o.voteWeight))})`)
+                  .join(', ')}</div>`
+              : ''
+        }${
           l.deleteError
             ? `<div class="bad">Couldn't delete: ${esc(l.deleteError)}. Media Review tries again tonight.</div>`
             : ''
@@ -262,13 +272,19 @@ export function renderReviewQueue(reviews) {
       .map(
         q => `<li>
       <div class="rq-main"><b>${esc(q.title)}</b>${q.year ? ` <span class="muted">(${esc(q.year)})</span>` : ''}
-        <span class="chip">${esc(q.library || (q.kind === 'show' ? 'Show' : 'Movie'))}</span>
+        <span class="chip">${esc(q.library || (q.kind === 'show' ? 'Show' : 'Movie'))}</span>${q.sentBack ? '<span class="chip">sent back by Objections</span>' : ''}
         <div class="muted">${esc(num(q.downvoteWeight))} of ${esc(num(q.audienceWeight))} weight from an Audience of ${esc(q.audience)} · queued ${ago(new Date(q.queuedAt).getTime())}</div>
         <div class="muted">Downvoted by ${list(q.downvotes)
           .map(d => `${esc(d.voter)} (${esc(num(d.voteWeight))})`)
           .join(', ')}</div>${
           list(q.watchedSince).length
             ? `<div class="muted">Watched it since: ${list(q.watchedSince).map(esc).join(', ')}</div>`
+            : ''
+        }${
+          list(q.objections).length
+            ? `<div class="muted">Objected: ${list(q.objections)
+                .map(o => `${esc(o.voter)} (${esc(num(o.voteWeight))})`)
+                .join(', ')}</div>`
             : ''
         }${q.kept ? `<div class="muted">Kept ${q.kept === 1 ? 'once' : `${esc(q.kept)} times`} before</div>` : ''}</div>
       <div class="rq-acts"><button class="btn small" type="button" data-rv="keep" data-svc="${esc(q.svcId)}" data-id="${esc(q.ratingKey)}" data-title="${esc(q.title)}">Keep</button>

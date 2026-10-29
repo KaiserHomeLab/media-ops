@@ -623,6 +623,23 @@ function overview(realHost) {
               objectionBar: 2,
             },
           ],
+          problemReports: [
+            {
+              id: 7,
+              ratingKey: '60321',
+              title: 'Sword Club After School',
+              year: 2023,
+              kind: 'show',
+              library: 'Anime',
+              part: 'S2 E3 · The Tournament',
+              reason: 'Subtitles',
+              reportedAt: ago(2 * 24 * 60),
+              reporters: [
+                { voter: 'sam', note: 'Subtitles are about 2 seconds late' },
+                { voter: 'riley', note: null },
+              ],
+            },
+          ],
         },
       }),
       svc('seerr', 'Seerr', '3.0.1', {

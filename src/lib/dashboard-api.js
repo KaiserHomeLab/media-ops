@@ -30,9 +30,9 @@ async function eventsApi(req, res, route) {
   }
 
   // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|
-  //   review-remove|review-leaving-keep)
+  //   review-remove|review-leaving-keep|problem-resolve|problem-close)
   const m =
-    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep)$/.exec(
+    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep|problem-resolve|problem-close)$/.exec(
       route,
     );
   if (!m) return send(res, 404, { error: 'Not found' });
@@ -63,6 +63,8 @@ async function eventsApi(req, res, route) {
       'review-keep': () => actions.reviewDecision(svc, body.ratingKey, 'keep'),
       'review-remove': () => actions.reviewDecision(svc, body.ratingKey, 'remove'),
       'review-leaving-keep': () => actions.reviewDecision(svc, body.ratingKey, 'leaving-keep'),
+      'problem-resolve': () => actions.problemDecision(svc, body.reportId, 'resolve', body.note),
+      'problem-close': () => actions.problemDecision(svc, body.reportId, 'close', body.note),
     };
     const message = await runs[action]();
     invalidate(); // re-fetch logs/health right away

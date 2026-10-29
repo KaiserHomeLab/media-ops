@@ -475,6 +475,27 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
             ],
           }
         : { status: 401 },
+    '/api/v1/problem-reports': req =>
+      req.headers['x-api-key'] === 'mk'
+        ? {
+            problemReports: [
+              {
+                id: 4,
+                part: 'S1 E2 · Two',
+                season: 1,
+                episode: 2,
+                reason: 'audio',
+                reasonLabel: 'Audio',
+                reportedAt: '2026-10-28T10:00:00.000Z',
+                title: { ratingKey: '600', kind: 'show', name: 'Slow Show', year: 2019, library: 'Anime' },
+                reporters: [
+                  { voter: 'alice', note: 'no sound', at: '2026-10-28T10:00:00.000Z' },
+                  { voter: 'bob', note: null, at: '2026-10-28T11:00:00.000Z' },
+                ],
+              },
+            ],
+          }
+        : { status: 401 },
     '/api/v1/review-queue': req =>
       req.headers['x-api-key'] === 'mk'
         ? {
@@ -536,6 +557,23 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
       objectionBar: 2,
     },
   ]);
+  assert.deepEqual(r.data.problemReports, [
+    {
+      id: 4,
+      ratingKey: '600',
+      title: 'Slow Show',
+      year: 2019,
+      kind: 'show',
+      library: 'Anime',
+      part: 'S1 E2 · Two',
+      reason: 'Audio',
+      reportedAt: '2026-10-28T10:00:00.000Z',
+      reporters: [
+        { voter: 'alice', note: 'no sound' },
+        { voter: 'bob', note: null },
+      ],
+    },
+  ]);
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));
 });
 
@@ -546,7 +584,7 @@ test('mediareview: an older Media Review without Leaving Soon still shows its qu
   });
   t.after(() => srv.close());
   const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
-  assert.deepEqual(r.data, { reviewQueue: [], leavingSoon: [] });
+  assert.deepEqual(r.data, { reviewQueue: [], leavingSoon: [], problemReports: [] });
 });
 
 test('clonarr: widget summary, and graceful fallback when the endpoint is missing', async t => {

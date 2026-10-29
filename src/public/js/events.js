@@ -203,6 +203,8 @@ document.addEventListener('click', e => {
       keep: `Keep ${b.dataset.title}? All its Downvotes are cleared, so it starts again from zero.`,
       remove: `Remove ${b.dataset.title}? It goes to Leaving Soon, pinned in Plex for everyone, and only then is it deleted.`,
       'leaving-keep': `Keep ${b.dataset.title} after all? It leaves Leaving Soon, and its Downvotes are cleared.`,
+      'early-keep': `Keep ${b.dataset.title}? Its Downvotes are cleared, so it starts again from zero.`,
+      'early-remove': `Remove ${b.dataset.title} now, before it reaches the bar? It goes to Leaving Soon, pinned in Plex for everyone, and only then is it deleted.`,
     })[String(b.dataset.rv)];
     if (!question || !confirm(question)) return;
     return runAction(b, () =>

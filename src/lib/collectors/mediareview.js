@@ -14,11 +14,12 @@ async function mediareview(cfg) {
   /** @param {string} p */
   const api = p => req(join(cfg.url, `/api/v1${p}`), { headers });
   const [status, latency] = await timed(() => api('/status'));
-  const [queue, leaving, problems, held] = await Promise.all([
+  const [queue, leaving, problems, held, building] = await Promise.all([
     api('/review-queue'),
     api('/leaving-soon').catch(() => null), // Media Review before 0.2 has no Leaving Soon
     api('/problem-reports').catch(() => null), // nor Problem Reports
     api('/held-back').catch(() => null), // nor holding back deleted titles
+    api('/building-up').catch(() => null), // nor Building up
   ]);
   const reviewQueue = list(queue?.reviewQueue).map(e => ({
     ratingKey: String(e.title?.ratingKey ?? ''),
@@ -85,7 +86,28 @@ async function mediareview(cfg) {
         .map(d => ({ voter: String(d.voter), voteWeight: d.voteWeight })),
       kept: list(h.history?.decisions).filter(d => d.decision === 'keep').length,
     }));
-  return { version: status.version, latency, data: { reviewQueue, leavingSoon, problemReports, heldBack } };
+  // Downvoted but below the bar: the few closest to it (Media Review has the full list).
+  const buildingUp = list(building?.buildingUp)
+    .slice(0, 5)
+    .map(b => ({
+      ratingKey: String(b.title?.ratingKey ?? ''),
+      title: b.title?.name || 'Unknown title',
+      year: b.title?.year ?? null,
+      kind: b.title?.kind === 'show' ? 'show' : 'movie',
+      library: b.title?.library ? String(b.title.library) : null,
+      progress: Math.max(0, Math.min(1, Number(b.progress ?? 0))),
+      downvoteWeight: Number(b.downvoteWeight ?? 0),
+      neededWeight: Number(b.neededWeight ?? 0),
+      audience: Number(b.audience ?? 0),
+      minimumAudience: Number(b.minimumAudience ?? 0),
+      downvotes: list(b.downvotes).map(d => ({ voter: String(d.voter), voteWeight: d.voteWeight, counts: !!d.counts })),
+    }));
+  const buildingTotal = list(building?.buildingUp).length;
+  return {
+    version: status.version,
+    latency,
+    data: { reviewQueue, leavingSoon, problemReports, heldBack, buildingUp, buildingTotal },
+  };
 }
 
 module.exports = { mediareview };

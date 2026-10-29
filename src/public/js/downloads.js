@@ -236,6 +236,8 @@ export function renderReviewQueue(reviews) {
   const leaving = reviews.flatMap(s => list(s.data.leavingSoon).map(l => ({ ...l, svcId: s.id })));
   const problems = reviews.flatMap(s => list(s.data.problemReports).map(p => ({ ...p, svcId: s.id })));
   const held = reviews.flatMap(s => list(s.data.heldBack).map(h => ({ ...h, svcId: s.id })));
+  const building = reviews.flatMap(s => list(s.data.buildingUp).map(b => ({ ...b, svcId: s.id })));
+  const buildingTotal = reviews.reduce((n, s) => n + Number(s.data.buildingTotal ?? list(s.data.buildingUp).length), 0);
   $('review-card').hidden = !reviews.length;
   $('review-count').textContent =
     (queue.length ? `${queue.length} to decide` : 'nothing to decide') +
@@ -243,6 +245,30 @@ export function renderReviewQueue(reviews) {
     (held.length ? ` · ${held.length} asked back` : '') +
     (leaving.length ? ` · ${leaving.length} leaving soon` : '');
   if (rollUp('review-card', !queue.length && !leaving.length && !problems.length && !held.length)) return;
+  // Below the bar, closest first: a heads-up, with Keep now and Remove now.
+  $('review-building-h').hidden = !building.length;
+  $('review-building-label').textContent =
+    buildingTotal > building.length
+      ? `Building up: the ${building.length} closest of ${buildingTotal}`
+      : 'Building up: below the bar';
+  setHTML(
+    $('review-building'),
+    building
+      .map(
+        b => `<li>
+      <div class="rq-main"><b>${esc(b.title)}</b>${b.year ? ` <span class="muted">(${esc(b.year)})</span>` : ''}
+        <span class="chip">${esc(b.library || (b.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip kind">▽ ${esc(list(b.downvotes).length)} Downvote${list(b.downvotes).length === 1 ? '' : 's'}</span>
+        <div class="rq-bar" title="${esc(Math.round(b.progress * 100))}% of the way to the Review Queue"><i style="width:${esc(Math.round(b.progress * 100))}%"></i></div>
+        <div class="muted">${esc(num(b.downvoteWeight))} of ${esc(num(b.neededWeight))} weight needed · ${esc(b.audience)} of ${esc(b.minimumAudience)} have tried it</div>
+        <div class="muted">Downvoted by ${list(b.downvotes)
+          .map(d => (d.counts ? `${esc(d.voter)} (${esc(num(d.voteWeight))})` : `${esc(d.voter)} (not tried yet)`))
+          .join(', ')}</div></div>
+      <div class="rq-acts"><button class="btn small" type="button" data-rv="early-keep" data-svc="${esc(b.svcId)}" data-id="${esc(b.ratingKey)}" data-title="${esc(b.title)}">Keep now</button>
+        <button class="btn small danger" type="button" data-rv="early-remove" data-svc="${esc(b.svcId)}" data-id="${esc(b.ratingKey)}" data-title="${esc(b.title)}">Remove now</button></div>
+    </li>`,
+      )
+      .join(''),
+  );
   $('review-held-h').hidden = !held.length;
   setHTML(
     $('review-held'),

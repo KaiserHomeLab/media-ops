@@ -623,6 +623,26 @@ function overview(realHost) {
               objectionBar: 2,
             },
           ],
+          buildingUp: [
+            {
+              ratingKey: '52210',
+              title: 'Clouds, Mostly',
+              year: 2017,
+              kind: 'movie',
+              library: 'Movies',
+              progress: 0.83,
+              downvoteWeight: 3.6,
+              neededWeight: 5.2,
+              audience: 4,
+              minimumAudience: 3,
+              downvotes: [
+                { voter: 'sam', voteWeight: 2.6, counts: true },
+                { voter: 'alex', voteWeight: 1, counts: true },
+                { voter: 'riley', voteWeight: 0, counts: false },
+              ],
+            },
+          ],
+          buildingTotal: 3,
           heldBack: [
             {
               ratingKey: '41980',

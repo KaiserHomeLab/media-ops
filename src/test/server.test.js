@@ -299,7 +299,11 @@ test('dashboard layout: saved in Settings, sent with the overview, cleaned of un
   const r = await json('PUT', '/api/settings/layout', { order: ['events', 'summary'], hidden: ['map-card', '<img>'] });
   assert.deepEqual((await r.json()).layout.hidden, ['map-card']);
   o = await (await fetch(`${base}/api/overview`)).json();
-  assert.deepEqual(o.layout.order.slice(0, 2), ['events', 'summary']);
+  assert.deepEqual(
+    o.layout.order.slice(0, 2),
+    ['events', 'review'],
+    'a row new since saving goes after the one before it',
+  );
   assert.deepEqual(o.layout.hidden, ['map-card']);
   await json('PUT', '/api/settings/layout', {});
 });

@@ -30,9 +30,9 @@ async function eventsApi(req, res, route) {
   }
 
   // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|
-  //   review-remove|review-leaving-keep|problem-resolve|problem-close|held-bring-back|held-decline)
+  //   review-remove|review-leaving-keep|review-early-keep|review-early-remove|problem-resolve|problem-close|held-bring-back|held-decline)
   const m =
-    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep|problem-resolve|problem-close|held-bring-back|held-decline)$/.exec(
+    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep|review-early-keep|review-early-remove|problem-resolve|problem-close|held-bring-back|held-decline)$/.exec(
       route,
     );
   if (!m) return send(res, 404, { error: 'Not found' });
@@ -63,6 +63,8 @@ async function eventsApi(req, res, route) {
       'review-keep': () => actions.reviewDecision(svc, body.ratingKey, 'keep'),
       'review-remove': () => actions.reviewDecision(svc, body.ratingKey, 'remove'),
       'review-leaving-keep': () => actions.reviewDecision(svc, body.ratingKey, 'leaving-keep'),
+      'review-early-keep': () => actions.reviewDecision(svc, body.ratingKey, 'early-keep'),
+      'review-early-remove': () => actions.reviewDecision(svc, body.ratingKey, 'early-remove'),
       'problem-resolve': () => actions.problemDecision(svc, body.reportId, 'resolve', body.note),
       'problem-close': () => actions.problemDecision(svc, body.reportId, 'close', body.note),
       'held-bring-back': () => actions.heldBackDecision(svc, body.ratingKey, 'bring-back', body.note),

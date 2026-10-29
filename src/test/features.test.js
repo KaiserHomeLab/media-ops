@@ -143,6 +143,18 @@ test('mediareview: Keep, Remove and Keep after all go to Media Review with the A
     removeSrv.calls.map(x => `${x.method} ${x.path} ${x.headers['x-api-key']}`),
     ['POST /api/v1/review-queue/500/remove mk', 'POST /api/v1/leaving-soon/500/keep mk'],
   );
+  const early = await fakeServer({
+    'POST /api/v1/building-up/501/keep': { kept: true },
+    'POST /api/v1/building-up/501/remove': { removed: true },
+  });
+  t.after(() => early.close());
+  const svc3 = { ...svc, url: early.url };
+  assert.match(await actions.reviewDecision(svc3, '501', 'early-keep'), /^Kept/);
+  assert.match(await actions.reviewDecision(svc3, '501', 'early-remove'), /^Removed/);
+  assert.deepEqual(
+    early.calls.map(x => `${x.method} ${x.path}`),
+    ['POST /api/v1/building-up/501/keep', 'POST /api/v1/building-up/501/remove'],
+  );
   await assert.rejects(actions.reviewDecision(svc, '500', 'delete'), /Bad request/);
   await assert.rejects(actions.reviewDecision(svc, '500', 'toString'), /Bad request/);
   for (const bad of ['', '-1', '1/../2', '5e3'])

@@ -11,6 +11,12 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- The Media Review card has its own row, right below Errors & warnings, instead of sharing the
+  Recently added / Requests row. It can be moved or turned off under Settings → Dashboard like the
+  others. A layout you saved before puts it in the same place.
+- Media Review: the few titles closest to the bar, on the Review Queue card (teal ▽, "Building
+  up"), with who Downvoted them. **Keep now** and **Remove now** decide early (behind the Settings
+  password when one is set).
 - Media Review: titles your friends have asked to bring back, on the Review Queue card (purple ↺).
   Media Review holds back what it deletes by blocklisting it in Seerr. Each one shows who asked and
   why it went (who Downvoted it, and how often it was Kept before). **Bring back** takes it off

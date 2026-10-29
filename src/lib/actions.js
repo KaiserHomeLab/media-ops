@@ -151,6 +151,8 @@ const REVIEW = /** @type {Record<string, [string, string]>} */ ({
   keep: ['/review-queue/{id}/keep', 'Kept: its Downvotes are cleared'],
   remove: ['/review-queue/{id}/remove', 'Removed: Leaving Soon in Plex until it is deleted'],
   'leaving-keep': ['/leaving-soon/{id}/keep', 'Kept after all: it is no longer Leaving Soon'],
+  'early-keep': ['/building-up/{id}/keep', 'Kept: its Downvotes are cleared'],
+  'early-remove': ['/building-up/{id}/remove', 'Removed: Leaving Soon in Plex until it is deleted'],
 });
 /** @param {import('./types').Service} svc @param {unknown} ratingKey @param {string} decision */
 async function reviewDecision(svc, ratingKey, decision) {

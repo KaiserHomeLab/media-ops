@@ -3004,6 +3004,23 @@ body.tv .rq-acts {
 .kind-held {
   --kind: var(--bifrost-3);
 }
+.kind-building {
+  --kind: var(--series-3);
+}
+/* How close a title is to Media Review's bar. */
+.rq-bar {
+  height: 4px;
+  max-width: 220px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+}
+.rq-bar i {
+  display: block;
+  height: 100%;
+  background: var(--kind);
+}
 .sub-h[class*='kind-'] {
   display: flex;
   align-items: center;

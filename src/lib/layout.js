@@ -21,6 +21,7 @@ const BLOCKS = [
   },
   { id: 'map', cards: [{ id: 'map-card', label: 'Stream map' }] },
   { id: 'events', cards: [{ id: 'events-card', label: 'Errors & warnings' }] },
+  { id: 'review', cards: [{ id: 'review-card', label: 'Review Queue (Media Review)' }] },
   { id: 'library', cards: [{ id: 'library-card', label: 'Library' }] },
   {
     id: 'downloads',
@@ -53,8 +54,9 @@ const BLOCKS = [
 const BLOCK_IDS = BLOCKS.map(b => b.id);
 const CARD_IDS = new Set(BLOCKS.flatMap(b => b.cards.map(c => c.id)));
 
-// Any input -> a complete, valid layout: known ids only, each once, and every block placed
-// (blocks missing from a saved order, such as cards added in a later version, go at the end).
+// Any input -> a complete, valid layout: known ids only, each once, and every block placed. A block
+// missing from a saved order (one added in a later version) goes where it is by default: right after
+// the block before it in BLOCKS, or first if there's none.
 /** @param {any} input */
 function clean(input) {
   const order = [...new Set((Array.isArray(input?.order) ? input.order : []).map(String))].filter(id =>
@@ -63,7 +65,14 @@ function clean(input) {
   const hidden = [...new Set((Array.isArray(input?.hidden) ? input.hidden : []).map(String))].filter(id =>
     CARD_IDS.has(id),
   );
-  return { order: [...order, ...BLOCK_IDS.filter(id => !order.includes(id))], hidden };
+  BLOCK_IDS.forEach((id, i) => {
+    if (order.includes(id)) return;
+    const before = BLOCK_IDS.slice(0, i)
+      .reverse()
+      .find(b => order.includes(b));
+    order.splice(before ? order.indexOf(before) + 1 : 0, 0, id);
+  });
+  return { order, hidden };
 }
 
 /** What the dashboard gets: the saved layout plus which cards make up each row. @param {any} cfg */

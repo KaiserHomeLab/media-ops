@@ -475,6 +475,23 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
             ],
           }
         : { status: 401 },
+    '/api/v1/building-up': req =>
+      req.headers['x-api-key'] === 'mk'
+        ? {
+            buildingUp: Array.from({ length: 7 }, (_, i) => ({
+              title: { ratingKey: String(800 + i), kind: 'movie', name: `Title ${i}`, year: 2020, library: 'Movies' },
+              downvoteWeight: 3,
+              neededWeight: 4.5,
+              audience: 3,
+              minimumAudience: 3,
+              progress: 0.83,
+              downvotes: [
+                { voter: 'alice', voteWeight: 3, counts: true, at: '2026-10-28T10:00:00.000Z' },
+                { voter: 'dave', voteWeight: 0, counts: false, at: '2026-10-28T11:00:00.000Z' },
+              ],
+            })),
+          }
+        : { status: 401 },
     '/api/v1/held-back': req =>
       req.headers['x-api-key'] === 'mk'
         ? {
@@ -603,6 +620,24 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
       ],
     },
   ]);
+  assert.equal(r.data.buildingTotal, 7);
+  assert.equal(r.data.buildingUp.length, 5, 'only the closest few');
+  assert.deepEqual(r.data.buildingUp[0], {
+    ratingKey: '800',
+    title: 'Title 0',
+    year: 2020,
+    kind: 'movie',
+    library: 'Movies',
+    progress: 0.83,
+    downvoteWeight: 3,
+    neededWeight: 4.5,
+    audience: 3,
+    minimumAudience: 3,
+    downvotes: [
+      { voter: 'alice', voteWeight: 3, counts: true },
+      { voter: 'dave', voteWeight: 0, counts: false },
+    ],
+  });
   assert.deepEqual(r.data.heldBack, [
     {
       ratingKey: '700',
@@ -626,7 +661,14 @@ test('mediareview: an older Media Review without Leaving Soon still shows its qu
   });
   t.after(() => srv.close());
   const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
-  assert.deepEqual(r.data, { reviewQueue: [], leavingSoon: [], problemReports: [], heldBack: [] });
+  assert.deepEqual(r.data, {
+    reviewQueue: [],
+    leavingSoon: [],
+    problemReports: [],
+    heldBack: [],
+    buildingUp: [],
+    buildingTotal: 0,
+  });
 });
 
 test('clonarr: widget summary, and graceful fallback when the endpoint is missing', async t => {

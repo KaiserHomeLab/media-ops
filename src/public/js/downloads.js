@@ -235,12 +235,37 @@ export function renderReviewQueue(reviews) {
   const queue = reviews.flatMap(s => list(s.data.reviewQueue).map(q => ({ ...q, svcId: s.id })));
   const leaving = reviews.flatMap(s => list(s.data.leavingSoon).map(l => ({ ...l, svcId: s.id })));
   const problems = reviews.flatMap(s => list(s.data.problemReports).map(p => ({ ...p, svcId: s.id })));
+  const held = reviews.flatMap(s => list(s.data.heldBack).map(h => ({ ...h, svcId: s.id })));
   $('review-card').hidden = !reviews.length;
   $('review-count').textContent =
     (queue.length ? `${queue.length} to decide` : 'nothing to decide') +
     (problems.length ? ` · ${problems.length} problem${problems.length === 1 ? '' : 's'}` : '') +
+    (held.length ? ` · ${held.length} asked back` : '') +
     (leaving.length ? ` · ${leaving.length} leaving soon` : '');
-  if (rollUp('review-card', !queue.length && !leaving.length && !problems.length)) return;
+  if (rollUp('review-card', !queue.length && !leaving.length && !problems.length && !held.length)) return;
+  $('review-held-h').hidden = !held.length;
+  setHTML(
+    $('review-held'),
+    held
+      .map(
+        h => `<li>
+      <div class="rq-main"><b>${esc(h.title)}</b>${h.year ? ` <span class="muted">(${esc(h.year)})</span>` : ''}
+        <span class="chip">${esc(h.library || (h.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip kind">↺ ${esc(list(h.asks).length)} ask${list(h.asks).length === 1 ? '' : 's'}</span>
+        ${list(h.asks)
+          .map(a => `<div class="muted">${esc(a.voter)} asked${a.note ? `: “${esc(a.note)}”` : ''}</div>`)
+          .join('')}<div class="muted">Deleted ${ago(new Date(h.deletedAt).getTime())}${
+          list(h.downvotes).length
+            ? ` · Downvoted by ${list(h.downvotes)
+                .map(d => (d.voteWeight == null ? esc(d.voter) : `${esc(d.voter)} (${esc(num(d.voteWeight))})`))
+                .join(', ')}`
+            : ''
+        }${h.kept ? ` · Kept ${h.kept === 1 ? 'once' : `${esc(h.kept)} times`} before` : ''}</div></div>
+      <div class="rq-acts"><button class="btn small" type="button" data-hb="bring-back" data-svc="${esc(h.svcId)}" data-id="${esc(h.ratingKey)}" data-title="${esc(h.title)}">Bring back</button>
+        <button class="btn small ghost" type="button" data-hb="decline" data-svc="${esc(h.svcId)}" data-id="${esc(h.ratingKey)}" data-title="${esc(h.title)}">Decline</button></div>
+    </li>`,
+      )
+      .join(''),
+  );
   $('review-problems-h').hidden = !problems.length;
   setHTML(
     $('review-problems'),

@@ -14,10 +14,11 @@ async function mediareview(cfg) {
   /** @param {string} p */
   const api = p => req(join(cfg.url, `/api/v1${p}`), { headers });
   const [status, latency] = await timed(() => api('/status'));
-  const [queue, leaving, problems] = await Promise.all([
+  const [queue, leaving, problems, held] = await Promise.all([
     api('/review-queue'),
     api('/leaving-soon').catch(() => null), // Media Review before 0.2 has no Leaving Soon
     api('/problem-reports').catch(() => null), // nor Problem Reports
+    api('/held-back').catch(() => null), // nor holding back deleted titles
   ]);
   const reviewQueue = list(queue?.reviewQueue).map(e => ({
     ratingKey: String(e.title?.ratingKey ?? ''),
@@ -67,7 +68,24 @@ async function mediareview(cfg) {
     reportedAt: r.reportedAt,
     reporters: list(r.reporters).map(p => ({ voter: String(p.voter), note: p.note ? String(p.note) : null })),
   }));
-  return { version: status.version, latency, data: { reviewQueue, leavingSoon, problemReports } };
+  // Deleted and blocklisted in Seerr; friends have asked for these back. The rest stay in Media Review.
+  const heldBack = list(held?.heldBack)
+    .filter(h => list(h.asks).length)
+    .map(h => ({
+      ratingKey: String(h.title?.ratingKey ?? ''),
+      title: h.title?.name || 'Unknown title',
+      year: h.title?.year ?? null,
+      kind: h.title?.kind === 'show' ? 'show' : 'movie',
+      library: h.title?.library ? String(h.title.library) : null,
+      deletedAt: h.deletedAt,
+      asks: list(h.asks).map(a => ({ voter: String(a.voter), note: a.note ? String(a.note) : null })),
+      // Why it went: who Downvoted it each time it was Removed, and how many times it was Kept before.
+      downvotes: list(h.history?.votes)
+        .flatMap(r => list(r.downvotes))
+        .map(d => ({ voter: String(d.voter), voteWeight: d.voteWeight })),
+      kept: list(h.history?.decisions).filter(d => d.decision === 'keep').length,
+    }));
+  return { version: status.version, latency, data: { reviewQueue, leavingSoon, problemReports, heldBack } };
 }
 
 module.exports = { mediareview };

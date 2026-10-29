@@ -178,6 +178,22 @@ async function problemDecision(svc, reportId, decision, note) {
   return decision === 'resolve' ? 'Resolved: the reporters are told' : 'Closed: the reporters are told';
 }
 
+// Bring back a held-back title (off Seerr's blocklist and requested there) or decline the friends' asks.
+/** @param {import('./types').Service} svc @param {unknown} ratingKey @param {string} decision @param {unknown} note */
+async function heldBackDecision(svc, ratingKey, decision, note) {
+  if (svc.kind !== 'mediareview') throw Object.assign(new Error('Not Media Review'), { status: 400 });
+  if (!['bring-back', 'decline'].includes(decision) || !isId(ratingKey))
+    throw Object.assign(new Error('Bad request'), { status: 400 });
+  await req(join(svc.url, `/api/v1/held-back/${Number(ratingKey)}/${decision}`), {
+    method: 'POST',
+    headers: { 'X-Api-Key': svc.apiKey || '', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note: String(note ?? '').slice(0, 500) }),
+  });
+  return decision === 'bring-back'
+    ? 'Brought back: requested in Seerr, and they are told'
+    : 'Declined: they are told, and it stays held back';
+}
+
 module.exports = {
   capabilities,
   clear,
@@ -188,4 +204,5 @@ module.exports = {
   seerrRequest,
   reviewDecision,
   problemDecision,
+  heldBackDecision,
 };

@@ -3001,6 +3001,9 @@ body.tv .rq-acts {
 .kind-leaving {
   --kind: var(--critical);
 }
+.kind-held {
+  --kind: var(--bifrost-3);
+}
 .sub-h[class*='kind-'] {
   display: flex;
   align-items: center;

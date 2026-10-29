@@ -11,6 +11,11 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- Media Review: titles your friends have asked to bring back, on the Review Queue card (purple ↺).
+  Media Review holds back what it deletes by blocklisting it in Seerr. Each one shows who asked and
+  why it went (who Downvoted it, and how often it was Kept before). **Bring back** takes it off
+  the blocklist and requests it in Seerr. **Decline** keeps it held back. Both take an optional note
+  for the friends who asked (behind the Settings password when one is set).
 - Media Review: open Problem Reports on the Review Queue card. Each shows what's wrong, which
   part (the movie, a whole show, a season or one episode) and everyone who reported it, with their
   notes. **Resolve** or **Close** sends the decision back to Media Review, with an optional note

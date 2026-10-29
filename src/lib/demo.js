@@ -623,6 +623,25 @@ function overview(realHost) {
               objectionBar: 2,
             },
           ],
+          heldBack: [
+            {
+              ratingKey: '41980',
+              title: 'Midnight Spreadsheet',
+              year: 2018,
+              kind: 'movie',
+              library: 'Movies',
+              deletedAt: ago(20 * 24 * 60),
+              asks: [
+                { voter: 'riley', note: 'I never got to finish it' },
+                { voter: 'sam', note: null },
+              ],
+              downvotes: [
+                { voter: 'jordan', voteWeight: 3 },
+                { voter: 'alex', voteWeight: 2.4 },
+              ],
+              kept: 0,
+            },
+          ],
           problemReports: [
             {
               id: 7,

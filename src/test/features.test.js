@@ -172,6 +172,28 @@ test('mediareview: Resolve and Close a Problem Report with the note; only those,
   await assert.rejects(actions.problemDecision({ ...svc, kind: 'seerr' }, 4, 'close', ''), /Not Media Review/);
 });
 
+test('mediareview: Bring back and Decline a held-back title with the note; only those, only numeric rating keys', async t => {
+  const srv = await fakeServer({
+    'POST /api/v1/held-back/700/bring-back': { broughtBack: true },
+    'POST /api/v1/held-back/700/decline': { declined: true },
+  });
+  t.after(() => srv.close());
+  const svc = { kind: 'mediareview', url: srv.url, apiKey: 'mk' };
+  assert.match(await actions.heldBackDecision(svc, '700', 'bring-back', 'Back tonight'), /^Brought back/);
+  assert.match(await actions.heldBackDecision(svc, 700, 'decline', ''), /^Declined/);
+  assert.deepEqual(
+    srv.calls.map(x => `${x.method} ${x.path} ${x.headers['x-api-key']} ${x.body}`),
+    [
+      'POST /api/v1/held-back/700/bring-back mk {"note":"Back tonight"}',
+      'POST /api/v1/held-back/700/decline mk {"note":""}',
+    ],
+  );
+  await assert.rejects(actions.heldBackDecision(svc, '700', 'delete', ''), /Bad request/);
+  for (const bad of ['', '-1', '1/../2', '5e3'])
+    await assert.rejects(actions.heldBackDecision(svc, bad, 'decline', ''), /Bad request/);
+  await assert.rejects(actions.heldBackDecision({ ...svc, kind: 'seerr' }, '700', 'decline', ''), /Not Media Review/);
+});
+
 test('gpu: AMD busy %, Intel busy from idle residency, virtual GPUs ignored', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'drm-'));
   const card = (n, files) => {

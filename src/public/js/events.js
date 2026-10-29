@@ -225,6 +225,20 @@ document.addEventListener('click', e => {
       }),
     );
   }
+  if ('hb' in b.dataset) {
+    // Bring back: off Seerr's blocklist and requested. Decline: it stays held back. The friends who asked see the note.
+    const note = prompt(
+      `${b.dataset.hb === 'bring-back' ? `Bring back ${b.dataset.title}? It's requested in Seerr, approved.` : `Decline bringing back ${b.dataset.title}?`}\n\nNote for the friends who asked (optional):`,
+      '',
+    );
+    if (note === null) return;
+    return runAction(b, () =>
+      post(`/services/${encodeURIComponent(String(b.dataset.svc))}/held-${b.dataset.hb}`, {
+        ratingKey: b.dataset.id,
+        note,
+      }),
+    );
+  }
   if ('stop' in b.dataset) {
     const reason = prompt(
       `Stop ${b.dataset.user}'s stream?\n\nMessage shown on their screen:`,

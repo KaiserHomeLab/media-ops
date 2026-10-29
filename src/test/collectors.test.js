@@ -475,6 +475,35 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
             ],
           }
         : { status: 401 },
+    '/api/v1/held-back': req =>
+      req.headers['x-api-key'] === 'mk'
+        ? {
+            heldBack: [
+              {
+                title: { ratingKey: '700', kind: 'movie', name: 'Gone Movie', year: 2018, library: 'Movies' },
+                deletedAt: '2026-10-09T10:00:00.000Z',
+                blocked: true,
+                blockError: null,
+                asks: [{ voter: 'alice', note: 'please', at: '2026-10-27T10:00:00.000Z' }],
+                history: {
+                  decisions: [
+                    { decision: 'keep', at: '2026-06-01T10:00:00.000Z' },
+                    { decision: 'remove', at: '2026-09-25T10:00:00.000Z' },
+                  ],
+                  deletions: [{ at: '2026-10-09T10:00:00.000Z', from: ['Radarr'] }],
+                  votes: [
+                    {
+                      at: '2026-09-25T10:00:00.000Z',
+                      downvotes: [{ voter: 'bob', voteWeight: 3 }],
+                      objections: [{ voter: 'dave', voteWeight: null }],
+                    },
+                  ],
+                },
+              },
+              { title: { ratingKey: '701', name: 'Nobody Asked' }, deletedAt: '2026-10-01T10:00:00.000Z', asks: [] },
+            ],
+          }
+        : { status: 401 },
     '/api/v1/problem-reports': req =>
       req.headers['x-api-key'] === 'mk'
         ? {
@@ -574,6 +603,19 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
       ],
     },
   ]);
+  assert.deepEqual(r.data.heldBack, [
+    {
+      ratingKey: '700',
+      title: 'Gone Movie',
+      year: 2018,
+      kind: 'movie',
+      library: 'Movies',
+      deletedAt: '2026-10-09T10:00:00.000Z',
+      asks: [{ voter: 'alice', note: 'please' }],
+      downvotes: [{ voter: 'bob', voteWeight: 3 }],
+      kept: 1,
+    },
+  ]);
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));
 });
 
@@ -584,7 +626,7 @@ test('mediareview: an older Media Review without Leaving Soon still shows its qu
   });
   t.after(() => srv.close());
   const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
-  assert.deepEqual(r.data, { reviewQueue: [], leavingSoon: [], problemReports: [] });
+  assert.deepEqual(r.data, { reviewQueue: [], leavingSoon: [], problemReports: [], heldBack: [] });
 });
 
 test('clonarr: widget summary, and graceful fallback when the endpoint is missing', async t => {

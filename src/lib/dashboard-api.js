@@ -30,9 +30,9 @@ async function eventsApi(req, res, route) {
   }
 
   // /services/:id/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|
-  //   review-remove|review-leaving-keep|problem-resolve|problem-close)
+  //   review-remove|review-leaving-keep|problem-resolve|problem-close|held-bring-back|held-decline)
   const m =
-    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep|problem-resolve|problem-close)$/.exec(
+    /^\/services\/([\w-]+)\/(clear|recheck|stop|queue-retry|queue-remove|request-approve|request-decline|review-keep|review-remove|review-leaving-keep|problem-resolve|problem-close|held-bring-back|held-decline)$/.exec(
       route,
     );
   if (!m) return send(res, 404, { error: 'Not found' });
@@ -65,6 +65,8 @@ async function eventsApi(req, res, route) {
       'review-leaving-keep': () => actions.reviewDecision(svc, body.ratingKey, 'leaving-keep'),
       'problem-resolve': () => actions.problemDecision(svc, body.reportId, 'resolve', body.note),
       'problem-close': () => actions.problemDecision(svc, body.reportId, 'close', body.note),
+      'held-bring-back': () => actions.heldBackDecision(svc, body.ratingKey, 'bring-back', body.note),
+      'held-decline': () => actions.heldBackDecision(svc, body.ratingKey, 'decline', body.note),
     };
     const message = await runs[action]();
     invalidate(); // re-fetch logs/health right away

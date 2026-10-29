@@ -54,18 +54,18 @@
     <section class="kpis" id="kpis" data-block="summary"></section>
 
     <div class="grid two" data-block="playing">
-      <section class="card" id="now-playing">
-        <h2>Now playing <span class="count" id="np-count"></span></h2>
+      <section class="card sec sec-watch" id="now-playing">
+        <h2><span class="kind-badge" aria-hidden="true">▶︎</span>Now playing <span class="count" id="np-count"></span></h2>
         <div id="streams" class="streams"></div>
       </section>
-      <section class="card" id="services-card">
-        <h2>Services <span class="count" id="svc-count"></span></h2>
+      <section class="card sec sec-server" id="services-card">
+        <h2><span class="kind-badge" aria-hidden="true">●</span>Services <span class="count" id="svc-count"></span></h2>
         <div id="services" class="services"></div>
       </section>
     </div>
 
-    <section class="card" id="map-card" data-block="map" hidden>
-      <h2>Stream map <span class="count" id="map-count"></span>
+    <section class="card sec sec-watch" id="map-card" data-block="map" hidden>
+      <h2><span class="kind-badge" aria-hidden="true">◎</span>Stream map <span class="count" id="map-count"></span>
         <button class="linkish roll-toggle" type="button" data-roll="map-card" aria-controls="map-wrap" hidden></button></h2>
       <div class="map-wrap roll-body" id="map-wrap">
         <div class="map" id="map"></div>
@@ -76,8 +76,8 @@
       </div>
     </section>
 
-    <section class="card" id="events-card" data-block="events">
-      <h2>Errors &amp; warnings <span class="count" id="ev-count"></span>
+    <section class="card sec sec-problem" id="events-card" data-block="events">
+      <h2><span class="kind-badge" aria-hidden="true">⚠︎</span>Errors &amp; warnings <span class="count" id="ev-count"></span>
         <button class="linkish roll-toggle" type="button" data-roll="events-card" aria-controls="events-body" hidden></button></h2>
       <div class="roll-body" id="events-body">
         <div class="ev-filters" id="ev-filters" role="toolbar" aria-label="Filter errors"></div>
@@ -86,8 +86,8 @@
       </div>
     </section>
 
-    <section class="card" id="review-card" data-block="review" data-tv-hide hidden>
-      <h2>Review Queue <span class="count" id="review-count"></span>
+    <section class="card sec sec-review" id="review-card" data-block="review" data-tv-hide hidden>
+      <h2><span class="kind-badge" aria-hidden="true">▼</span>Review Queue <span class="count" id="review-count"></span>
         <button class="linkish roll-toggle" type="button" data-roll="review-card" aria-controls="review-body" hidden></button></h2>
       <div class="roll-body" id="review-body">
         <h3 class="sub-h kind-downvote" id="review-h"><span class="kind-badge" aria-hidden="true">▼</span>Downvotes: Keep or Remove</h3>
@@ -103,49 +103,49 @@
       </div>
     </section>
 
-    <section class="card" id="library-card" data-block="library" data-tv-hide>
-      <h2>Library</h2>
+    <section class="card sec sec-media" id="library-card" data-block="library" data-tv-hide>
+      <h2><span class="kind-badge" aria-hidden="true">▤</span>Library</h2>
       <div id="libraries" class="libs"></div>
       <div id="arr-stats" class="arr-stats"></div>
     </section>
 
     <div class="grid two even" data-block="downloads">
-      <section class="card" id="downloads-card">
-        <h2>Downloads <span class="count" id="downloads-count"></span>
+      <section class="card sec sec-download" id="downloads-card">
+        <h2><span class="kind-badge" aria-hidden="true">↓</span>Downloads <span class="count" id="downloads-count"></span>
           <button class="linkish roll-toggle" type="button" data-roll="downloads-card" aria-controls="downloads-body" hidden></button></h2>
         <div class="roll-body" id="downloads-body">
           <div id="clients" class="clients"></div>
           <div id="queue" class="queue"></div>
         </div>
       </section>
-      <section class="card" id="upcoming-card" data-tv-hide>
-        <h2>Coming up</h2>
+      <section class="card sec sec-media" id="upcoming-card" data-tv-hide>
+        <h2><span class="kind-badge" aria-hidden="true">◷</span>Coming up</h2>
         <div id="upcoming" class="upcoming"></div>
       </section>
     </div>
 
-    <section class="card" id="indexers-card" data-block="indexers" data-tv-hide hidden>
-      <h2>Indexer limits <span class="count" id="indexers-sub"></span></h2>
+    <section class="card sec sec-download" id="indexers-card" data-block="indexers" data-tv-hide hidden>
+      <h2><span class="kind-badge" aria-hidden="true">⇅</span>Indexer limits <span class="count" id="indexers-sub"></span></h2>
       <div id="indexers" class="indexers"></div>
       <p class="muted small-note" id="indexers-note" hidden>Set each indexer's limits in Prowlarr (Indexers → edit → Show Advanced → Query Limit / Grab Limit) to get a bar and a warning before it runs out.</p>
     </section>
 
     <div class="grid two even" data-block="recent" data-tv-hide>
-      <section class="card" id="recent-card" hidden>
-        <h2>Recently added</h2>
+      <section class="card sec sec-media" id="recent-card" hidden>
+        <h2><span class="kind-badge" aria-hidden="true">✚</span>Recently added</h2>
         <div class="posters" id="recent-posters"></div>
         <h3 class="sub-h" id="imports-h" hidden>Imported by the arrs</h3>
         <ul class="imports" id="imports"></ul>
       </section>
-      <section class="card" id="requests-card" hidden>
-        <h2>Requests <span class="count" id="requests-count"></span>
+      <section class="card sec sec-media" id="requests-card" hidden>
+        <h2><span class="kind-badge" aria-hidden="true">⊕</span>Requests <span class="count" id="requests-count"></span>
           <button class="linkish roll-toggle" type="button" data-roll="requests-card" aria-controls="requests" hidden></button></h2>
         <ul class="requests roll-body" id="requests"></ul>
       </section>
     </div>
 
-    <section class="card" id="space-card" data-block="space" data-tv-hide hidden>
-      <h2>What's using space <span class="count" id="space-sub"></span></h2>
+    <section class="card sec sec-server" id="space-card" data-block="space" data-tv-hide hidden>
+      <h2><span class="kind-badge" aria-hidden="true">◑</span>What's using space <span class="count" id="space-sub"></span></h2>
       <div class="seg" id="space-tabs" role="tablist" aria-label="Space views">
         <button type="button" role="tab" data-space="biggest">Biggest</button>
         <button type="button" role="tab" data-space="downloaded">Downloaded · 30 days</button>
@@ -155,26 +155,26 @@
       <ol class="space-list" id="space-list"></ol>
     </section>
 
-    <section class="card" id="unraid-card" data-block="unraid" hidden>
-      <h2>Unraid <span class="count" id="unraid-sub"></span></h2>
+    <section class="card sec sec-server" id="unraid-card" data-block="unraid" hidden>
+      <h2><span class="kind-badge" aria-hidden="true">▦</span>Unraid <span class="count" id="unraid-sub"></span></h2>
       <div id="unraid-parity" class="parity"></div>
       <div id="unraid-disks" class="udisks"></div>
     </section>
 
-    <section class="card" id="truenas-card" data-block="truenas" hidden>
-      <h2>TrueNAS <span class="count" id="truenas-sub"></span></h2>
+    <section class="card sec sec-server" id="truenas-card" data-block="truenas" hidden>
+      <h2><span class="kind-badge" aria-hidden="true">▦</span>TrueNAS <span class="count" id="truenas-sub"></span></h2>
       <div id="truenas-pools" class="pools"></div>
       <div id="truenas-disks" class="udisks"></div>
       <div id="truenas-apps" class="tn-apps"></div>
     </section>
 
-    <section class="card" id="trends-card" data-block="trends" data-tv-hide>
-      <h2>Trends <span class="count" id="trends-sub">last 24 hours</span></h2>
+    <section class="card sec sec-watch" id="trends-card" data-block="trends" data-tv-hide>
+      <h2><span class="kind-badge" aria-hidden="true">↗</span>Trends <span class="count" id="trends-sub">last 24 hours</span></h2>
       <div class="trends" id="trends"></div>
     </section>
 
-    <section class="card" id="watch-card" data-block="watch" data-tv-hide hidden>
-      <h2>Watch stats <span class="count">last 30 days · Tautulli</span></h2>
+    <section class="card sec sec-watch" id="watch-card" data-block="watch" data-tv-hide hidden>
+      <h2><span class="kind-badge" aria-hidden="true">★︎</span>Watch stats <span class="count">last 30 days · Tautulli</span></h2>
       <div class="watch">
         <div class="chart-wrap">
           <div class="chart-head">
@@ -189,12 +189,12 @@
     </section>
 
     <div class="grid two even" data-block="system" data-tv-hide>
-      <section class="card" id="storage-card">
-        <h2>Storage</h2>
+      <section class="card sec sec-server" id="storage-card">
+        <h2><span class="kind-badge" aria-hidden="true">▥</span>Storage</h2>
         <div id="disks" class="disks"></div>
       </section>
-      <section class="card" id="host-card">
-        <h2>Host <span class="count" id="host-name"></span></h2>
+      <section class="card sec sec-server" id="host-card">
+        <h2><span class="kind-badge" aria-hidden="true">⚙︎</span>Host <span class="count" id="host-name"></span></h2>
         <div id="host" class="host"></div>
         <div id="docker" class="docker"></div>
       </section>

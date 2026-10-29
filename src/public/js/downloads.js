@@ -260,7 +260,7 @@ export function renderReviewQueue(reviews) {
       <div class="rq-main"><b>${esc(b.title)}</b>${b.year ? ` <span class="muted">(${esc(b.year)})</span>` : ''}
         <span class="chip">${esc(b.library || (b.kind === 'show' ? 'Show' : 'Movie'))}</span><span class="chip kind">▽ ${esc(list(b.downvotes).length)} Downvote${list(b.downvotes).length === 1 ? '' : 's'}</span>
         <div class="rq-bar" title="${esc(Math.round(b.progress * 100))}% of the way to the Review Queue"><i style="width:${esc(Math.round(b.progress * 100))}%"></i></div>
-        <div class="muted">${esc(num(b.downvoteWeight))} of ${esc(num(b.neededWeight))} weight needed · ${esc(b.audience)} of ${esc(b.minimumAudience)} have tried it</div>
+        <div class="muted">${esc(num(b.downvoteWeight))} weight, ${esc(num(b.neededWeight))} needed · ${esc(b.audience)} of ${esc(b.minimumAudience)} have tried it</div>
         <div class="muted">Downvoted by ${list(b.downvotes)
           .map(d => (d.counts ? `${esc(d.voter)} (${esc(num(d.voteWeight))})` : `${esc(d.voter)} (not tried yet)`))
           .join(', ')}</div></div>

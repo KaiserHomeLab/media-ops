@@ -3567,3 +3567,17 @@ pre.code {
 .card.sec .ev.ev-warn {
   border-left-color: var(--warning);
 }
+
+/* Errors & warnings: lines from apps' logs, collapsed under what's wrong right now. */
+.ev-log > summary {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ev-log > summary:hover {
+  color: var(--text-primary);
+}
+.ev-log[open] > summary {
+  margin-bottom: 6px;
+}

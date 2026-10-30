@@ -279,10 +279,7 @@ test('quiet hours: held overnight (except app-down), sent together afterwards', 
   });
   const run = (r, q) => notify.handle(r, feed.collect(r.services), [], cfg(q));
   await run(svc(true), quietNow); // seed
-  await run(
-    svc(true, [{ time: new Date().toISOString(), level: 'error', source: 'Import', message: 'night error' }]),
-    quietNow,
-  );
+  await run(svc(true, [{ level: 'error', source: 'Queue', message: 'night error', live: true }]), quietNow);
   assert.equal(got.length, 0, 'error held');
   await run(svc(false), quietNow);
   await run(svc(false), quietNow);

@@ -11,7 +11,8 @@ import { $, esc, list, mbps, rate, setHTML, sum } from './util.js';
 /** @param {Overview} d @param {{ streams: any[], clients: ServiceState[] }} parts */
 export function renderStrip(d, { streams, clients }) {
   const down = d.services.filter(s => !s.up);
-  const errors = d.events.filter(e => !e.dismissed && e.level === 'error' && Date.now() - e.t < 864e5).length;
+  // What's wrong right now, as the Errors & warnings card counts it; log lines are history.
+  const errors = d.events.filter(e => e.live && !e.dismissed && e.level === 'error').length;
   const bw = mbps(sum(streams, s => s.bandwidth));
   const dl = rate(sum(clients, c => c.data?.downBps));
   // text: the full label; short: what phones show next to the icon.

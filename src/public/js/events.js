@@ -10,14 +10,21 @@ import { $, ago, closest, esc, lastHTML, rollUp, setHTML, store } from './util.j
 /** @type {{ svc: string, level: string, showDismissed: boolean, [key: string]: string | boolean }} */
 const evFilter = { svc: 'all', level: 'all', showDismissed: false };
 
+const DAY = 864e5;
+
+// The card shows what's wrong right now: an app down, a failing health check, a stuck download. Lines from apps'
+// logs are history (often already fixed by the app), so they wait behind "Recent log entries", the last 24 hours.
 /** @param {Overview} d */
 export function renderEvents(d) {
-  const active = d.events.filter(e => !e.dismissed);
-  const dismissedN = d.events.length - active.length;
+  const live = d.events.filter(e => e.live);
+  const log = logOf(d);
+  const active = live.filter(e => !e.dismissed);
+  const dismissedN = live.length - active.length;
   const errs = active.filter(e => e.level === 'error').length;
   $('ev-count').textContent = active.length
     ? `${errs} errors · ${active.length - errs} warnings`
     : `all clear${dismissedN ? ` · ${dismissedN} dismissed` : ''}`;
+  renderLog(d, log);
   if (rollUp('events-card', !active.length)) return;
 
   const names = new Map(d.services.map(s => [s.id, s.name]));
@@ -46,7 +53,7 @@ export function renderEvents(d) {
   const inFilter = e =>
     (evFilter.level === 'all' || e.level === evFilter.level) && (evFilter.svc === 'all' || e.svcId === evFilter.svc);
   const shownActive = active.filter(inFilter);
-  const shown = (evFilter.showDismissed ? d.events : active).filter(inFilter).slice(0, 150);
+  const shown = (evFilter.showDismissed ? live : active).filter(inFilter).slice(0, 150);
 
   // Action bar: app actions on the left (when one app is selected), feed actions on the right.
   const sel = evFilter.svc === 'all' ? undefined : d.services.find(s => s.id === evFilter.svc);
@@ -74,7 +81,7 @@ export function renderEvents(d) {
   const el = $('events');
   if (!shown.length) {
     const msg =
-      d.events.length && !active.length
+      live.length && !active.length
         ? `✓ All caught up. ${dismissedN} dismissed.`
         : active.length
           ? 'Nothing matches this filter.'
@@ -84,34 +91,57 @@ export function renderEvents(d) {
 
   // Keep expanded rows expanded across refreshes.
   const open = new Set([...el.querySelectorAll('details[open]')].map(x => /** @type {HTMLElement} */ (x).dataset.key));
+  setHTML(el, shown.map(e => row(d, e, open)).join(''));
+}
+
+// Log lines from the last 24 hours, newest first: collapsed, for digging into what happened.
+/** @param {Overview} d @param {any[]} log */
+function renderLog(d, log) {
+  const box = /** @type {HTMLDetailsElement} */ ($('ev-log'));
+  box.hidden = !log.length;
+  if (!log.length) return;
+  $('ev-log-label').textContent =
+    `Recent log entries (${log.length}): from apps' logs in the last 24 hours, often already fixed`;
+  if (!box.open) return; // drawn when opened
+  const list = $('ev-log-list');
+  const open = new Set(
+    [...list.querySelectorAll('details[open]')].map(x => /** @type {HTMLElement} */ (x).dataset.key),
+  );
   setHTML(
-    el,
-    shown
-      .map(e => {
-        const svc = d.services.find(s => s.id === e.svcId);
-        const queueActs =
-          !e.dismissed && e.source === 'Queue' && e.queueId != null
-            ? `<button class="mini-btn" type="button" data-qretry="${esc(e.svcId)}" title="Ask ${esc(svc?.name || '')} to re-check its downloads and try the import again">Retry</button>
-         <button class="mini-btn" type="button" data-qremove="${esc(e.svcId)}" data-qid="${esc(e.queueId)}" title="Remove from the downloader, blocklist this release and search for another">Replace…</button>`
-            : '';
-        const acts = e.dismissed
-          ? '<span class="tag">dismissed</span>'
-          : `${queueActs}${e.live && (e.healthCheck || e.source === 'Connection') ? `<button class="icon-btn" type="button" data-recheck="${esc(e.svcId)}" title="Re-check ${esc(svc?.name || '')}" aria-label="Re-check ${esc(svc?.name || '')}">↻</button>` : ''}
-         <button class="icon-btn" type="button" data-dismiss="${esc(e.key)}" title="Dismiss" aria-label="Dismiss">✕</button>`;
-        const lvl = e.level === 'error' ? 'error' : 'warn';
-        const cells = `<span class="lvl ${lvl}">${lvl}</span>
-      <span class="svc-n">${esc(e.svc)}</span>
-      <span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}${e.hint ? '<span class="hint-mark" title="Has a how-to-fix tip: click to open"> 💡</span>' : ''}</span>
-      <span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>
-      <span class="ev-acts">${acts}</span>`;
-        const cls = `ev ev-${lvl}${e.dismissed ? ' is-dismissed' : ''}`;
-        const body = `${e.hint ? `<p class="ev-hint"><b>How to fix:</b> ${esc(e.hint)}</p>` : ''}${e.detail ? `<pre>${esc(e.detail)}</pre>` : ''}`;
-        return body
-          ? `<details class="${cls}" data-key="${esc(e.key)}"${open.has(e.key) ? ' open' : ''}><summary>${cells}</summary>${body}</details>`
-          : `<div class="${cls}"><div class="row">${cells}</div></div>`;
-      })
+    list,
+    log
+      .slice(0, 150)
+      .map(e => row(d, e, open))
       .join(''),
   );
+}
+$('ev-log').addEventListener('toggle', () => store.state && renderLog(store.state, logOf(store.state)));
+/** @param {Overview} d */
+const logOf = d => d.events.filter(e => !e.live && !e.dismissed && Date.now() - e.t < DAY);
+
+/** @param {Overview} d @param {any} e @param {Set<string | undefined>} open */
+function row(d, e, open) {
+  const svc = d.services.find(s => s.id === e.svcId);
+  const queueActs =
+    !e.dismissed && e.source === 'Queue' && e.queueId != null
+      ? `<button class="mini-btn" type="button" data-qretry="${esc(e.svcId)}" title="Ask ${esc(svc?.name || '')} to re-check its downloads and try the import again">Retry</button>
+   <button class="mini-btn" type="button" data-qremove="${esc(e.svcId)}" data-qid="${esc(e.queueId)}" title="Remove from the downloader, blocklist this release and search for another">Replace…</button>`
+      : '';
+  const acts = e.dismissed
+    ? '<span class="tag">dismissed</span>'
+    : `${queueActs}${e.live && (e.healthCheck || e.source === 'Connection') ? `<button class="icon-btn" type="button" data-recheck="${esc(e.svcId)}" title="Re-check ${esc(svc?.name || '')}" aria-label="Re-check ${esc(svc?.name || '')}">↻</button>` : ''}
+   <button class="icon-btn" type="button" data-dismiss="${esc(e.key)}" title="Dismiss" aria-label="Dismiss">✕</button>`;
+  const lvl = e.level === 'error' ? 'error' : 'warn';
+  const cells = `<span class="lvl ${lvl}">${lvl}</span>
+<span class="svc-n">${esc(e.svc)}</span>
+<span class="msg"><span class="src" data-svc="${esc(e.svc)}">${esc(e.source)}</span>${esc(e.message)}${e.hint ? '<span class="hint-mark" title="Has a how-to-fix tip: click to open"> 💡</span>' : ''}</span>
+<span class="ago" title="${new Date(e.t).toLocaleString()}">${e.live ? 'active' : ago(e.t)}</span>
+<span class="ev-acts">${acts}</span>`;
+  const cls = `ev ev-${lvl}${e.dismissed ? ' is-dismissed' : ''}`;
+  const body = `${e.hint ? `<p class="ev-hint"><b>How to fix:</b> ${esc(e.hint)}</p>` : ''}${e.detail ? `<pre>${esc(e.detail)}</pre>` : ''}`;
+  return body
+    ? `<details class="${cls}" data-key="${esc(e.key)}"${open.has(e.key) ? ' open' : ''}><summary>${cells}</summary>${body}</details>`
+    : `<div class="${cls}"><div class="row">${cells}</div></div>`;
 }
 
 $('ev-filters').addEventListener('click', e => {

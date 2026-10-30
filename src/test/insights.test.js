@@ -173,6 +173,24 @@ test('prowlarr: per-indexer usage in the rolling window, warnings at 90% and 100
   assert.match(ev.hint, /Prowlarr/, 'limit warnings carry a how-to-fix hint');
 });
 
+test("an app's own hint wins over the well-known causes", () => {
+  const [own, generic] = feed.collect([
+    {
+      id: 'mr',
+      name: 'Media Review',
+      up: true,
+      data: {
+        health: [
+          { type: 'warning', message: 'Sync failed: Plex answered HTTP 401', hint: 'Look in Media Review' },
+          { type: 'warning', message: 'HTTP 401' },
+        ],
+      },
+    },
+  ]);
+  assert.equal(own.hint, 'Look in Media Review', "not Media Ops' API key: the 401 came from Plex");
+  assert.match(generic.hint, /API key was rejected/);
+});
+
 test('updates: arr reports a newer release; installed latest means no update', async t => {
   let list = [
     { version: '4.0.16.3000', latest: true, installed: false },

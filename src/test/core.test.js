@@ -105,7 +105,11 @@ test('notifications: no flood on start, down after 2 fails, back up, new errors,
   assert.match(got.at(-1).message, /sonarr is down/);
   await run(raw(true));
   assert.match(got.at(-1).message, /back up/);
-  await run(raw(true, [{ time: new Date().toISOString(), level: 'error', source: 'Import', message: 'disk full' }]));
+  // A line from the app's log is history, not something wrong right now: no message.
+  const sent = got.length;
+  await run(raw(true, [{ time: new Date().toISOString(), level: 'error', source: 'Import', message: 'log line' }]));
+  assert.equal(got.length, sent);
+  await run(raw(true, [{ level: 'error', source: 'Queue', message: 'disk full', live: true }]));
   assert.match(got.at(-1).message, /disk full/);
   await run(raw(true), disks(95));
   assert.match(got.at(-1).message, /95% full/);

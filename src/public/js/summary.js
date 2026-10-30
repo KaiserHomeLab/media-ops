@@ -75,9 +75,9 @@ export function renderKpis(d, { streams, arrs, clients }) {
       ),
       kpi('Wanted / missing', num(missing), missParts.join(' · ')),
       (() => {
-        const recent = d.events.filter(e => !e.dismissed && Date.now() - e.t < 864e5);
-        const errs = recent.filter(e => e.level === 'error').length;
-        return kpi('Errors · 24h', `${errs}`, `${recent.length - errs} warnings`);
+        const now = d.events.filter(e => e.live && !e.dismissed);
+        const errs = now.filter(e => e.level === 'error').length;
+        return kpi('Errors now', `${errs}`, `${now.length - errs} warnings`);
       })(),
     ].join(''),
   );

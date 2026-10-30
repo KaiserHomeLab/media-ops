@@ -117,7 +117,7 @@ something happens.
 For each destination you choose which events it gets:
 
 - an app goes down or comes back
-- a new error or warning
+- a new error or warning (something wrong right now, not a line from an app's log)
 - a download fails or gets stuck
 - a disk is filling up or running hot
 - someone starts watching

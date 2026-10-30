@@ -7,7 +7,7 @@
 // Noise control:
 //   - an app must fail two polls in a row before "down" fires; "back up" only follows a "down"
 //   - errors already present when the server starts are never sent (no flood on restart)
-//   - log lines are only sent if they're recent; dismissed entries are never sent
+//   - only what's wrong right now is sent, never lines from apps' logs; dismissed entries are never sent
 //   - one batched message per destination per poll, at most 10 lines
 'use strict';
 const crypto = require('node:crypto');
@@ -337,7 +337,6 @@ async function deliver(target, { title, lines, level = 'info', events = [] }) {
 // ------------------------------------------------------------------ deciding what to send
 const state = {
   seeded: false,
-  startedAt: Date.now(),
   fails: new Map(), // service id -> { n: consecutive failed polls, since: first failure }
   downSince: new Map(), // service id -> when "down" was sent
   seen: new Map(), // event key -> last seen (ms)
@@ -383,8 +382,8 @@ function detect(raw, events, disks, cfg) {
   for (const e of events) {
     const fresh = !state.seen.has(e.key);
     state.seen.set(e.key, now);
-    if (!fresh || e.dismissed || e.source === 'Connection') continue;
-    if (!e.live && (e.t < state.startedAt || now - e.t > 30 * 60e3)) continue; // old log lines
+    // Only what's wrong right now, as the Errors & warnings card shows it: log lines are history.
+    if (!fresh || !e.live || e.dismissed || e.source === 'Connection') continue;
     const download =
       ['Queue', 'Failed download', 'Torrent error'].includes(e.source) || /DownloadClient|Import/i.test(e.source);
     const kind = SERVER_SOURCES.has(e.source)

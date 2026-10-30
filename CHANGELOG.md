@@ -9,6 +9,14 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Changed
+
+- Errors & warnings shows only what's wrong right now: an app down, a failing health check, a stuck
+  download, an array or pool problem. Lines from apps' logs (and failed downloads in their history)
+  often fix themselves, so they wait under a collapsed **Recent log entries** link, the last 24
+  hours. The "Errors now" summary tile and the top strip count the same way, and notifications are
+  only sent for what's wrong right now, not for log lines.
+
 ### Added
 
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.

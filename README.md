@@ -121,6 +121,7 @@ For each destination you choose which events it gets:
 - a download fails or gets stuck
 - a disk is filling up or running hot
 - someone starts watching
+- a friend files a new Problem Report in Media Review
 
 You can also hold messages overnight (quiet hours) and get one daily summary each morning.
 Media Ops waits for two failed checks in a row before saying an app is down, so a blip

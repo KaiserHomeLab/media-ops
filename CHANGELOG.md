@@ -11,6 +11,10 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
+  background job that failed its last run, a Title it couldn't delete overnight, no sync for over an
+  hour, or its Discord bot down. Their hint sends you to Media Review's Status card, not to Media
+  Ops' API key. Needs Media Review with `GET /api/v1/health`; older ones just show nothing here.
 - Every dashboard card has a color by what it's about, as in Media Review: a colored top edge, an
   icon badge in its heading, and a bar beside each row of a list. Blue for who's watching, red for
   errors, purple for the library, orange for downloads, amber for Media Review, green for the

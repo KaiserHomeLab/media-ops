@@ -453,6 +453,18 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
   const srv = await fakeServer({
     '/api/v1/status': req =>
       req.headers['x-api-key'] === 'mk' ? { app: 'media-review', version: '0.1.0' } : { status: 401 },
+    '/api/v1/health': req =>
+      req.headers['x-api-key'] === 'mk'
+        ? [
+            {
+              type: 'error',
+              source: 'Overnight deletion',
+              message:
+                "Couldn't delete Slow Show: Sonarr answered HTTP 503. It stays Leaving Soon and is tried again tonight.",
+            },
+            { type: 'warning', source: 'Sync', message: 'Sync failed: tautulli: HTTP 401' },
+          ]
+        : { status: 401 },
     '/api/v1/leaving-soon': req =>
       req.headers['x-api-key'] === 'mk'
         ? {
@@ -568,6 +580,18 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
   t.after(() => srv.close());
   const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
   assert.equal(r.version, '0.1.0');
+  assert.deepEqual(
+    r.data.health.map((/** @type {any} */ h) => [h.type, h.message]),
+    [
+      [
+        'error',
+        "Couldn't delete Slow Show: Sonarr answered HTTP 503. It stays Leaving Soon and is tried again tonight.",
+      ],
+      ['warning', 'Sync failed: tautulli: HTTP 401'],
+    ],
+  );
+  // Media Review's own hint: the generic "the API key was rejected" would send the Owner to the wrong key.
+  assert.match(r.data.health[1].hint, /Media Review → Settings → Status/);
   assert.deepEqual(r.data.reviewQueue[0], {
     ratingKey: '500',
     title: 'Dull Movie',
@@ -668,6 +692,7 @@ test('mediareview: an older Media Review without Leaving Soon still shows its qu
     heldBack: [],
     buildingUp: [],
     buildingTotal: 0,
+    health: [],
   });
 });
 

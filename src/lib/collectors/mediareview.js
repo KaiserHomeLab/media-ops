@@ -3,7 +3,7 @@
 //
 // Media Review (github.com/KaiserHomeLab/media-review): the Titles friends have Downvoted that
 // wait for the Owner's decision, the ones Leaving Soon, and open Problem Reports. Media Review holds every rule; this
-// only shows them.
+// only shows them. What's wrong in Media Review itself goes to Errors & warnings, as an *arr's health checks do.
 'use strict';
 const { join, req, timed } = require('../http');
 const { list } = require('./shared');
@@ -14,12 +14,13 @@ async function mediareview(cfg) {
   /** @param {string} p */
   const api = p => req(join(cfg.url, `/api/v1${p}`), { headers });
   const [status, latency] = await timed(() => api('/status'));
-  const [queue, leaving, problems, held, building] = await Promise.all([
+  const [queue, leaving, problems, held, building, health] = await Promise.all([
     api('/review-queue'),
     api('/leaving-soon').catch(() => null), // Media Review before 0.2 has no Leaving Soon
     api('/problem-reports').catch(() => null), // nor Problem Reports
     api('/held-back').catch(() => null), // nor holding back deleted titles
     api('/building-up').catch(() => null), // nor Building up
+    api('/health').catch(() => null), // nor saying what's wrong
   ]);
   const reviewQueue = list(queue?.reviewQueue).map(e => ({
     ratingKey: String(e.title?.ratingKey ?? ''),
@@ -106,7 +107,21 @@ async function mediareview(cfg) {
   return {
     version: status.version,
     latency,
-    data: { reviewQueue, leavingSoon, problemReports, heldBack, buildingUp, buildingTotal },
+    data: {
+      reviewQueue,
+      leavingSoon,
+      problemReports,
+      heldBack,
+      buildingUp,
+      buildingTotal,
+      // A job that failed its last run, a Title that couldn't be deleted, no sync for an hour, Discord down.
+      health: list(health).map(h => ({
+        type: h.type === 'error' ? 'error' : 'warning',
+        message: String(h.message ?? ''),
+        // Seen from Media Review, so a 401 here is Media Review's key for that app, not Media Ops'.
+        hint: 'Media Review saw this, not Media Ops. Media Review → Settings → Status has what each job last did, and Run diagnostics checks every app it uses.',
+      })),
+    },
   };
 }
 

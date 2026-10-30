@@ -37,7 +37,8 @@ function collect(services) {
       healthCheck: !!e.healthCheck,
       queueId: e.queueId ?? null,
     });
-    out.at(-1).hint = hintFor(out.at(-1));
+    // An app's own hint (Media Review knows where its problems come from) over the well-known causes.
+    out.at(-1).hint = e.hint ?? hintFor(out.at(-1));
   };
   for (const s of services) {
     if (!s.up) {
@@ -51,6 +52,7 @@ function collect(services) {
         message: h.message,
         live: true,
         healthCheck: true,
+        hint: h.hint,
       });
     for (const e of s.data?.events || []) push(s, e);
   }

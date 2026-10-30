@@ -11,6 +11,7 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an
   hour, or its Discord bot down. Their hint sends you to Media Review's Status card, not to Media

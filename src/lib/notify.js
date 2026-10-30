@@ -148,15 +148,21 @@ const EVENTS = [
   { key: 'unraid', label: 'Server problems (Unraid array, TrueNAS pools, alerts, hot disks)', def: true }, // key kept for saved settings
   { key: 'bandwidth', label: 'Upload nearly maxed out', def: true },
   { key: 'streams', label: 'Someone starts watching', def: false },
+  { key: 'problems', label: 'New Problem Report (Media Review)', def: true },
   { key: 'digest', label: 'Daily digest', def: true },
 ];
+
+// What a destination is sent: its own choices, and the default for an event added since it was saved.
+/** @param {import('./types').Target} t @returns {Record<string, boolean>} */
+const eventsOf = t => ({ ...Object.fromEntries(EVENTS.map(e => [e.key, e.def])), ...t.events });
 
 /** @param {string} type */
 const secretKeys = type => (BY_TYPE[type]?.fields || []).filter(f => f.type === 'secret').map(f => f.key);
 
 /** @param {import('./types').Target} t */
 function publicTarget(t) {
-  const out = { ...t };
+  /** @type {Record<string, any>} */
+  const out = { ...t, events: eventsOf(t) };
   for (const k of secretKeys(t.type)) {
     out[`${k}Saved`] = !!t[k];
     delete out[k];
@@ -339,6 +345,7 @@ const state = {
   streams: new Set(), // Plex session ids seen
   uploadHigh: false, // remote streams over 85% of upload
   held: /** @type {any[]} */ ([]), // alerts held back during quiet hours
+  problems: /** @type {Map<string, Set<number>>} */ (new Map()), // Media Review: Problem Report ids seen, per app
   lastResult: new Map(), // target id -> { at, ok, error }
 };
 
@@ -390,6 +397,25 @@ function detect(raw, events, disks, cfg) {
     out.push({ kind, level: e.level, line: `${e.level === 'error' ? '❌' : '⚠️'} ${e.svc}: ${e.message}` });
   }
   for (const [k, t] of state.seen) if (now - t > 7 * 864e5) state.seen.delete(k);
+
+  // A friend's new Problem Report in Media Review. Those already there when an app is first seen aren't new.
+  for (const s of raw.services) {
+    if (s.kind !== 'mediareview' || !s.up || !Array.isArray(s.data?.problemReports)) continue;
+    const known = state.problems.get(s.id);
+    const ids = new Set(s.data.problemReports.map((/** @type {any} */ r) => r.id));
+    if (known)
+      for (const r of s.data.problemReports) {
+        if (known.has(r.id)) continue;
+        const first = r.reporters?.[0];
+        out.push({
+          kind: 'problems',
+          level: 'info',
+          line: `⚑ Problem Report: ${r.title}${r.year ? ` (${r.year})` : ''}${r.part ? `, ${r.part}` : ''}: ${r.reason}${first ? `, from ${first.voter}${first.note ? `: “${first.note}”` : ''}` : ''}`,
+        });
+      }
+    // Every id seen stays known (they're never reused), so a round that couldn't list them floods nothing after.
+    state.problems.set(s.id, new Set([...(known ?? []), ...ids]));
+  }
 
   for (const d of disks) {
     const pct = ((d.total - d.free) / d.total) * 100;
@@ -474,7 +500,8 @@ async function handle(raw, events, disks, cfg, extra = []) {
   const targets = (cfg.notifications?.targets || []).filter(t => t.enabled !== false);
   await Promise.all(
     targets.map(async t => {
-      const mine = found.filter(f => t.events?.[f.kind]);
+      const wants = eventsOf(t);
+      const mine = found.filter(f => wants[f.kind]);
       if (!mine.length) return;
       const level = mine.some(f => f.level === 'error')
         ? 'error'
@@ -528,7 +555,7 @@ async function test(target) {
     lines: [
       '✅ If you can read this, notifications are working.',
       `Events: ${
-        EVENTS.filter(e => target.events?.[e.key])
+        EVENTS.filter(e => eventsOf(target)[e.key])
           .map(e => e.label)
           .join(', ') || 'none selected'
       }`,

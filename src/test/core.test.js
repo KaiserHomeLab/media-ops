@@ -284,10 +284,11 @@ test('redaction: keys, tokens, IPs and people never reach a debug report', () =>
       User: { title: 'alice' },
       requestedBy: { displayName: 'bob', email: 'b@x' },
       friendly_name: 'carol',
+      asks: [{ voter: 'dave', note: 'bring it back please' }], // Media Review
       title: 'Dune',
     }),
   );
-  for (const secret of ['"k"', '"t"', '1.2.3.4', 'alice', 'bob', 'b@x', 'carol'])
+  for (const secret of ['"k"', '"t"', '1.2.3.4', 'alice', 'bob', 'b@x', 'carol', 'dave', 'bring it back'])
     assert.ok(!out.includes(secret), secret);
   assert.ok(out.includes('Dune') && out.includes('TV'), 'ordinary fields kept');
 });

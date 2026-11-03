@@ -8,6 +8,11 @@
 const { join, req, timed } = require('../http');
 const { list } = require('./shared');
 
+// "Nothing has synced for 3 hours" grows every hour. Event keys are hashes of the message, so the
+// number would make it a new event (and a new notification) each hour: drop it.
+/** @param {unknown} m */
+const stable = m => String(m ?? '').replace(/\bfor \d+ hours?\b/, 'for over an hour');
+
 /** @param {import('../types').Service} cfg */
 async function mediareview(cfg) {
   const headers = { 'X-Api-Key': cfg.apiKey || '' };
@@ -117,7 +122,7 @@ async function mediareview(cfg) {
       // A job that failed its last run, a Title that couldn't be deleted, no sync for an hour, Discord down.
       health: list(health).map(h => ({
         type: h.type === 'error' ? 'error' : 'warning',
-        message: String(h.message ?? ''),
+        message: stable(h.message),
         // Seen from Media Review, so a 401 here is Media Review's key for that app, not Media Ops'.
         hint: 'Media Review saw this, not Media Ops. Media Review → Settings → Status has what each job last did, and Run diagnostics checks every app it uses.',
       })),

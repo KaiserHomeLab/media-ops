@@ -404,6 +404,64 @@ test('metrics: 404 until turned on; then only with the token, even with the dash
   await json('PUT', '/api/settings/password', { current: 'metrics-pw-123', next: '' }, { Cookie: cookie });
 });
 
+test('notification hub: webhooks 404 until it is on; then only with the source token, with no Origin and even with the dashboard locked', async () => {
+  const radarr = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hub', 'radarr-download.json'), 'utf8'));
+  /** @param {string} p @param {Record<string, string>} [headers] */
+  const hook = (p, headers = {}) =>
+    fetch(base + p, {
+      method: 'POST',
+      // What a server sends: no Origin, and nothing a browser would add.
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify(radarr),
+    });
+  assert.equal((await hook('/api/hub/in/radarr/radarr')).status, 404, 'off by default');
+
+  let r = await json('POST', '/api/settings/hub/sources', { type: 'radarr' });
+  assert.equal(r.status, 201);
+  const { source, token } = await r.json();
+  assert.equal(source.path, '/api/hub/in/radarr/radarr');
+  assert.match(token, /^mohub_/);
+  const listed = await (await fetch(`${base}/api/settings/hub`)).text();
+  assert.ok(!listed.includes(token) && !listed.includes('tokenHash'), 'neither the token nor its hash is sent back');
+  assert.ok(!fs.readFileSync(path.join(dir, 'config.json'), 'utf8').includes(token), 'only a hash is saved');
+  assert.equal((await hook(source.path, { 'X-Hub-Token': token })).status, 404, 'still off');
+
+  await json('PUT', '/api/settings/hub', { enabled: true });
+  assert.equal((await hook(source.path)).status, 401);
+  assert.equal((await hook(source.path, { 'X-Hub-Token': 'mohub_wrong' })).status, 401);
+  assert.equal((await hook('/api/hub/in/sonarr/radarr', { 'X-Hub-Token': token })).status, 401, 'token is per source');
+  assert.equal((await fetch(`${base}${source.path}`)).status, 405);
+  r = await hook(source.path, { 'X-Hub-Token': token, 'Sec-Fetch-Site': 'cross-site' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, events: 1 });
+  const hub = await (await fetch(`${base}/api/settings/hub`)).json();
+  assert.equal(hub.rejected.count, 3);
+  assert.equal(hub.sources[0].received, 1);
+  assert.equal(hub.sources[0].lastType, 'media.added');
+
+  r = await json('PUT', '/api/settings/password', { next: 'hub-pw-12345' });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  await json('PUT', '/api/settings/security', { dashboardAuth: true }, { Cookie: cookie });
+  assert.equal((await hook(`${source.path}?token=${token}`)).status, 200, 'not behind the dashboard login');
+  assert.equal((await fetch(`${base}/api/settings/hub/activity`)).status, 401, 'Activity needs the login');
+  const { events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json();
+  assert.equal(events.length, 2);
+  assert.equal(events[0].type, 'media.added');
+  assert.equal(events[0].media.title, 'M*A*S*H');
+  assert.ok(!('raw' in events[0]), 'raw payloads stay on the server');
+
+  const fresh = await (
+    await json('POST', `/api/settings/hub/sources/${source.id}/token`, {}, { Cookie: cookie })
+  ).json();
+  assert.equal((await hook(source.path, { 'X-Hub-Token': token })).status, 401, 'old token dead');
+  assert.equal((await hook(source.path, { Authorization: `Bearer ${fresh.token}` })).status, 200);
+  await json('DELETE', `/api/settings/hub/sources/${source.id}`, undefined, { Cookie: cookie });
+  assert.equal((await hook(source.path, { 'X-Hub-Token': fresh.token })).status, 401, 'deleted');
+  await json('PUT', '/api/settings/hub', { enabled: false }, { Cookie: cookie });
+  await json('PUT', '/api/settings/security', { dashboardAuth: false }, { Cookie: cookie });
+  await json('PUT', '/api/settings/password', { current: 'hub-pw-12345', next: '' }, { Cookie: cookie });
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

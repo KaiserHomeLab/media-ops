@@ -1,0 +1,19 @@
+{
+  "notification_type": "MEDIA_PENDING",
+  "event": "New Movie Request",
+  "subject": "Caveat (2020)",
+  "message": "A lone drifter takes a job looking after a woman in an isolated house.",
+  "image": "https://image.tmdb.org/t/p/w600_and_h900_bestv2/caveat.jpg",
+  "media": { "media_type": "movie", "tmdbId": "656563", "tvdbId": "", "status": "PENDING", "status4k": "UNKNOWN" },
+  "request": {
+    "request_id": "41",
+    "requestedBy_email": "friend@example.com",
+    "requestedBy_username": "friend",
+    "requestedBy_avatar": "https://plex.tv/users/abc/avatar",
+    "requestedBy_settings_discordId": "",
+    "requestedBy_settings_telegramChatId": ""
+  },
+  "issue": null,
+  "comment": null,
+  "extra": []
+}

@@ -46,6 +46,14 @@ there as soon as I can.
   it's made; a new one replaces it. The metrics are counts and timings only: app names you gave,
   no addresses, keys, viewer names or log text. Like the status page, they read the last
   background check and never start one.
+- Notification Hub webhooks (`/api/hub/in/…`) answer 404 until the hub is turned on. Each
+  source has its own token, shown once when it's made; only a SHA-256 hash of it is stored, and
+  it's compared in constant time. The path needs no session and has no same-origin check (the
+  callers are apps, not browsers), so the token is what protects it, including when Media Ops is
+  published through a tunnel or reverse proxy. 20 wrong tokens from one address in 15 minutes
+  and that address waits out the window, apart from the Settings login lockout. Payloads are kept
+  in `/config/hub.db` (permissions `0600`); the raw payload, which can name a requester, is
+  deleted after 7 days and events after 90. Raw payloads are never sent to the browser.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API

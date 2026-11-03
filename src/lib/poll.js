@@ -14,6 +14,7 @@ const actions = require('./actions');
 const geo = require('./geo');
 const history = require('./history');
 const notify = require('./notify');
+const hub = require('./hub');
 const digest = require('./digest');
 const gpu = require('./gpu');
 const space = require('./space');
@@ -148,7 +149,9 @@ async function monitorTick() {
     const { events } = feed.apply(eventsOf(raw), raw.services, cfg.dismissed);
     history.record(raw);
     const fixes = DEMO ? [] : await autofix.tick(raw, cfg);
-    await notify.handle(raw, events, history.diskList(raw), cfg, fixes);
+    const noticed = await notify.handle(raw, events, history.diskList(raw), cfg, fixes);
+    hub.recordPolled(cfg, noticed, raw.services);
+    hub.maintain(cfg);
     await digest.maybeSend(
       cfg,
       { ...raw, latestVersion: DEMO ? null : selfupdate.latest(cfg) },

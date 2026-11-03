@@ -335,6 +335,9 @@ async function deliver(target, { title, lines, level = 'info', events = [] }) {
 }
 
 // ------------------------------------------------------------------ deciding what to send
+// One thing worth telling. `ref` names what it's about (an app id, a disk path, an errors-feed
+// key), so the same thing keeps one identity while its line carries changing numbers.
+/** @typedef {{ kind: string, level: string, line: string, ref?: string }} Detected */
 const state = {
   seeded: false,
   fails: new Map(), // service id -> { n: consecutive failed polls, since: first failure }
@@ -354,8 +357,9 @@ const ago = ms => {
   return m < 1 ? 'less than a minute' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 };
 
-/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @returns {{ kind: string, level: string, line: string }[]} */
+/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @returns {Detected[]} */
 function detect(raw, events, disks, cfg) {
+  /** @type {Detected[]} */
   const out = [];
   const now = Date.now();
   const threshold = cfg.notifications?.diskThreshold ?? 90;
@@ -366,13 +370,14 @@ function detect(raw, events, disks, cfg) {
     state.fails.set(s.id, f);
     if (f.n === 2 && !state.downSince.has(s.id)) {
       state.downSince.set(s.id, f.since);
-      out.push({ kind: 'down', level: 'error', line: `🔴 ${s.name} is down: ${s.error}` });
+      out.push({ kind: 'down', level: 'error', line: `🔴 ${s.name} is down: ${s.error}`, ref: s.id });
     }
     if (s.up && state.downSince.has(s.id)) {
       out.push({
         kind: 'recovered',
         level: 'good',
         line: `🟢 ${s.name} is back up (down for ${ago(now - state.downSince.get(s.id))})`,
+        ref: s.id,
       });
       state.downSince.delete(s.id);
     }
@@ -393,7 +398,12 @@ function detect(raw, events, disks, cfg) {
         : e.level === 'error'
           ? 'errors'
           : 'warnings';
-    out.push({ kind, level: e.level, line: `${e.level === 'error' ? '❌' : '⚠️'} ${e.svc}: ${e.message}` });
+    out.push({
+      kind,
+      level: e.level,
+      line: `${e.level === 'error' ? '❌' : '⚠️'} ${e.svc}: ${e.message}`,
+      ref: e.key,
+    });
   }
   for (const [k, t] of state.seen) if (now - t > 7 * 864e5) state.seen.delete(k);
 
@@ -408,6 +418,7 @@ function detect(raw, events, disks, cfg) {
         const first = r.reporters?.[0];
         out.push({
           kind: 'problems',
+          ref: `${s.id}:${r.id}`,
           level: 'info',
           line: `⚑ Problem Report: ${r.title}${r.year ? ` (${r.year})` : ''}${r.part ? `, ${r.part}` : ''}: ${r.reason}${first ? `, from ${first.voter}${first.note ? `: “${first.note}”` : ''}` : ''}`,
         });
@@ -422,6 +433,7 @@ function detect(raw, events, disks, cfg) {
       state.diskOver.add(d.path);
       out.push({
         kind: 'disk',
+        ref: d.path,
         level: 'warn',
         line: `💾 ${d.path} is ${pct.toFixed(0)}% full (${(d.free / 1024 ** 4).toFixed(2)} TB free)`,
       });
@@ -448,6 +460,7 @@ function detect(raw, events, disks, cfg) {
     if (!state.streams.has(id))
       out.push({
         kind: 'streams',
+        ref: id,
         level: 'info',
         line: `▶️ ${st.user} started ${st.title}${st.type === 'episode' ? ` ${st.subtitle.split(' · ')[0]}` : ''} on ${st.player || st.product}${st.geo?.city ? ` (${st.geo.city})` : st.local ? ' (home)' : ''}`,
       });
@@ -473,14 +486,16 @@ function inQuietHours(q, now = new Date()) {
   return from <= to ? t >= from && t < to : t >= from || t < to;
 }
 
-// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules.
-/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {{ kind: string, level: string, line: string }[]} [extra] */
+// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules. Returns everything
+// noticed this round, before quiet hours, for the Notification Hub's Activity (lib/hub).
+/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {Detected[]} [extra] @returns {Promise<Detected[]>} */
 async function handle(raw, events, disks, cfg, extra = []) {
   let found = [...detect(raw, events, disks, cfg), ...extra];
   if (!state.seeded) {
     state.seeded = true;
-    return;
+    return [];
   } // first poll only learns what's already there
+  const noticed = found;
 
   // Quiet hours: hold alerts (optionally still sending app-down), then send what was held as
   // one "while you were asleep" message when they end. "Started watching" isn't worth holding.
@@ -495,7 +510,7 @@ async function handle(raw, events, disks, cfg, extra = []) {
     found = [...state.held.map(f => ({ ...f, line: `🌙 ${f.line}` })), ...found];
     state.held = [];
   }
-  if (!found.length) return;
+  if (!found.length) return noticed;
   const targets = (cfg.notifications?.targets || []).filter(t => t.enabled !== false);
   await Promise.all(
     targets.map(async t => {
@@ -527,6 +542,7 @@ async function handle(raw, events, disks, cfg, extra = []) {
       }
     }),
   );
+  return noticed;
 }
 
 // Send the daily digest to every destination that wants it.

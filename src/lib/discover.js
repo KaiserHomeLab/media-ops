@@ -43,6 +43,7 @@ const IMAGE_KIND = {
   transmission: 'transmission',
   deluge: 'deluge',
   clonarr: 'clonarr',
+  'media-review': 'mediareview',
   cloudflared: 'cloudflared',
 };
 

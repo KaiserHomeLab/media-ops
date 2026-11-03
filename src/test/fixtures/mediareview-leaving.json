@@ -1,0 +1,19 @@
+{
+  "leavingSoon": [
+    {
+      "ratingKey": "9101",
+      "kind": "movie",
+      "name": "The Long Afternoon",
+      "year": 2011,
+      "library": "Movies",
+      "removedAt": "2026-10-25T04:00:00.000Z",
+      "endsAt": "2026-11-08T04:00:00.000Z",
+      "daysLeft": 5,
+      "objectionsOpen": true,
+      "deleteError": null,
+      "objections": [{ "voter": "friend1", "voteWeight": 1.2 }],
+      "objectionWeight": 1.2,
+      "objectionBar": 3
+    }
+  ]
+}

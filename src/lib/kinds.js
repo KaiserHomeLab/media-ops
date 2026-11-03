@@ -214,6 +214,13 @@ const KINDS = [
     fields: [{ ...apiKey('Settings → Security → API key.'), optional: true }],
   },
   {
+    kind: 'mediareview',
+    label: 'Media Review',
+    group: 'Tools',
+    port: 8485,
+    fields: [apiKey('Media Review → Settings → Media Ops → Generate a key.')],
+  },
+  {
     kind: 'cloudflared',
     label: 'Cloudflare Tunnel',
     group: 'Tools',

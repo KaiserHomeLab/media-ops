@@ -1,0 +1,8 @@
+[
+  {
+    "type": "error",
+    "source": "Sync",
+    "message": "Nothing has synced for 3 hours: Downvotes, plays and the Review Queue aren't being updated."
+  },
+  { "type": "warning", "source": "Discord", "message": "The Discord bot isn't connected." }
+]

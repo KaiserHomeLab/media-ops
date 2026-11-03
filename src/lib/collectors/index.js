@@ -20,6 +20,7 @@ const { qbittorrent } = require('./qbittorrent');
 const { transmission } = require('./transmission');
 const { deluge } = require('./deluge');
 const { clonarr } = require('./clonarr');
+const { mediareview } = require('./mediareview');
 const { unraid } = require('./unraid');
 const { truenas } = require('./truenas');
 const { cloudflared } = require('./cloudflared');
@@ -46,6 +47,7 @@ module.exports = {
   transmission,
   deluge,
   clonarr,
+  mediareview,
   unraid,
   truenas,
   cloudflared,

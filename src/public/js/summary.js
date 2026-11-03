@@ -216,6 +216,12 @@ export function renderLibrary(media, services) {
     ['Requests served', num(s.requests)],
     ['Request errors', num(s.errors)],
   ];
+  rows.mediareview = s => [
+    ['Review Queue', num(s.reviewQueue), s.reviewQueue > 0],
+    ['Leaving Soon', num(s.leavingSoon)],
+    ['Problem Reports', num(s.problemReports), s.problemReports > 0],
+    ['Asked to bring back', num(s.asks), s.asks > 0],
+  ];
   rows.clonarr = s => [
     ['Arr instances', num(s.instances)],
     ['Sync profiles', `${num(s.active)} / ${num(s.profiles)} active`],

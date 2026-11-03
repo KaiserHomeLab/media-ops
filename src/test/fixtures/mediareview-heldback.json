@@ -1,0 +1,34 @@
+{
+  "heldBack": [
+    {
+      "title": {
+        "ratingKey": "9050",
+        "kind": "movie",
+        "name": "Quiet Valley",
+        "year": 1998,
+        "library": "Movies",
+        "poster": "/api/v1/poster/9050"
+      },
+      "deletedAt": "2026-10-20T05:00:00.000Z",
+      "blocked": true,
+      "blockError": null,
+      "asks": [{ "voter": "friend2", "note": "please!", "at": "2026-10-28T19:00:00.000Z" }],
+      "history": []
+    },
+    {
+      "title": {
+        "ratingKey": "9051",
+        "kind": "show",
+        "name": "Old Roads",
+        "year": 2009,
+        "library": "TV Shows",
+        "poster": null
+      },
+      "deletedAt": "2026-10-10T05:00:00.000Z",
+      "blocked": true,
+      "blockError": null,
+      "asks": [],
+      "history": []
+    }
+  ]
+}

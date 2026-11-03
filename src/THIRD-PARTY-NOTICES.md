@@ -56,6 +56,7 @@ dashboard depends on.
 | [Deluge](https://github.com/deluge-torrent/deluge) | GPL-3.0-or-later | transfer stats, torrents, torrent errors |
 | [Clonarr](https://github.com/ProphetSe7en/clonarr) | MIT | sync-profile stats via its widget API |
 | [TRaSH Guides](https://github.com/TRaSH-Guides/Guides) | MIT | (indirectly, through Clonarr) |
+| [Media Review](https://github.com/KaiserHomeLab/media-review) | MIT | Review Queue, Leaving Soon and held-back counts, health |
 | [cloudflared](https://github.com/cloudflare/cloudflared) | Apache-2.0 | tunnel connections and version from its metrics server |
 | Plex Media Server / plex.tv | proprietary | sessions, libraries, posters; GeoIP lookups for the stream map (`plex.tv/api/v2/geoip`) |
 | [Jellyfin](https://github.com/jellyfin/jellyfin) | GPL-2.0 | sessions, libraries, posters |

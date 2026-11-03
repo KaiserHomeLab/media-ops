@@ -2081,6 +2081,9 @@ main.settings {
 .k-clonarr {
   background: #3fb6a8;
 }
+.k-mediareview {
+  background: #e5a00d;
+}
 .k-ping {
   background: var(--line);
   color: var(--text-primary);

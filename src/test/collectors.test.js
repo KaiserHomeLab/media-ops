@@ -463,6 +463,33 @@ test('clonarr: widget summary, and graceful fallback when the endpoint is missin
   assert.equal(r2.data.limited, true);
 });
 
+test('mediareview: counts, health with a stable message, and titles without who voted or asked', async t => {
+  /** @param {any} body */
+  const keyed = body => (/** @type {any} */ req) => (req.headers['x-api-key'] === 'mk' ? body : { status: 401 });
+  const srv = await fakeServer({
+    '/api/v1/status': keyed({ app: 'media-review', version: '1.4.0' }),
+    '/api/v1/health': keyed(fixture('mediareview-health')),
+    '/api/v1/review-queue': keyed({ reviewQueue: [{ ratingKey: '1' }, { ratingKey: '2' }] }),
+    '/api/v1/leaving-soon': keyed(fixture('mediareview-leaving')),
+    '/api/v1/problem-reports': keyed({ problemReports: [{ id: 1 }] }),
+    '/api/v1/held-back': keyed(fixture('mediareview-heldback')),
+  });
+  t.after(() => srv.close());
+  clearCache();
+  const r = await c.mediareview({ url: srv.url, apiKey: 'mk' });
+  assert.equal(r.version, '1.4.0');
+  assert.deepEqual(r.data.stats, { reviewQueue: 2, leavingSoon: 1, problemReports: 1, asks: 1 });
+  assert.equal(r.data.health[0].type, 'error');
+  assert.match(r.data.health[0].message, /^Nothing has synced for over an hour:/);
+  assert.equal(r.data.health[1].type, 'warning');
+  assert.equal(r.data.leavingSoon[0].name, 'The Long Afternoon');
+  assert.equal(r.data.leavingSoon[0].daysLeft, 5);
+  assert.equal(r.data.heldBack[0].name, 'Quiet Valley');
+  assert.doesNotMatch(JSON.stringify(r.data), /friend1|friend2|please/);
+  clearCache();
+  await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }), /HTTP 401/);
+});
+
 test('ping: 401 still counts as up, 5xx is down', async t => {
   const srv = await fakeServer({ '/up': { status: 401 }, '/down': { status: 503 } });
   t.after(() => srv.close());

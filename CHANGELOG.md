@@ -9,6 +9,13 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Added
+
+- Media Review: connect it under Settings → Add app → Media Review (address and the key from
+  Media Review → Settings → Media Ops). Its card shows the Review Queue, Leaving Soon, Problem
+  Reports and asks to bring a title back, and its problems show under Errors & warnings.
+  Settings finds it in Docker.
+
 ## [1.18.0] - 2026-10-08
 
 ### Added

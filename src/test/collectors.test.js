@@ -678,6 +678,27 @@ test('mediareview: Review Queue with each Downvote, API key in the header', asyn
   await assert.rejects(c.mediareview({ url: srv.url, apiKey: 'wrong' }));
 });
 
+test('mediareview: the "nothing has synced" health message stays the same as the hours go by', async t => {
+  let hours = 2;
+  const srv = await fakeServer({
+    '/api/v1/status': { app: 'media-review', version: '1.0.0' },
+    '/api/v1/review-queue': { reviewQueue: [] },
+    '/api/v1/health': () => [
+      {
+        type: 'error',
+        source: 'Sync',
+        message: `Nothing has synced for ${hours} hours: Downvotes, plays and the Review Queue aren't being updated.`,
+      },
+    ],
+  });
+  t.after(() => srv.close());
+  const first = (await c.mediareview({ url: srv.url, apiKey: 'mk' })).data.health[0].message;
+  hours = 3;
+  const later = (await c.mediareview({ url: srv.url, apiKey: 'mk' })).data.health[0].message;
+  assert.equal(first, later, 'same message, so the same event key and no new notification');
+  assert.match(first, /^Nothing has synced for over an hour:/);
+});
+
 test('mediareview: an older Media Review without Leaving Soon still shows its queue', async t => {
   const srv = await fakeServer({
     '/api/v1/status': { app: 'media-review', version: '0.1.0' },

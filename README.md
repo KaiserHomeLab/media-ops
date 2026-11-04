@@ -193,7 +193,7 @@ Then open `http://<that-computer's-ip>:8484`. To show free space for your media 
 them into the container too; the [install guide](docs/install.md) shows how for each system.
 
 **Want to control when it updates?** `latest` always has the newest version. Use `:1.20` instead
-to get fixes but not new features, or `:1.20.0` to stay on exactly that version. What changed in
+to get fixes but not new features, or `:1.20.1` to stay on exactly that version. What changed in
 each version is in the [changelog](CHANGELOG.md) and on the
 [releases page](https://github.com/KaiserHomeLab/media-ops/releases).
 

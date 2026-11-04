@@ -16,6 +16,10 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'media-ops-srv-'));
 const PORT = 20000 + Math.floor(Math.random() * 20000);
 const base = `http://127.0.0.1:${PORT}`;
 let child;
+let log = ''; // the server's console output, where setup and reset codes are printed
+// The newest code printed after a label ("Setup code", "Reset code"), as an owner reads it in the log.
+/** @param {string} label */
+const codeFromLog = label => [...log.matchAll(new RegExp(`${label}: ([A-Z0-9]{4}-[A-Z0-9]{4})`, 'g'))].at(-1)?.[1];
 
 before(async () => {
   // Most tests exercise Media Ops without a password, which since setup became mandatory is what
@@ -23,8 +27,9 @@ before(async () => {
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ openByChoice: true }));
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
     env: { ...process.env, PORT: String(PORT), CONFIG: path.join(dir, 'config.json'), DEMO: '', HOST_OS: 'Unraid' },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'ignore'],
   });
+  child.stdout.on('data', (/** @type {Buffer} */ d) => (log += d));
   for (let i = 0; i < 50; i++) {
     try {
       if ((await fetch(`${base}/healthz`)).ok) return;
@@ -709,10 +714,10 @@ test('setup: with no password (not removed on purpose) nothing changes until the
 
   r = await json('POST', '/api/settings/setup-code', {});
   assert.equal(r.status, 200);
-  const code = /setup code: ([A-Z0-9]{4}-[A-Z0-9]{4})/i.exec(
-    fs.readFileSync(path.join(dir, 'setup-code.txt'), 'utf8'),
-  )?.[1];
-  assert.ok(code, 'the code is in the config folder (and the log)');
+  await new Promise(res => setTimeout(res, 200)); // the log line arrives through a pipe
+  const code = codeFromLog('Setup code');
+  assert.ok(code, 'the code is in the log');
+  assert.ok(fs.existsSync(path.join(dir, 'setup-code.txt')), 'and in the config folder');
   r = await json('POST', '/api/settings/setup', { code: 'AAAA-BBBB', password: 'my-first-pw-1' });
   assert.match((await r.json()).error, /Wrong code/);
   r = await json('POST', '/api/settings/setup', { code, password: 'short' });
@@ -741,10 +746,11 @@ test('forgot password: asking again shows the same code (nobody can void yours),
   const cookie = r.headers.get('set-cookie').split(';')[0];
   const file = path.join(dir, 'password-reset.txt');
   assert.equal((await json('POST', '/api/settings/forgot', {})).status, 200);
-  const first = fs.readFileSync(file, 'utf8');
+  const written = fs.statSync(file).mtimeMs;
   assert.equal((await json('POST', '/api/settings/forgot', {})).status, 200);
-  assert.equal(fs.readFileSync(file, 'utf8'), first, 'still the same code');
-  const code = /([A-Z0-9]{4}-[A-Z0-9]{4})/.exec(first)?.[1];
+  assert.equal(fs.statSync(file).mtimeMs, written, 'not replaced: still the same code');
+  await new Promise(res => setTimeout(res, 200));
+  const code = codeFromLog('Reset code');
   r = await json('POST', '/api/settings/reset', { code, next: '' });
   assert.equal(r.status, 200, 'the code still works');
   assert.equal((await fetch(`${base}/api/settings`)).status, 200, 'removed by reset on purpose: open');

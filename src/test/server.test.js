@@ -474,6 +474,38 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   ({ events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json());
   assert.deepEqual([events[0].rule, events[0].status, events[0].digestId], ['New movies', 'queued', 'added_daily']);
 
+  // Digests: the two it starts with, a preview that changes nothing, rules and digests kept in step.
+  assert.deepEqual(
+    on.digests.map((/** @type {any} */ d) => [d.id, d.enabled]),
+    [
+      ['added_daily', false],
+      ['leaving_weekly', false],
+    ],
+  );
+  r = await json(
+    'PUT',
+    '/api/settings/hub/rules',
+    { rules: [{ name: 'x', action: 'digest', digest: 'nope' }] },
+    { Cookie: cookie },
+  );
+  assert.match((await r.json()).error, /no digest called "nope"/);
+  const pv = await (
+    await fetch(`${base}/api/settings/hub/digests/added_daily/preview`, { headers: { Cookie: cookie } })
+  ).json();
+  assert.match(pv.title, /^Added to Plex · /);
+  assert.deepEqual(pv.sections[0], { name: 'Movies', lines: ['M*A*S*H (1970)'], more: 0 });
+  r = await json('POST', '/api/settings/hub/digests/added_daily/send', {}, { Cookie: cookie });
+  assert.equal((await r.json()).status, 'no-destination', 'no destination picked yet');
+  r = await json('PUT', '/api/settings/hub/digests', { digests: [] }, { Cookie: cookie });
+  assert.match((await r.json()).error, /still sends to "added_daily"/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub/digests',
+    { digests: [{ id: 'added_daily', cron: 'daily' }] },
+    { Cookie: cookie },
+  );
+  assert.equal(r.status, 400);
+
   const fresh = await (
     await json('POST', `/api/settings/hub/sources/${source.id}/token`, {}, { Cookie: cookie })
   ).json();

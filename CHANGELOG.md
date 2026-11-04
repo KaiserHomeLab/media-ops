@@ -44,6 +44,15 @@ To stay on one version instead of `latest`, use a version tag such as
   rule each one matched and what happened to it (sent and to whom, held for quiet hours, saved
   for a digest, dropped, a repeat not sent). Open a row for its details and every send attempt,
   with the error when one failed. Filter by what happened.
+- Notification Hub digests: a rule can hold events for a digest, sent on its own schedule (a
+  cron line like `0 8 * * *`, in a time zone you choose) as one calm summary, for example
+  "Added to Plex · Wednesday, Nov 4" with Movies, TV Shows and Anime sections. Each title shows
+  once; a show's episodes fold into one line ("Severance: Season 2, episodes 1–10", "(new
+  series)" for a season 1 from its first episode); quality upgrades are never listed, only
+  counted in the footer when a rule sends them to the digest. A day with nothing new posts
+  nothing. A digest missed while Media Ops was down is sent once when it's back; a send that
+  fails keeps its titles for the next one. Two digests come ready (daily "Added to Plex", weekly
+  "Leaving soon"), both off until you pick where they go. The daily summary is unchanged.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

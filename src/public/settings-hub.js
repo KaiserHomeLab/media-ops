@@ -36,6 +36,8 @@ function hubOutcome(e) {
       return 'Not sent: the same thing went out moments ago';
     case 'queued':
       return `Saved for the "${e.digestId}" digest`;
+    case 'digested':
+      return `In the "${e.digestId}" digest${e.sentAt ? ` sent ${hubWhen(e.sentAt)}` : ' (nothing else new, so not posted)'}`;
     case 'dropped':
       return 'Dropped';
     case 'unrouted':
@@ -51,7 +53,7 @@ function hubOutcome(e) {
 const HUB_FILTERS = {
   sent: ['sent'],
   waiting: ['pending', 'held'],
-  queued: ['queued'],
+  queued: ['queued', 'digested'],
   'not-sent': ['dropped', 'suppressed', 'unrouted', 'skipped', 'logged'],
   failed: ['failed'],
 };

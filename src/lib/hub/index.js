@@ -15,6 +15,7 @@ const sources = require('./sources');
 const parsers = require('./parsers');
 const { finish, fromPolled, fromMediaReview } = require('./normalize');
 const { route, deliverNow, rulesOf } = require('./deliver');
+const digests = require('./digests');
 
 /** @param {import('../types').Config} cfg */
 const enabled = cfg => !!cfg.hub?.enabled;
@@ -107,6 +108,11 @@ async function tick(cfg) {
   } catch (e) {
     console.error(`Notification Hub: couldn't send: ${e.message}`);
   }
+  try {
+    await digests.runDue(cfg);
+  } catch (e) {
+    console.error(`Notification Hub: couldn't send a digest: ${e.message}`);
+  }
   maintain(cfg);
 }
 
@@ -130,6 +136,7 @@ function settingsOf(cfg) {
   return {
     enabled: enabled(cfg),
     rules: rulesOf(cfg),
+    digests: digests.digestsOf(cfg).map(d => ({ ...d, last: enabled(cfg) ? store.lastRun(d.id) : null })),
     flapMinutes: cfg.hub?.flapMinutes ?? 10,
     types: sources.TYPES,
     sources: sources.list(cfg).map(s => ({ ...sources.publicSource(s), ...(stats[s.id] || { received: 0 }) })),

@@ -61,6 +61,7 @@ export interface Config {
     enabled: boolean;
     sources: import('./hub/sources').Source[];
     rules?: import('./hub/rules').Rule[];
+    digests?: import('./hub/digests').Digest[];
     /** The same event again within this many minutes is suppressed (default 10). */
     flapMinutes?: number;
   } | null;

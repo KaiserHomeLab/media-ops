@@ -52,7 +52,7 @@ beforeEach(() => {
   store.close();
   const db = new DatabaseSync(process.env.HUB_DB || '');
   db.exec(
-    'DROP TABLE IF EXISTS hub_events; DROP TABLE IF EXISTS hub_sources; DROP TABLE IF EXISTS hub_deliveries; PRAGMA user_version = 0;',
+    'DROP TABLE IF EXISTS hub_events; DROP TABLE IF EXISTS hub_sources; DROP TABLE IF EXISTS hub_deliveries; DROP TABLE IF EXISTS hub_digest_runs; PRAGMA user_version = 0;',
   );
   db.close();
 });

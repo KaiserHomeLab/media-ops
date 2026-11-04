@@ -154,6 +154,18 @@ interface HubSettings {
   enabled: boolean;
   rules: { id: string; name: string; enabled: boolean; action: 'now' | 'digest' | 'drop'; locked?: boolean }[];
   flapMinutes: number;
+  digests: {
+    id: string;
+    title: string;
+    enabled: boolean;
+    cron: string;
+    timezone: string;
+    destinations: string[];
+    skipIfEmpty: boolean;
+    maxItemsPerSection: number;
+    footer: string;
+    last: { sentAt: number; status: string; items: number; upgrades: number } | null;
+  }[];
   types: { type: string; label: string; how: string }[];
   sources: {
     id: string;

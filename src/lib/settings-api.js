@@ -16,6 +16,8 @@ const notify = require('./notify');
 const hub = require('./hub');
 const hubSources = require('./hub/sources');
 const hubRules = require('./hub/rules');
+const hubDigests = require('./hub/digests');
+const hubStore = require('./hub/store');
 const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
@@ -417,6 +419,7 @@ async function saveHub(req, res) {
       rules: c.hub?.rules?.length
         ? c.hub.rules
         : hubRules.starting(c.notifications?.targets || [], notify.eventsOf, notify.EVENTS),
+      digests: c.hub?.digests ?? hubDigests.starting(),
     },
   }));
   return send(res, 200, hub.settingsOf(config.load()));
@@ -435,11 +438,54 @@ async function saveHubRules(req, res) {
   } catch (e) {
     return send(res, 400, { error: e.message });
   }
+  // A digest rule must name a digest that exists, or its events would wait forever.
+  const ids = new Set(hubDigests.digestsOf(config.load()).map(d => d.id));
+  const orphan = rules.find(r => r.action === 'digest' && !ids.has(String(r.digest)));
+  if (orphan) return send(res, 400, { error: `"${orphan.name}": there's no digest called "${orphan.digest}"` });
   config.update(c => ({
     ...c,
     hub: { ...(c.hub || { enabled: false }), sources: hubSources.list(c), rules, flapMinutes: flap },
   }));
   return send(res, 200, hub.settingsOf(config.load()));
+}
+/** @param {Req} req @param {Res} res */
+async function saveHubDigests(req, res) {
+  const cfg = config.load();
+  let list;
+  try {
+    list = hubDigests.clean(
+      (await readJson(req, 128 * 1024)).digests,
+      (cfg.notifications?.targets || []).map(t => t.id),
+    );
+  } catch (e) {
+    if (e.status) throw e;
+    return send(res, 400, { error: e.message });
+  }
+  const ids = new Set(list.map(d => d.id));
+  const used = (cfg.hub?.rules || []).find(r => r.action === 'digest' && !ids.has(String(r.digest)));
+  if (used)
+    return send(res, 400, { error: `The rule "${used.name}" still sends to "${used.digest}"; change it first` });
+  config.update(c => ({ ...c, hub: { ...(c.hub || { enabled: false }), sources: hubSources.list(c), digests: list } }));
+  return send(res, 200, hub.settingsOf(config.load()));
+}
+/** @param {string} id */
+const digestById = id => hubDigests.digestsOf(config.load()).find(d => d.id === id);
+// What the digest would say if it went now. Changes nothing.
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+function previewDigest(req, res, { id }) {
+  const d = digestById(id);
+  if (!d) return send(res, 404, { error: 'No such digest' });
+  if (!hub.enabled(config.load())) return send(res, 400, { error: 'Turn the Notification Hub on first' });
+  const b = hubDigests.build(d, hubStore.queuedFor(d.id));
+  return send(res, 200, { ...b, text: hubDigests.asText(b) });
+}
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+async function sendDigestNow(req, res, { id }) {
+  const d = digestById(id);
+  if (!d) return send(res, 404, { error: 'No such digest' });
+  const cfg = config.load();
+  if (!hub.enabled(cfg)) return send(res, 400, { error: 'Turn the Notification Hub on first' });
+  return send(res, 200, await hubDigests.run(cfg, d));
 }
 // A new source's token is in this reply and nowhere else: only its hash is kept.
 /** @param {Req} req @param {Res} res */
@@ -614,11 +660,23 @@ function restoredHub(h, restored) {
   } catch {
     rules = undefined;
   }
+  let digests;
+  try {
+    digests = Array.isArray(h.digests)
+      ? hubDigests.clean(
+          h.digests,
+          restored.map(t => t.id),
+        )
+      : undefined;
+  } catch {
+    digests = undefined;
+  }
   const flap = Math.round(Number(h.flapMinutes));
   return {
     enabled: !!h.enabled,
     sources: hubSources.clean(h.sources),
     ...(rules ? { rules } : {}),
+    ...(digests ? { digests } : {}),
     ...(flap >= 0 && flap <= 1440 ? { flapMinutes: flap } : {}),
   };
 }
@@ -736,6 +794,9 @@ const ROUTE_LIST = [
   ['GET', '/hub', hubSettings],
   ['PUT', '/hub', saveHub],
   ['PUT', '/hub/rules', saveHubRules],
+  ['PUT', '/hub/digests', saveHubDigests],
+  ['GET', '/hub/digests/:id/preview', previewDigest],
+  ['POST', '/hub/digests/:id/send', sendDigestNow],
   ['GET', '/hub/activity', hubActivity],
   ['POST', '/hub/sources', addSource],
   ['PUT', '/hub/sources/:id', updateSource],

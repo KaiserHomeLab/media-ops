@@ -53,6 +53,20 @@ const MIGRATIONS = [
      sent_at INTEGER NOT NULL
    );
    CREATE INDEX hub_deliveries_event ON hub_deliveries (event_id);`,
+  // Digests: one row per run, and which run took each event.
+  `CREATE TABLE hub_digest_runs (
+     id TEXT PRIMARY KEY,
+     digest_id TEXT NOT NULL,
+     window_start INTEGER,
+     window_end INTEGER NOT NULL,
+     item_count INTEGER NOT NULL,
+     upgrade_count INTEGER NOT NULL DEFAULT 0,
+     sent_at INTEGER NOT NULL,
+     status TEXT NOT NULL
+   );
+   CREATE INDEX hub_digest_runs_digest ON hub_digest_runs (digest_id, sent_at);
+   ALTER TABLE hub_events ADD COLUMN digest_run_id TEXT;
+   CREATE INDEX hub_events_digest ON hub_events (digest_id, status);`,
 ];
 
 const FILE = () => process.env.HUB_DB || path.join(path.dirname(config.FILE), 'hub.db');
@@ -76,9 +90,16 @@ function open() {
   const at = Number(/** @type {any} */ (db.prepare('PRAGMA user_version').get()).user_version);
   for (let i = at; i < MIGRATIONS.length; i++) {
     db.exec('BEGIN');
-    db.exec(MIGRATIONS[i]);
-    db.exec(`PRAGMA user_version = ${i + 1}`);
-    db.exec('COMMIT');
+    try {
+      db.exec(MIGRATIONS[i]);
+      db.exec(`PRAGMA user_version = ${i + 1}`);
+      db.exec('COMMIT');
+    } catch (e) {
+      db.exec('ROLLBACK'); // all of a step or none of it
+      db.close();
+      db = null;
+      throw e;
+    }
   }
   return db;
 }
@@ -147,6 +168,59 @@ function waiting(statuses) {
     destinations: /** @type {string[]} */ (r.destinations ? JSON.parse(r.destinations) : []),
     status: String(r.status),
   }));
+}
+
+// Everything waiting for a digest, oldest first, with its title details.
+/** @param {string} digestId @returns {(import('./normalize').HubEvent & { status: string })[]} */
+function queuedFor(digestId) {
+  const rows = /** @type {any[]} */ (
+    open()
+      .prepare(
+        `SELECT id, received_at, source, source_instance, type, severity, summary, dedupe_key, is_upgrade, media_json, status
+         FROM hub_events WHERE digest_id = ? AND status = 'queued' ORDER BY received_at, rowid`,
+      )
+      .all(digestId)
+  );
+  return rows.map(r => ({
+    id: String(r.id),
+    receivedAt: Number(r.received_at),
+    source: String(r.source),
+    sourceInstance: String(r.source_instance),
+    type: String(r.type),
+    severity: r.severity,
+    summary: String(r.summary),
+    dedupeKey: String(r.dedupe_key),
+    isUpgrade: !!r.is_upgrade,
+    media: r.media_json ? JSON.parse(r.media_json) : null,
+    raw: null,
+    status: String(r.status),
+  }));
+}
+
+/** @param {{ id: string, digestId: string, windowStart: number | null, windowEnd: number, items: number, upgrades: number, status: string }} run @param {string[]} eventIds */
+function digestRun(run, eventIds) {
+  const d = open();
+  d.exec('BEGIN');
+  try {
+    d.prepare(
+      `INSERT INTO hub_digest_runs (id, digest_id, window_start, window_end, item_count, upgrade_count, sent_at, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(run.id, run.digestId, run.windowStart, run.windowEnd, run.items, run.upgrades, Date.now(), run.status);
+    const stmt = d.prepare(`UPDATE hub_events SET status = 'digested', digest_run_id = ?, sent_at = ? WHERE id = ?`);
+    for (const id of eventIds) stmt.run(run.id, run.status === 'sent' ? Date.now() : null, id);
+    d.exec('COMMIT');
+  } catch (e) {
+    d.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+/** @param {string} digestId */
+function lastRun(digestId) {
+  const r = /** @type {any} */ (
+    open().prepare('SELECT * FROM hub_digest_runs WHERE digest_id = ? ORDER BY sent_at DESC LIMIT 1').get(digestId)
+  );
+  return r ? { id: r.id, sentAt: r.sent_at, status: r.status, items: r.item_count, upgrades: r.upgrade_count } : null;
 }
 
 /** @param {string[]} ids @param {string} status */
@@ -249,6 +323,7 @@ function prune(now = Date.now()) {
   );
   d.prepare('DELETE FROM hub_events WHERE received_at < ?').run(now - EVENT_DAYS * DAY);
   d.prepare('DELETE FROM hub_deliveries WHERE sent_at < ?').run(now - EVENT_DAYS * DAY);
+  d.prepare('DELETE FROM hub_digest_runs WHERE sent_at < ?').run(now - EVENT_DAYS * DAY);
 }
 
 function close() {
@@ -263,6 +338,9 @@ module.exports = {
   waiting,
   mark,
   delivered,
+  queuedFor,
+  digestRun,
+  lastRun,
   sawSource,
   sourceStats,
   forgetSource,

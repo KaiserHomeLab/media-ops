@@ -8,6 +8,7 @@
 const collectors = require('./collectors');
 const { clearCache } = require('./http');
 const config = require('./config');
+const { setupRequired } = require('./auth');
 const demo = require('./demo');
 const feed = require('./events');
 const actions = require('./actions');
@@ -135,6 +136,7 @@ async function overview() {
     version: pkg.version,
     latestVersion: DEMO ? null : selfupdate.latest(cfg),
     settingsLocked: !!cfg.auth,
+    setupRequired: setupRequired(cfg),
     layout: layout.forDashboard(cfg),
   };
 }

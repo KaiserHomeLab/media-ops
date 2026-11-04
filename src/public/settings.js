@@ -43,6 +43,10 @@ async function api(path, { method = 'GET', body } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && data.needSetup) {
+    showSetup();
+    throw new Error(data.error);
+  }
   if (r.status === 401 && data.needLogin) {
     showLogin();
     throw new Error(data.error);
@@ -76,6 +80,7 @@ async function load() {
     return;
   }
   $('login').hidden = true;
+  $('setup').hidden = true;
   $('settings-body').hidden = false;
   $('logout').hidden = !S.authEnabled;
   $('demo-banner').hidden = !S.demo;
@@ -108,9 +113,46 @@ async function loadStatus() {
 
 function showLogin() {
   $('settings-body').hidden = true;
+  $('setup').hidden = true;
   $('login').hidden = false;
   $form('login-form').password.focus();
 }
+
+// No password yet: the setup code from the log, then the password (lib/auth.js setupRequired).
+function showSetup() {
+  $('settings-body').hidden = true;
+  $('login').hidden = true;
+  $('setup').hidden = false;
+  field($form('setup-form'), 'code').focus();
+}
+$form('setup-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = $form('setup-form');
+  showError($('setup-error'), '');
+  try {
+    await api('/setup', {
+      method: 'POST',
+      body: { code: field(f, 'code').value, password: field(f, 'password').value },
+    });
+    f.reset();
+    $('setup').hidden = true;
+    load();
+  } catch (err) {
+    showError($('setup-error'), err.message);
+  }
+});
+$('setup-code-btn').addEventListener('click', async e => {
+  const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
+  showError($('setup-error'), '');
+  btn.disabled = true;
+  try {
+    await api('/setup-code', { method: 'POST', body: {} });
+    btn.textContent = 'Printed in the log again';
+  } catch (err) {
+    showError($('setup-error'), err.message);
+  }
+  setTimeout(() => (btn.disabled = false), 30000);
+});
 
 // `next` comes from the address bar, so only follow it to a page on this site. Resolving it as a
 // URL catches the tricks a prefix check misses ("/\evil.example" is "//evil.example" to a browser).
@@ -802,7 +844,7 @@ $('diag-run').addEventListener('click', async e => {
   btn.textContent = 'Checking every app…';
   try {
     /** @type {DiagReport} */
-    const report = await api('/diagnostics');
+    const report = await api('/diagnostics', { method: 'POST', body: {} });
     diagReport = report;
     renderDiag(report);
     $('diag-copy').hidden = $('diag-download').hidden = false;
@@ -1262,7 +1304,7 @@ function renderSecurity() {
   const on = S.authEnabled;
   $('pw-status').innerHTML = on
     ? '🔒 Settings are protected by a password. The dashboard itself stays viewable by anyone on your network. If you forget it, use "Forgot password?" on the login screen; it gives you a reset code via the container log.'
-    : 'Anyone who can open this page can change your apps and keys. Set a password to lock Settings. The dashboard stays viewable without it.';
+    : '⚠️ No password, by your choice: anyone who can open this page can change your apps and keys, and act on them from the dashboard. Set a password to lock Settings. The dashboard stays viewable without it.';
   $('pw-current-wrap').hidden = !on;
   $('pw-remove').hidden = !on;
   $('pw-next-label').textContent = on ? 'New password' : 'Password';
@@ -1306,7 +1348,12 @@ $('dash-lock').addEventListener('change', async e => {
   }
 });
 $('pw-remove').addEventListener('click', () => {
-  if (confirm('Remove the settings password? Anyone on your network will be able to change settings.')) setPassword('');
+  if (
+    confirm(
+      'Remove the settings password? Anyone who can reach Media Ops will be able to change settings and act on your apps. Media Ops stays open like that until you set a password again.',
+    )
+  )
+    setPassword('');
 });
 
 load();

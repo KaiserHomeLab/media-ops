@@ -57,6 +57,7 @@ interface Overview {
   version: string;
   latestVersion: string | null;
   settingsLocked: boolean;
+  setupRequired?: boolean;
   layout: { order: string[]; hidden: string[]; blocks: Record<string, string[]> };
   [key: string]: any;
 }
@@ -89,6 +90,7 @@ interface AppRow {
 /** What GET /api/settings returns (lib/settings-api.js settingsPayload()). */
 interface SettingsPayload {
   authEnabled: boolean;
+  openByChoice: boolean;
   dashboardAuth: boolean;
   version: string;
   loggedIn: boolean;

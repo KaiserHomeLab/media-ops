@@ -105,7 +105,11 @@ export function render(d) {
 
   applyLayout(d.layout);
   $('demo-badge').hidden = !d.demo;
-  $('lock-nudge').hidden = d.demo || d.settingsLocked !== false || nudgeHidden();
+  // Setup pending (nothing can change yet) is always shown; "no password by choice" can be hidden.
+  $('lock-nudge').hidden = d.demo || d.settingsLocked !== false || (!d.setupRequired && nudgeHidden());
+  $('lock-open').hidden = !!d.setupRequired;
+  $('lock-setup').hidden = !d.setupRequired;
+  $('lock-nudge-close').hidden = !!d.setupRequired;
   $('self-update').hidden = !d.latestVersion;
   if (d.latestVersion) {
     $('self-update').textContent = `⬆ Media Ops ${d.latestVersion}`;

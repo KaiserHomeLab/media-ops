@@ -29,7 +29,8 @@ const path = require('node:path');
 const config = require('./lib/config');
 const appearance = require('./lib/appearance');
 const history = require('./lib/history');
-const { loggedIn } = require('./lib/auth');
+const { loggedIn, setupRequired, TRUST_PROXY } = require('./lib/auth');
+const recovery = require('./lib/recovery');
 const { SECURITY_HEADERS, sameOrigin, send, serveStatic } = require('./lib/web');
 const {
   DEMO,
@@ -183,6 +184,9 @@ server.listen(PORT, () => {
   console.log(`Media Ops on http://localhost:${PORT}  (settings: http://localhost:${PORT}/settings)`);
   console.log(`Config file: ${config.FILE}`);
   if (DEMO) console.log('DEMO=1 — the dashboard shows fake data.');
+  // No password yet: the code that lets you set the first one (a new one at every start).
+  else if (setupRequired(cfg)) recovery.setup.request();
+  if (TRUST_PROXY) console.log('TRUST_PROXY is on: login lockouts use the address your reverse proxy passes on.');
   else if (!cfg.services.length) console.log('No apps connected yet — open /settings to add them.');
   else console.log(`Watching ${cfg.services.length} apps: ${cfg.services.map(s => s.name).join(', ')}`);
 });

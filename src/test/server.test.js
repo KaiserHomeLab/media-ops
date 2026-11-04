@@ -18,6 +18,9 @@ const base = `http://127.0.0.1:${PORT}`;
 let child;
 
 before(async () => {
+  // Most tests exercise Media Ops without a password, which since setup became mandatory is what
+  // an install looks like after the password was removed on purpose. Setup mode has its own test.
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ openByChoice: true }));
   child = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
     env: { ...process.env, PORT: String(PORT), CONFIG: path.join(dir, 'config.json'), DEMO: '', HOST_OS: 'Unraid' },
     stdio: 'ignore',
@@ -186,8 +189,14 @@ test('backups need a password (they hold every key); restore runs every app thro
   await json('PUT', '/api/settings/password', { current: 'backup-pw-123', next: '' }, { Cookie: cookie });
 });
 
-test('diagnostics runs every app and reports versions', async () => {
-  const d = await (await fetch(`${base}/api/settings/diagnostics`)).json();
+test('diagnostics runs every app and reports versions; a POST, so no other site can start it', async () => {
+  assert.equal((await fetch(`${base}/api/settings/diagnostics`)).status, 404, 'GET is not a route');
+  assert.equal(
+    (await fetch(`${base}/api/settings/diagnostics`, { method: 'POST', headers: { 'Sec-Fetch-Site': 'cross-site' } }))
+      .status,
+    403,
+  );
+  const d = await (await json('POST', '/api/settings/diagnostics', {})).json();
   assert.ok(d.mediaOps);
   assert.equal(d.apps[0].name, 'Router');
   assert.equal(d.apps[0].calls[0].url, 'http://192.0.2.1/');
@@ -677,6 +686,69 @@ test('digest Send now answers at once and sends in the background', async t => {
   await json('DELETE', `/api/settings/hub/sources/${made.source.id}`);
   await json('DELETE', `/api/settings/notifications/${target.id}`);
   await json('PUT', '/api/settings/hub', { enabled: false });
+});
+
+test('setup: with no password (not removed on purpose) nothing changes until the setup code and a password are given', async () => {
+  const file = path.join(dir, 'config.json');
+  const saved = fs.readFileSync(file, 'utf8');
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(saved), auth: null, openByChoice: false }));
+  await new Promise(r => setTimeout(r, 1200)); // config.json is re-read when it changes (checked once a second)
+  let r = await fetch(`${base}/api/settings`);
+  assert.equal(r.status, 401);
+  assert.equal((await r.json()).needSetup, true);
+  r = await json('POST', '/api/events/services/some-app/clear', {});
+  assert.equal(r.status, 401, 'no app actions either');
+  assert.equal((await r.json()).needSetup, true);
+  assert.equal((await json('POST', '/api/events/dismiss', { all: true })).status, 401);
+  assert.equal(
+    (await json('PUT', '/api/settings/password', { next: 'sneaky-pw-123' })).status,
+    401,
+    'setting one needs the code',
+  );
+  assert.equal((await fetch(`${base}/`)).status, 200, 'the dashboard stays viewable');
+
+  r = await json('POST', '/api/settings/setup-code', {});
+  assert.equal(r.status, 200);
+  const code = /setup code: ([A-Z0-9]{4}-[A-Z0-9]{4})/i.exec(
+    fs.readFileSync(path.join(dir, 'setup-code.txt'), 'utf8'),
+  )?.[1];
+  assert.ok(code, 'the code is in the config folder (and the log)');
+  r = await json('POST', '/api/settings/setup', { code: 'AAAA-BBBB', password: 'my-first-pw-1' });
+  assert.match((await r.json()).error, /Wrong code/);
+  r = await json('POST', '/api/settings/setup', { code, password: 'short' });
+  assert.match((await r.json()).error, /at least 8/);
+  r = await json('POST', '/api/settings/setup', { code, password: 'my-first-pw-1' });
+  assert.equal(r.status, 200);
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  assert.ok(!fs.existsSync(path.join(dir, 'setup-code.txt')), 'used up');
+  assert.equal((await fetch(`${base}/api/settings`, { headers: { Cookie: cookie } })).status, 200);
+  assert.equal((await fetch(`${base}/api/settings`)).status, 401, 'now behind the login');
+  assert.equal(
+    (await json('POST', '/api/settings/setup', { code, password: 'again-pw-123' })).status,
+    400,
+    'only once',
+  );
+
+  // Removing it on purpose leaves Settings open (no setup asked for), as the tests below expect.
+  r = await json('PUT', '/api/settings/password', { current: 'my-first-pw-1', next: '' }, { Cookie: cookie });
+  assert.equal(r.status, 200);
+  assert.equal((await fetch(`${base}/api/settings`)).status, 200);
+  assert.equal((await (await fetch(`${base}/api/settings`)).json()).openByChoice, true);
+});
+
+test('forgot password: asking again shows the same code (nobody can void yours), and counts toward the lockout', async () => {
+  let r = await json('PUT', '/api/settings/password', { next: 'forgot-pw-123' });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  const file = path.join(dir, 'password-reset.txt');
+  assert.equal((await json('POST', '/api/settings/forgot', {})).status, 200);
+  const first = fs.readFileSync(file, 'utf8');
+  assert.equal((await json('POST', '/api/settings/forgot', {})).status, 200);
+  assert.equal(fs.readFileSync(file, 'utf8'), first, 'still the same code');
+  const code = /([A-Z0-9]{4}-[A-Z0-9]{4})/.exec(first)?.[1];
+  r = await json('POST', '/api/settings/reset', { code, next: '' });
+  assert.equal(r.status, 200, 'the code still works');
+  assert.equal((await fetch(`${base}/api/settings`)).status, 200, 'removed by reset on purpose: open');
+  void cookie;
 });
 
 // Last: it locks this test client's address out of logging in.

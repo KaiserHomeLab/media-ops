@@ -32,8 +32,7 @@ const rejected = { count: 0, lastAt: /** @type {number | null} */ (null) };
 const WINDOW = 15 * 60e3,
   MAX_WRONG = 20;
 const wrong = new Map(); // ip -> { n, since }
-/** @param {import('node:http').IncomingMessage} req */
-const ipOf = req => req.socket.remoteAddress || '?';
+const { clientIp: ipOf } = require('../auth'); // honours TRUST_PROXY, like the login lockout
 /** @param {import('node:http').IncomingMessage} req */
 function lockedOut(req) {
   const f = wrong.get(ipOf(req));

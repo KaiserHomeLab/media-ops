@@ -11,6 +11,8 @@ if (!config.load().auth) {
   console.log('No settings password is set, so there is nothing to reset.');
   process.exit(0);
 }
-config.update(c => ({ ...c, auth: null }));
+// Not "removed on purpose": Settings asks for a new one, with a setup code, next time it's opened.
+config.update(c => ({ ...c, auth: null, openByChoice: false, dashboardAuth: false }));
 console.log(`Settings password removed (${config.FILE}).`);
-console.log('Open Settings → Security in the dashboard to set a new one.');
+console.log('Open Settings in the dashboard to set a new one: press "Get a setup code" and read it');
+console.log('from the container log (docker logs media-ops), or restart the container to print one.');

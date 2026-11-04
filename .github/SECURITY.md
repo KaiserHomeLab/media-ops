@@ -10,9 +10,16 @@ there as soon as I can.
 
 - API keys and tokens are stored in `/config/config.json` (permissions `0600`) on your
   server, and are never sent back to the browser. The Settings form only shows that one is saved.
-- The optional Settings password is stored as a salted scrypt hash. Sessions live in
-  memory only. Ten wrong passwords (or reset codes) from one address lock it out for 15 minutes;
-  this also covers the "current password" on the change-password form.
+- The Settings password is stored as a salted scrypt hash. Sessions live in memory only. Ten
+  wrong passwords (or reset or setup codes, or reset-code requests) from one address lock it out
+  for 15 minutes; this also covers the "current password" on the change-password form. Behind a
+  reverse proxy, set `TRUST_PROXY=1` so the address is the visitor's (`CF-Connecting-IP`, or the
+  last `X-Forwarded-For` hop) rather than the proxy's; it's off by default because without a proxy
+  anyone could send those headers.
+- Until a password is set, Settings and every action on an app are refused, except setting the
+  first password, which needs a one-time setup code from the container log or the config
+  folder, so nobody else on the network can claim it first. Running without a password is
+  still possible, but only by removing it on purpose.
 - A saved API key or token is only ever sent to the address it was saved for. Changing an app's
   address (or a notification server) requires entering the key again, so nobody who can edit
   settings can redirect a stored key to their own server.
@@ -95,11 +102,11 @@ there as soon as I can.
   its fingerprint (`known-certs.json`); if the certificate later changes, the connection is
   refused before the key is sent. Testing or saving TrueNAS in Settings trusts a replaced
   certificate. Give Media Ops a user with the read-only administrator role.
-- Mounting the Docker socket gives the container root-equivalent access to the host. Media
-  Ops only reads the container list, but a bug or compromise in any program with the socket
-  could do anything. Safer: run a read-only socket proxy (e.g. `tecnativa/docker-socket-proxy`
-  with only `CONTAINERS=1`) and enter its address (`http://socket-proxy:2375`) under Settings →
-  General instead, or leave the socket out if you don't need that panel.
+- Mounting the Docker socket gives the container root-equivalent access to the host (`:ro`
+  doesn't limit the API). Media Ops only reads the container list, so the example Compose files
+  run a read-only socket proxy (`CONTAINERS=1`, `POST=0`) and point Media Ops at it with
+  `DOCKER_HOST`; the Unraid template no longer maps the socket by default. Diagnostics, which
+  calls every app, is a POST, so another website can't start it through your browser.
 - Replies from apps are capped (128 MB per reply, 64 MB per TrueNAS message, 5 MB per poster),
   so a misbehaving app can't exhaust memory. Settings writes are capped at 64 KB (2 MB for a
   restore), and a client gets 30 seconds to send a request.

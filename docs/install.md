@@ -26,10 +26,11 @@ Apple Silicon Mac), and a free port 8484.
    `/boot/config/plugins/dockerMan/templates-user/my-media-ops.xml`.
 2. Go to **Docker → Add Container**, pick **media-ops** from the template list, and click
    **Apply**.
-3. Open `http://<your-unraid-ip>:8484`.
+3. Open `http://<your-unraid-ip>:8484`, then **Settings**: it asks for the setup code from the
+   container's log (see [First start](#first-start-the-setup-code)).
 
-The template already maps your array and cache so their free space shows up, and the Docker
-socket so you see your containers. Add **Unraid** under Settings → Add app to see the array,
+The template already maps your array and cache so their free space shows up. For the container
+list, see [The container list](#the-container-list-optional). Add **Unraid** under Settings → Add app to see the array,
 parity and disk temperatures (see the [README](../README.md#setting-up-unraid-or-truenas)).
 
 ## TrueNAS
@@ -64,7 +65,6 @@ docker compose up -d
 docker run -d --name media-ops --restart unless-stopped -p 8484:8484 \
   -e PUID=$(id -u) -e PGID=$(id -g) -e TZ=America/Chicago -e HOST_NAME=$(hostname) \
   -v ~/media-ops:/config \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v /mnt/media:/mnt/media:ro \
   ghcr.io/kaiserhomelab/media-ops:latest
 ```
@@ -80,10 +80,10 @@ right-hand side under Settings → General → Disks to show.
   Ubuntu/Debian: `sudo ufw allow 8484/tcp`. Fedora/RHEL: `sudo firewall-cmd --add-port=8484/tcp --permanent && sudo firewall-cmd --reload`.
 - **Fedora, RHEL, Rocky or Alma (SELinux):** add `:Z` to the settings folder, like
   `-v ~/media-ops:/config:Z`, or the container can't write to it.
-- **Rootless Docker or Podman:** the Docker socket lives somewhere else. Use
-  `-v $XDG_RUNTIME_DIR/docker.sock:/var/run/docker.sock:ro` (rootless Docker) or
-  `-v /run/podman/podman.sock:/var/run/docker.sock:ro` (Podman, after
-  `sudo systemctl enable --now podman.socket`). Everything else is the same.
+- **Rootless Docker or Podman:** the Docker socket lives somewhere else. For the socket proxy
+  (see [The container list](#the-container-list-optional)), mount
+  `$XDG_RUNTIME_DIR/docker.sock` (rootless Docker) or `/run/podman/podman.sock` (Podman, after
+  `sudo systemctl enable --now podman.socket`) as its `/var/run/docker.sock`.
 - **GPU load:** Intel and AMD GPUs show up on their own. For Nvidia, install the Nvidia
   Container Toolkit and add `--gpus all` (or `runtime: nvidia` in Compose).
 - **Raspberry Pi:** use the 64-bit Raspberry Pi OS. The 32-bit one isn't supported.
@@ -100,7 +100,6 @@ Windows 10 or 11 with [Docker Desktop](https://www.docker.com/products/docker-de
    docker run -d --name media-ops --restart unless-stopped -p 8484:8484 `
      -e TZ=America/Chicago -e HOST_NAME=$env:COMPUTERNAME `
      -v C:\media-ops:/config `
-     -v /var/run/docker.sock:/var/run/docker.sock:ro `
      -v D:\Media:/mnt/media:ro `
      ghcr.io/kaiserhomelab/media-ops:latest
    ```
@@ -140,7 +139,6 @@ macOS with [Docker Desktop](https://www.docker.com/products/docker-desktop/) or
 docker run -d --name media-ops --restart unless-stopped -p 8484:8484 \
   -e TZ=America/Chicago -e HOST_NAME=$(scutil --get ComputerName | tr ' ' '-') \
   -v ~/media-ops:/config \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -v /Volumes/Media:/mnt/media:ro \
   ghcr.io/kaiserhomelab/media-ops:latest
 ```
@@ -176,7 +174,6 @@ DSM 7.2 or newer, with **Container Manager** installed from the Package Center.
          - "8484:8484"
        volumes:
          - /volume1/docker/media-ops:/config
-         - /var/run/docker.sock:/var/run/docker.sock:ro
          - /volume1:/volume1:ro
    ```
 
@@ -207,6 +204,55 @@ Media Ops guesses which system it's on from the kernel, to show the right tips. 
 wrong, set `HOST_OS` (for example `HOST_OS=Synology`).
 
 ---
+
+## First start: the setup code
+
+The first time you open **Settings**, it asks for a **setup code** and the settings password you
+want. Media Ops prints the code in its log at every start until a password is set, and writes it
+to `setup-code.txt` in the config folder:
+
+- **Unraid:** Docker tab → **media-ops** icon → **Logs**. Or `/mnt/user/appdata/media-ops/setup-code.txt`.
+- **TrueNAS:** Apps → media-ops → **Logs**.
+- **Docker / Compose:** `docker logs media-ops`.
+
+Until a password is set, the dashboard is viewable but nothing can be changed: no settings, no
+actions on your apps. **Can't find it?** The setup screen can print it again. Forgot the password
+later? Use **Forgot password?** on the login screen, or run `reset-password` in the container's
+console (Settings then asks for a new one, with a setup code). You can still remove the
+password on purpose under Settings → Security, for example on an isolated network.
+
+## The container list (optional)
+
+To show your containers and find your apps in Docker, Media Ops needs to ask Docker for its
+container list. Don't give it the Docker socket itself: even mounted `:ro`, the socket lets
+whoever has it control your whole server. Use a read-only **socket proxy** that only answers
+"list containers":
+
+- **Docker Compose / TrueNAS:** the example [`docker-compose.yml`](../docker-compose.yml) and
+  [`truenas-compose.yml`](truenas-compose.yml) already include one (`socket-proxy`) and point
+  Media Ops at it with `DOCKER_HOST=tcp://socket-proxy:2375`.
+- **Unraid:** install **socket-proxy** from Community Apps with `CONTAINERS=1`, then put its
+  address (`tcp://<its-ip>:2375`) in the **Docker socket proxy** field of the Media Ops template.
+- **docker run:** start one next to Media Ops, on a shared network:
+
+  ```bash
+  docker network create media-ops
+  docker run -d --name socket-proxy --network media-ops --restart unless-stopped \
+    -e CONTAINERS=1 -e POST=0 --read-only --tmpfs /run \
+    -v /var/run/docker.sock:/var/run/docker.sock:ro lscr.io/linuxserver/socket-proxy:latest
+  ```
+
+  and add `--network media-ops -e DOCKER_HOST=tcp://socket-proxy:2375` to Media Ops' `docker run`.
+
+You can also enter a proxy's address (`http://socket-proxy:2375`) under Settings → General.
+
+## Behind a reverse proxy or Cloudflare Tunnel
+
+Set `TRUST_PROXY=1` on the Media Ops container. Wrong settings passwords lock out the address
+they came from; behind a proxy every visitor seems to come from the proxy, so without it a
+stranger's guesses would lock you out too. With it, Media Ops uses the visitor's address the
+proxy passes on (`CF-Connecting-IP`, or the last `X-Forwarded-For` entry). Leave it off when
+people reach Media Ops directly: then anyone could send those headers to dodge the lockout.
 
 ## Reaching your apps
 

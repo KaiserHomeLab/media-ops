@@ -270,8 +270,21 @@ async function discordDigest(t, b) {
 const firstSeen = new Map();
 
 // Build and send one digest now, marking what it took. Returns what happened.
+/** @type {Set<string>} digests being sent right now */
+const running = new Set();
+// One run of a digest at a time: a scheduled run and a Send now click mustn't send the same titles twice.
 /** @param {import('../types').Config} cfg @param {Digest} d */
 async function run(cfg, d) {
+  if (running.has(d.id)) return { status: 'busy', items: 0, upgrades: 0, sent: 0 };
+  running.add(d.id);
+  try {
+    return await runOnce(cfg, d);
+  } finally {
+    running.delete(d.id);
+  }
+}
+/** @param {import('../types').Config} cfg @param {Digest} d */
+async function runOnce(cfg, d) {
   const events = store.queuedFor(d.id);
   const b = build(d, events);
   const runId = crypto.randomUUID();
@@ -330,4 +343,4 @@ async function runDue(cfg, now = Date.now()) {
   }
 }
 
-module.exports = { starting, clean, digestsOf, build, asText, run, runDue, ranges, showLine };
+module.exports = { starting, clean, digestsOf, build, asText, run, runDue, ranges };

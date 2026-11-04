@@ -232,6 +232,14 @@ test('run: a failed send keeps the titles queued for the next run; no destinatio
   assert.equal(store.recent()[0].status, 'queued');
 });
 
+test('run: one at a time per digest (a scheduled run and Send now never send the same titles twice)', async t => {
+  const { posts, cfg } = await discord(t);
+  deliver.route(cfg, ev('media.added', episode(3)));
+  const [a, b] = await Promise.all([digests.run(cfg, D), digests.run(cfg, D)]);
+  assert.deepEqual([a.status, b.status].sort(), ['busy', 'sent']);
+  assert.equal(posts.length, 1);
+});
+
 test('runDue: waits for its time, runs once, and catches up once after being down', async t => {
   const { posts, cfg } = await discord(t);
   deliver.route(cfg, ev('media.added', episode(1)));

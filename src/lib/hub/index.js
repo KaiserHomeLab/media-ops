@@ -8,6 +8,7 @@
 // Every event goes through the rules (lib/hub/rules.js): sent now, held for a digest, or
 // dropped. When the hub is on, it decides all of Media Ops' notifications (lib/hub/deliver.js).
 'use strict';
+const fs = require('node:fs');
 const config = require('../config');
 const { readJson, send } = require('../web');
 const store = require('./store');
@@ -104,25 +105,30 @@ function take(cfg, noticed, services) {
 // Every background tick, after take(): send what's due.
 /** @param {import('../types').Config} cfg */
 async function tick(cfg) {
+  maintain();
   if (!enabled(cfg)) return;
   try {
     await deliverNow(cfg);
   } catch (e) {
     console.error(`Notification Hub: couldn't send: ${e.message}`);
   }
-  try {
-    await digests.runDue(cfg);
-  } catch (e) {
-    console.error(`Notification Hub: couldn't send a digest: ${e.message}`);
+  // Not awaited: a newsletter to hundreds of addresses takes minutes, and the monitor (history,
+  // alerts) mustn't wait for it. One run at a time, so a slow one isn't started again.
+  if (!digestsRunning) {
+    digestsRunning = true;
+    digests
+      .runDue(cfg)
+      .catch(e => console.error(`Notification Hub: couldn't send a digest: ${e.message}`))
+      .finally(() => (digestsRunning = false));
   }
-  maintain(cfg);
 }
+let digestsRunning = false;
 
 let prunedAt = 0;
-// Hourly from the background monitor: drop old raw payloads and events.
-/** @param {import('../types').Config} cfg */
-function maintain(cfg) {
-  if (!enabled(cfg) || Date.now() - prunedAt < 3600e3) return;
+// Hourly from the background monitor: drop old raw payloads and events. Whenever hub.db exists,
+// on or off: turning the hub off mustn't keep requesters' details past 7 days.
+function maintain() {
+  if (Date.now() - prunedAt < 3600e3 || !fs.existsSync(store.FILE())) return;
   prunedAt = Date.now();
   try {
     store.prune();

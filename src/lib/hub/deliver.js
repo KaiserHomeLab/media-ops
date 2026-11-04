@@ -131,4 +131,4 @@ async function deliverNow(cfg) {
   return byTarget.size;
 }
 
-module.exports = { route, deliverNow, rulesOf, urgent, levelOf, FLAP_MINUTES };
+module.exports = { route, deliverNow, rulesOf, urgent };

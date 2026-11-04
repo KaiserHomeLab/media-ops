@@ -7,8 +7,8 @@
 //   - each destination's own name, avatar and colour
 //   - Discord's limits: 10 embeds and 6000 characters per message, 4096 per embed description;
 //     a digest that's longer goes out as several messages
-//   - one message at a time per webhook; on 429 it waits as long as Discord says and tries again,
-//     a 5xx is tried 3 times, so a burst never loses a message
+//   - one message at a time per webhook; on 429 it waits as long as Discord says and tries again
+//     (up to a minute in all), a 5xx is tried 3 times, so a burst never loses a message
 'use strict';
 const { req } = require('./http');
 
@@ -38,7 +38,7 @@ const branding = (t, fallbackName) => ({
 const queues = new Map();
 const sleep = (/** @type {number} */ ms) => new Promise(r => setTimeout(r, ms));
 // How long the first 5xx retry waits (doubling after). Tests make it short.
-const timing = { retryMs: 500 };
+const timing = { retryMs: 500, maxWaitMs: 60e3 };
 
 // Retry-After (seconds) from a 429; Discord also sends X-RateLimit-Reset-After.
 /** @param {any} e */
@@ -51,6 +51,7 @@ function waitFor(e) {
 /** @param {string} url @param {object} body */
 async function attempt(url, body) {
   let fivexx = 0;
+  let waited = 0; // a minute of 429 waiting at most per message: alerts behind it can't wait longer
   for (let tries = 0; ; tries++) {
     try {
       return await req(url, {
@@ -64,7 +65,8 @@ async function attempt(url, body) {
       const status = e?.reply?.status;
       if (status === 429 && tries < 5) {
         const ms = waitFor(e);
-        if (ms > 60e3) throw e; // a minute or more: give up rather than block every other message
+        if (waited + ms > timing.maxWaitMs) throw e; // give up rather than block every other message
+        waited += ms;
         await sleep(ms);
         continue;
       }
@@ -180,4 +182,4 @@ function digest(t, b) {
   }));
 }
 
-module.exports = { escape, post, alert, digest, colorOf, timing, LIMITS, DEFAULT_COLOR };
+module.exports = { escape, post, alert, digest, timing };

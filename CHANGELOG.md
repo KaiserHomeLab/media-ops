@@ -5,9 +5,18 @@ and versions follow [Semantic Versioning](https://semver.org/): a new feature bu
 number, a fix the last one.
 
 To stay on one version instead of `latest`, use a version tag such as
-`ghcr.io/kaiserhomelab/media-ops:1.18` (gets fixes, not new features) or `:1.18.0` (never changes).
+`ghcr.io/kaiserhomelab/media-ops:1.19` (gets fixes, not new features) or `:1.19.0` (never changes).
 
 ## [Unreleased]
+
+## [1.19.0] - 2026-11-04
+
+**Before you update:** if Media Ops runs without a settings password, the next time you open
+Settings it asks for a **setup code** (printed in the container log, `docker logs media-ops`,
+and saved as `setup-code.txt` in your config folder) and the password to set. Until then nothing
+can be changed, but the dashboard keeps working. Using the example `docker-compose.yml`? The new
+one lists containers through a read-only socket proxy instead of the Docker socket; your current
+file keeps working until you switch.
 
 ### Changed
 
@@ -377,7 +386,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 First public release.
 
-[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/KaiserHomeLab/media-ops/compare/v1.19.0...HEAD
+[1.19.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.18.0...v1.19.0
 [1.18.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/KaiserHomeLab/media-ops/compare/v1.15.1...v1.16.0

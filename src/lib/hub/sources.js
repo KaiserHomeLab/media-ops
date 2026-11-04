@@ -145,4 +145,4 @@ function clean(v) {
   return out;
 }
 
-module.exports = { TYPES, list, merge, regenerate, tokenFrom, verify, publicSource, pathOf, clean, hashOf };
+module.exports = { TYPES, list, merge, regenerate, tokenFrom, verify, publicSource, clean, hashOf };

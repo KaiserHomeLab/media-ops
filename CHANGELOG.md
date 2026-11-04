@@ -21,6 +21,12 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Fixed
 
+- Notification Hub: a Seerr webhook with a very long title can no longer tie the server up for
+  seconds (the title is now read in linear time and capped). A Discord webhook that keeps
+  answering "slow down" now holds a message for at most a minute in all, and digests send in the
+  background, so neither delays the background check (history, other alerts). A digest can't
+  be sent twice at once (a scheduled run and Send now). Raw webhook payloads are deleted after 7
+  days even when the hub is turned off.
 - Discord: titles and log lines with Markdown characters show as written ("M*A*S*H" no longer
   turns into "MAS*H"). When Discord says to slow down (HTTP 429), Media Ops waits as long as it
   asks and sends again instead of losing the message; a Discord server error is tried 3 times;

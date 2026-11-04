@@ -52,5 +52,8 @@
     "playwright": "1.64.0",
     "prettier": "3.9.9",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
   }
 }

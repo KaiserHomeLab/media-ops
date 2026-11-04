@@ -151,6 +151,17 @@ test('post: a 429 waits as long as Discord says and retries; a 5xx three times; 
   assert.deepEqual(got, [1, 2, 3, 4], 'a failure on one webhook does not block later sends');
 });
 
+test('post: 429 waiting is capped per message, so one slow webhook can’t hold up every alert behind it', async t => {
+  const srv = await fakeServer({ '/slow': { status: 429, headers: { 'Retry-After': '0.04' }, body: '{}' } });
+  t.after(() => srv.close());
+  discord.timing.maxWaitMs = 100;
+  t.after(() => (discord.timing.maxWaitMs = 60e3));
+  const t0 = Date.now();
+  await assert.rejects(discord.post(`${srv.url}/slow`, { n: 1 }), /HTTP 429/);
+  assert.ok(Date.now() - t0 < 1000);
+  assert.equal(srv.calls.length, 3, 'two waits of 40 ms fit in 100 ms, the third would not');
+});
+
 test('destination form: Discord name, https avatar and #RRGGBB colour; changing the avatar keeps the saved webhook', () => {
   const saved = notify.mergeTarget(null, {
     type: 'discord',

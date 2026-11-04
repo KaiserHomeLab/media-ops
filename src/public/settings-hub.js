@@ -366,7 +366,7 @@ function editRule(i) {
       <label class="field"><span>Name</span><input name="name" required maxlength="120" value="${esc(r.name)}"></label>
       <label class="field toggle"><input type="checkbox" name="enabled" ${r.enabled ? 'checked' : ''}><span>Enabled</span></label>
       <fieldset class="field wide events hub-types"><legend>Events <em>none ticked = any event</em></legend>${checks}</fieldset>
-      <label class="field"><span>Other event types <em>optional</em></span><input name="otherTypes" value="${esc(other.join(', '))}" placeholder="dcs.server_up, custom" spellcheck="false"></label>
+      <label class="field"><span>Other event types <em>optional</em></span><input name="otherTypes" value="${esc(other.join(', '))}" placeholder="backup.finished, custom" spellcheck="false"></label>
       <label class="field"><span>Libraries <em>optional</em></span><input name="libraries" value="${esc(asList(r.match['media.library']).join(', '))}" placeholder="Movies, TV Shows, Anime"></label>
       <label class="field"><span>How serious</span><select name="minSeverity"><option value="">any</option>${SEVERITY.slice(
         1,
@@ -509,7 +509,9 @@ $('hub-digests').addEventListener('click', async e => {
             ? 'Nothing new to send.'
             : r.status === 'no-destination'
               ? 'Pick where it goes first (Edit).'
-              : 'It couldn’t be sent. Activity and the destination show why.',
+              : r.status === 'busy'
+                ? 'It’s being sent right now.'
+                : 'It couldn’t be sent. Activity and the destination show why.',
       );
       hubState = await api('/hub');
       renderDigests();

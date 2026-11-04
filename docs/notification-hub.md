@@ -1,6 +1,6 @@
 # Media Ops: Notification Hub (design spec)
 
-**Status:** Being built, one pull request at a time (see 15. Build plan)
+**Status:** Built (see 15. Build plan for the pull requests)
 **Date:** 2026-11-03
 
 ---
@@ -284,7 +284,7 @@ Retention: delete `raw_json` after 7 days. Delete events after 90 days.
 Add under **Settings → Notifications**:
 
 1. **Sources:** list each source, its endpoint URL with token (copy button), last event received, and a **Send test** button.
-2. **Rules:** ordered list with drag to reorder, enable/disable toggles, and a simple editor (type, library, severity → action/destination/digest).
+2. **Rules:** ordered list, reordered with ↑/↓ buttons, enable/disable toggles, and a simple editor (type, library, severity → action/destination/digest).
 3. **Digests:** schedule, destinations, **Preview** (renders what would be sent now) and **Send now**.
 4. **Destinations:** existing page, extended to allow multiple Discord webhooks.
 5. **Activity:** the last 200 events with the rule that matched and what happened (sent / queued / dropped). This is the main debugging tool.
@@ -350,5 +350,7 @@ Small pull requests, each usable on its own:
 2. Rules and "now" delivery, behind the hub switch; flap suppression; quiet hours in the hub. (#60)
 3. Activity page in Settings. (#61)
 4. Digests: schedules, windows, dedupe and TV grouping, Preview and Send now. (#62)
-5. Discord output (per-destination name, avatar, colour; embeds; limits; a queue with retries) (#63) and the email newsletter (HTML, one message per recipient, unsubscribe links).
+5. Discord output (per-destination name, avatar, colour; embeds; limits; a queue with retries) (#63) and the email newsletter (HTML, one message per recipient, unsubscribe links) (#64).
 6. Settings → Notification Hub: sources, rules, digests.
+
+Not done in v1 (section 2 non-goals, plus): Tautulli and Lidarr sources, links from digest titles to Plex or Seerr pages, a requester's Discord DM when a request is available, and drag-to-reorder (rules move with ↑/↓, as the dashboard layout does).

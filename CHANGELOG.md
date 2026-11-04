@@ -66,6 +66,11 @@ To stay on one version instead of `latest`, use a version tag such as
   each address gets its own copy (nobody sees the others) with an unsubscribe link that needs
   no account, plus the one-click unsubscribe mail apps show. Set the address people open Media
   Ops at under Notification Hub first; the links point there.
+- Settings → Notification Hub: add webhook sources (the address with its token is shown once,
+  ready to copy), edit the rules (events, libraries, how serious, then send now, hold for a
+  digest or drop; reorder them, switch one off), and set up digests (every day or week at a
+  time, or any cron schedule, in your time zone, with Preview and Send now). The public address
+  for newsletter unsubscribe links is set here too.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

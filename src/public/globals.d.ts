@@ -149,10 +149,21 @@ type AppKind = SettingsPayload['kinds'][number];
 type NotifyType = SettingsPayload['notifyTypes'][number];
 type NotifyTarget = SettingsPayload['notifications']['targets'][number];
 
+/** A Notification Hub rule (lib/hub/rules.js). */
+interface HubRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  match: Record<string, any>;
+  action: 'now' | 'digest' | 'drop';
+  destinations?: string[];
+  digest?: string;
+  locked?: boolean;
+}
 /** Settings → Notification Hub: GET /api/settings/hub (lib/hub/index.js settingsOf). */
 interface HubSettings {
   enabled: boolean;
-  rules: { id: string; name: string; enabled: boolean; action: 'now' | 'digest' | 'drop'; locked?: boolean }[];
+  rules: HubRule[];
   flapMinutes: number;
   publicUrl: string;
   digests: {
@@ -169,6 +180,7 @@ interface HubSettings {
     last: { sentAt: number; status: string; items: number; upgrades: number } | null;
   }[];
   types: { type: string; label: string; how: string }[];
+  eventTypes: { type: string; label: string }[];
   sources: {
     id: string;
     type: string;

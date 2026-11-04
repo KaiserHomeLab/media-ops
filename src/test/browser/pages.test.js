@@ -174,6 +174,48 @@ test('settings: Notification Hub Activity lists what happened, filters, and open
   await page.close();
 });
 
+test('settings: Notification Hub turned on, a source added (token once), a rule added above the catch-all', async () => {
+  const { page, problems } = await open('/settings#hub');
+  page.on('dialog', d => d.accept());
+  await page.waitForSelector('#hub-form');
+  await page.check('#hub-form [name=enabled]');
+  await page.click('#hub-form button[type=submit]');
+  await page.waitForSelector('#hub-config:not([hidden]) #hub-rules li');
+  assert.match((await page.textContent('#hub-rules li:last-child')) || '', /Everything else/);
+
+  await page.click('#hub-add-source');
+  await page.selectOption('#hub-source-form [name=type]', 'radarr');
+  await page.click('#hub-source-form button[type=submit]');
+  await page.waitForSelector('#modal >> text=Copy this now');
+  const url = await page.inputValue('#modal input >> nth=0');
+  assert.match(url, /\/api\/hub\/in\/radarr\/radarr\?token=mohub_/);
+  await page.click('#modal [data-close]');
+  assert.match((await page.textContent('#hub-sources')) || '', /\/api\/hub\/in\/radarr\/radarr/);
+  assert.doesNotMatch((await page.textContent('#hub-sources')) || '', /mohub_/, 'the token is not shown again');
+
+  await page.click('#hub-add-rule');
+  await page.fill('#hub-rule-form [name=name]', 'Upgrades: never');
+  await page.check('#hub-rule-form input[value="media.upgraded"]');
+  await page.selectOption('#hub-rule-form [name=then]', 'drop');
+  await page.click('#hub-rule-form button[type=submit]');
+  await page.click('#hub-rules-form button[type=submit]');
+  await page.waitForSelector('#hub-rules-saved:not([hidden])');
+  const names = await page.$$eval('#hub-rules li b', els => els.map(e => e.textContent));
+  assert.deepEqual(names.slice(-2), ['Upgrades: never', 'Everything else']);
+  await page.setViewportSize({ width: 375, height: 800 });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    0,
+    'no sideways scrolling on a phone with the hub on',
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.uncheck('#hub-form [name=enabled]');
+  await page.click('#hub-form button[type=submit]');
+  await page.waitForSelector('#hub-config', { state: 'hidden' });
+  noProblems(problems);
+  await page.close();
+});
+
 test('status page: shows the media apps with uptime, nothing else', async () => {
   const { page, problems } = await open('/status', { colorScheme: 'light' });
   await page.waitForSelector('.stp-row');

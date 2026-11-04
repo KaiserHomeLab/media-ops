@@ -127,6 +127,27 @@ You can also hold messages overnight (quiet hours) and get one daily summary eac
 Media Ops waits for two failed checks in a row before saying an app is down, so a blip
 won't wake you up.
 
+### Notification Hub (optional)
+
+Turn it on under **Settings → Notification Hub** to decide in one place what's worth telling
+you, where, and when, for Media Ops' own alerts and for webhooks from Sonarr, Radarr, Seerr or
+your own scripts. Turning it on changes nothing by itself: it starts from what each
+destination already gets.
+
+- **Sources**: each app gets its own webhook address and token. In Sonarr or Radarr, add a
+  Webhook under Settings → Connect; in Seerr, under Settings → Notifications.
+- **Rules**: checked top to bottom, the first match decides: send now to the destinations you
+  pick, hold for a digest, or drop. A quality upgrade is told apart from a new title by
+  Sonarr's and Radarr's own flag, so `#new-on-plex` no longer fills up when files get replaced.
+- **Digests**: what rules hold back, sent on your schedule as one summary ("Added to Plex ·
+  Wednesday, Nov 4"), each title once, a show's episodes on one line, upgrades only counted.
+  On Discord with posters; by email as HTML, optionally to a newsletter list where everyone
+  gets their own copy and an unsubscribe link.
+- **Activity**: the last 200 events, the rule each matched, and what happened to it.
+
+The design, every event type and the rule format are in
+[docs/notification-hub.md](docs/notification-hub.md).
+
 ## Install
 
 Media Ops runs in Docker on almost anything: a NAS, a Linux box, a Raspberry Pi, or your Windows
@@ -274,6 +295,7 @@ options work:
 | [`docker-compose.yml`](docker-compose.yml) | Compose file that works anywhere |
 | [`unraid-template.xml`](unraid-template.xml) | Unraid template |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed in each version |
+| [`docs/notification-hub.md`](docs/notification-hub.md) | How the Notification Hub works: events, rules, digests |
 | [`src/`](src/) | The source code and the Dockerfile (see [CONTRIBUTING](.github/CONTRIBUTING.md) to work on it) |
 
 ## License and thanks

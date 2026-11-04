@@ -21,6 +21,15 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Fixed
 
+- Malformed requests get a clear 400 instead of a server error and a stack trace in the log: a
+  JSON body that isn't an object (`null`, a list), a metrics token or unsubscribe link with
+  multi-byte characters, a dashboard order that isn't a list.
+- A settings password longer than 1024 characters is refused when you set it (it could be set,
+  but never typed in again).
+- Restoring a backup fits the Notification Hub's rules to what was restored: a rule naming a
+  removed destination or a digest that isn't there no longer leaves events waiting.
+- A digest's **Send now** answers at once and sends in the background, so a long newsletter no
+  longer keeps the page waiting.
 - Notification Hub: a Seerr webhook with a very long title can no longer tie the server up for
   seconds (the title is now read in linear time and capped). A Discord webhook that keeps
   answering "slow down" now holds a message for at most a minute in all, and digests send in the

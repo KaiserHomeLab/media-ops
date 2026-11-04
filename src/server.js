@@ -87,7 +87,6 @@ const PAGE_RENDER = {
   key: () => appearance.pageKey(config.load()),
   apply: (html, file) => appearance.renderPage(html, config.load(), PAGE_OF[path.basename(file)] || 'other'),
 };
-/** @param {import('node:http').ServerResponse} res */
 /** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res */
 function metricsEndpoint(req, res) {
   if (!metricsEnabled()) return send(res, 404, { error: 'Not found' });

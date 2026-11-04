@@ -196,4 +196,4 @@ async function sendMail(m) {
   }
 }
 
-module.exports = { sendMail, isAddress, addressList, headerText };
+module.exports = { sendMail, isAddress, addressList };

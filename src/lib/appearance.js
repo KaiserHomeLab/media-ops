@@ -127,4 +127,4 @@ function renderPage(html, cfg, page) {
 /** @param {any} cfg */
 const pageKey = cfg => JSON.stringify(settingsOf(cfg));
 
-module.exports = { THEMES, ACCENTS, settingsOf, clean, logoFrom, renderPage, pageKey, LOGO_MAX };
+module.exports = { ACCENTS, settingsOf, clean, logoFrom, renderPage, pageKey };

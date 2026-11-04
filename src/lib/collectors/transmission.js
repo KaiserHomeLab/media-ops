@@ -94,4 +94,4 @@ async function transmission(cfg) {
   };
 }
 
-module.exports = { transmission, rpcUrl };
+module.exports = { transmission };

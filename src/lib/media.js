@@ -26,4 +26,4 @@ const mediaServers = services => services.filter(s => s.up && isMedia(s.kind));
 const allStreams = services =>
   mediaServers(services).flatMap(m => (m.data?.streams || []).map(st => ({ ...st, server: m.id })));
 
-module.exports = { MEDIA_KINDS, isMedia, answered, mediaServers, allStreams };
+module.exports = { isMedia, answered, allStreams };

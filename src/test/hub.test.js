@@ -142,6 +142,11 @@ test('generic: the hub format with only a type and summary required; bad types r
 });
 
 test('normalize: posters must be https, episodes without ids fall back to the show name', () => {
+  assert.equal(
+    normalize.media({ kind: 'movie', title: 'X', posterUrl: ['https://a/b.jpg'] }).posterUrl,
+    null,
+    'a list is not a URL',
+  );
   const m = normalize.media({ kind: 'movie', title: 'X', posterUrl: 'http://insecure/p.jpg' });
   assert.equal(m.posterUrl, null);
   const ep = normalize.media({ kind: 'episode', title: 'Show', show: 'The Bear', season: 3, episode: 1 });

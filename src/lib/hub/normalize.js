@@ -52,7 +52,8 @@ function media(m) {
     episode: Number.isInteger(m.episode) ? /** @type {number} */ (m.episode) : null,
     episodeTitle: str(m.episodeTitle, 300),
     quality: str(m.quality, 100),
-    posterUrl: m.posterUrl && /^https:\/\/[^\s]+$/i.test(m.posterUrl) ? m.posterUrl.slice(0, 1000) : null,
+    posterUrl:
+      typeof m.posterUrl === 'string' && /^https:\/\/[^\s]+$/i.test(m.posterUrl) ? m.posterUrl.slice(0, 1000) : null,
     overview: str(m.overview, 1000),
   };
 }

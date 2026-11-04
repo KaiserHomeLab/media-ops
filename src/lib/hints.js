@@ -105,4 +105,4 @@ function hintFor(e) {
   return null;
 }
 
-module.exports = { hintFor, HINTS };
+module.exports = { hintFor };

@@ -503,15 +503,17 @@ $('hub-digests').addEventListener('click', async e => {
       if (!confirm(`Send “${d.title}” now? What it holds is used up, as on a scheduled day.`)) return;
       const r = await api(`/hub/digests/${encodeURIComponent(d.id)}/send`, { method: 'POST' });
       alert(
-        r.status === 'sent'
-          ? `Sent to ${r.sent} destination${r.sent === 1 ? '' : 's'} (${r.items} new).`
-          : r.status === 'empty'
-            ? 'Nothing new to send.'
-            : r.status === 'no-destination'
-              ? 'Pick where it goes first (Edit).'
-              : r.status === 'busy'
-                ? 'It’s being sent right now.'
-                : 'It couldn’t be sent. Activity and the destination show why.',
+        r.status === 'started'
+          ? `Sending now (${r.items} new). Its “last run” and Activity show when it has gone.`
+          : r.status === 'sent'
+            ? `Sent to ${r.sent} destination${r.sent === 1 ? '' : 's'} (${r.items} new).`
+            : r.status === 'empty'
+              ? 'Nothing new to send.'
+              : r.status === 'no-destination'
+                ? 'Pick where it goes first (Edit).'
+                : r.status === 'busy'
+                  ? 'It’s being sent right now.'
+                  : 'It couldn’t be sent. Activity and the destination show why.',
       );
       hubState = await api('/hub');
       renderDigests();

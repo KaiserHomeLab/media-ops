@@ -114,6 +114,7 @@ function forgot(req, res) {
 /** @param {Req} req @param {Res} res */
 async function reset(req, res) {
   const { code, next } = await readJson(req);
+  if (next && String(next).length > 1024) return send(res, 400, { error: 'Use at most 1024 characters' }); // checkPassword reads no further
   if (next && String(next).length < 8)
     return send(res, 400, { error: 'Use at least 8 characters, or leave it blank to remove the password' });
   const err = recovery.verify(code);
@@ -144,6 +145,7 @@ async function changePassword(req, res) {
     return send(res, 401, { error: 'Current password is wrong' });
   }
   if (next && String(next).length < 8) return send(res, 400, { error: 'Use at least 8 characters' });
+  if (next && String(next).length > 1024) return send(res, 400, { error: 'Use at most 1024 characters' });
   config.update(c => ({
     ...c,
     auth: next ? config.hashPassword(String(next)) : null,
@@ -227,8 +229,9 @@ function deleteService(req, res, { id }) {
 /** @param {Req} req @param {Res} res */
 async function reorderServices(req, res) {
   const { ids } = await readJson(req);
+  if (!Array.isArray(ids)) return send(res, 400, { error: 'ids must be a list' });
   config.update(c => {
-    const pos = new Map(/** @type {string[]} */ (ids || []).map((id, i) => [id, i]));
+    const pos = new Map(/** @type {unknown[]} */ (ids).map((id, i) => [String(id), i]));
     return { ...c, services: [...c.services].sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9)) };
   });
   invalidate();
@@ -501,7 +504,16 @@ async function sendDigestNow(req, res, { id }) {
   if (!d) return send(res, 404, { error: 'No such digest' });
   const cfg = config.load();
   if (!hub.enabled(cfg)) return send(res, 400, { error: 'Turn the Notification Hub on first' });
-  return send(res, 200, await hubDigests.run(cfg, d));
+  if (hubDigests.isRunning(d.id)) return send(res, 200, { status: 'busy', items: 0, upgrades: 0, sent: 0 });
+  // Nothing to send, or nowhere to send it: answered at once (run() records it, no network).
+  const b = hubDigests.build(d, hubStore.queuedFor(d.id));
+  const dests = (cfg.notifications?.targets || []).filter(t => t.enabled !== false && d.destinations.includes(t.id));
+  if ((!b.items && (d.skipIfEmpty || !b.upgrades)) || !dests.length)
+    return send(res, 200, await hubDigests.run(cfg, d));
+  // A newsletter to hundreds of addresses takes minutes: send it in the background, and let
+  // Activity and the digest's "last run" say how it went.
+  hubDigests.run(cfg, d).catch(e => console.error(`Digest "${d.title}": ${e.message}`));
+  return send(res, 202, { status: 'started', items: b.items, upgrades: b.upgrades, sent: 0 });
 }
 // A new source's token is in this reply and nowhere else: only its hash is kept.
 /** @param {Req} req @param {Res} res */
@@ -701,6 +713,30 @@ function restoredHub(h, restored) {
   };
 }
 
+// After a restore, the hub's rules must fit what was restored: destinations that no longer exist
+// are dropped (as the rules form does), and a digest rule whose digest isn't there is removed,
+// or its events would wait for a digest that never runs. Applies to a hub kept from before, too.
+/** @param {import('./types').Config['hub']} h @param {import('./types').Target[]} kept */
+function settleHub(h, kept) {
+  if (!h || !Array.isArray(h.rules)) return h;
+  const digestIds = new Set((h.digests ?? hubDigests.starting()).map(d => d.id));
+  let rules;
+  try {
+    rules = hubRules
+      .clean(
+        h.rules,
+        kept.map(t => t.id),
+      )
+      .filter(r => r.action !== 'digest' || digestIds.has(String(r.digest)));
+  } catch {
+    rules = undefined; // starts again from the destinations' choices
+  }
+  const out = { ...h };
+  if (rules) out.rules = rules;
+  else delete out.rules;
+  return out;
+}
+
 /** @param {Req} req @param {Res} res */
 async function restore(req, res) {
   const b = await readJson(req, 2 * 1024 * 1024);
@@ -754,7 +790,7 @@ async function restore(req, res) {
         ? { enabled: !!incoming.metrics.enabled, token: String(incoming.metrics.token) }
         : null,
     // Sources keep their token hashes, so the apps' webhooks keep working after a restore.
-    hub: incoming.hub ? restoredHub(incoming.hub, restoredTargets) : c.hub,
+    hub: settleHub(incoming.hub ? restoredHub(incoming.hub, restoredTargets) : c.hub, restoredTargets),
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet

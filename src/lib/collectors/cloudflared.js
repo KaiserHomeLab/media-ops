@@ -152,4 +152,4 @@ async function cloudflared(cfg) {
   };
 }
 
-module.exports = { cloudflared, parseMetrics, publicUrls };
+module.exports = { cloudflared, publicUrls };

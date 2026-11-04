@@ -25,8 +25,6 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
 };
 
-// Static files are read once and kept in memory with an ETag, so a reload costs a 304. The
-
 // Writes must come from this page (blocks other websites from silently changing your settings).
 // Browsers send Origin on cross-site writes and Sec-Fetch-Site on everything; either one
 // pointing elsewhere is refused.
@@ -54,11 +52,17 @@ async function readJson(req, limit = 64 * 1024) {
     chunks.push(chunk);
   }
   const body = Buffer.concat(chunks, size).toString('utf8');
+  let value;
   try {
-    return JSON.parse(body || '{}');
+    value = JSON.parse(body || '{}'); // no body: an empty object (Log out, New token…)
   } catch {
     throw Object.assign(new Error('Invalid JSON'), { status: 400 });
   }
+  // Every handler takes an object; `null`, a list or a bare value would make it throw (a 500, and
+  // a stack trace in the log that anyone could repeat through the open login route).
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw Object.assign(new Error('Send a JSON object'), { status: 400 });
+  return value;
 }
 
 /** @param {import('node:http').ServerResponse} res @param {number} status @param {unknown} [body] */
@@ -104,6 +108,7 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+// Static files are read once and kept in memory with an ETag, so a reload costs a 304. The
 // file's mtime is checked (at most every 2 s) so edits during development still show up.
 const statics = new Map(); // file -> { body, etag, mtime, checked }
 /** @param {string} file */

@@ -46,11 +46,12 @@ function verify(q) {
   const digestId = String(q.get('d') || '');
   const email = Buffer.from(String(q.get('e') || ''), 'base64url').toString('utf8');
   const sig = String(q.get('s') || '');
-  if (!digestId || !smtp.isAddress(email) || sig.length !== 32) return null;
+  // Exactly what sign() makes (32 base64url characters), so the comparison below is byte-for-byte.
+  if (!digestId || !smtp.isAddress(email) || !/^[A-Za-z0-9_-]{32}$/.test(sig)) return null;
   const key = config.load().hub?.secret;
   if (!key) return null;
   const want = Buffer.from(sign(key, digestId, email));
-  return crypto.timingSafeEqual(want, Buffer.from(sig.padEnd(32).slice(0, 32))) ? { digestId, email } : null;
+  return crypto.timingSafeEqual(want, Buffer.from(sig)) ? { digestId, email } : null;
 }
 
 // ------------------------------------------------------------------ the email

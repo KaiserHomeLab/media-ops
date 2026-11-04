@@ -224,4 +224,4 @@ function collector(kind) {
 const jellyfin = collector('jellyfin');
 const emby = collector('emby');
 
-module.exports = { jellyfin, emby, transcodeReason, isLocal, hostOf, AUTH };
+module.exports = { jellyfin, emby, transcodeReason, AUTH };

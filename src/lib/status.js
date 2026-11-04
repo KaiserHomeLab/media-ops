@@ -73,4 +73,4 @@ function payload(cfg, raw, uptimeOf = history.uptime) {
   };
 }
 
-module.exports = { settingsOf, clean, payload, defaultServices };
+module.exports = { settingsOf, clean, payload };

@@ -61,6 +61,11 @@ To stay on one version instead of `latest`, use a version tag such as
   Notifications → your Discord destination). Digests arrive as proper Discord messages: the
   title, one embed per section, a small poster embed for each movie on a day with four or fewer,
   and the counts in the footer; a long digest is split to fit Discord's limits.
+- Notification Hub email: digests sent to an email destination arrive as an HTML email (posters
+  in a grid, the same sections) with a plain-text version. Give a digest a newsletter list and
+  each address gets its own copy (nobody sees the others) with an unsubscribe link that needs
+  no account, plus the one-click unsubscribe mail apps show. Set the address people open Media
+  Ops at under Notification Hub first; the links point there.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

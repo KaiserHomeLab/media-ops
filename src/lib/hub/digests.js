@@ -11,10 +11,13 @@ const notify = require('../notify');
 const discord = require('../discord');
 const store = require('./store');
 const schedule = require('./schedule');
+const newsletter = require('./newsletter');
+const smtp = require('../smtp');
 
 /**
  * @typedef {{ id: string, title: string, enabled: boolean, cron: string, timezone: string,
- *   destinations: string[], skipIfEmpty: boolean, maxItemsPerSection: number, footer: string }} Digest
+ *   destinations: string[], skipIfEmpty: boolean, maxItemsPerSection: number, footer: string,
+ *   recipients?: string[] }} Digest  recipients: newsletter addresses for its email destinations
  * @typedef {import('./normalize').HubEvent} HubEvent
  * @typedef {{ line: string, posterUrl: string | null, overview: string | null }} Item
  * @typedef {{ name: string, lines: string[], more: number, items: Item[] }} Section
@@ -86,9 +89,22 @@ function clean(input, targets) {
       footer: String(d.footer || '')
         .trim()
         .slice(0, 200),
+      recipients: recipientsOf(d.recipients, title),
     });
   }
   return out;
+}
+
+// Newsletter addresses: a list or one per line/comma, each a plain address, at most 500, no repeats.
+/** @param {unknown} v @param {string} title @returns {string[]} */
+function recipientsOf(v, title) {
+  const list = (Array.isArray(v) ? v.map(String) : smtp.addressList(v)).map(a => a.trim()).filter(Boolean);
+  if (list.length > 500) throw new Error(`"${title}": at most 500 newsletter addresses`);
+  const bad = list.find(a => !smtp.isAddress(a));
+  if (bad) throw new Error(`"${title}": "${bad.slice(0, 80)}" isn't an email address`);
+  /** @type {Set<string>} */
+  const seen = new Set();
+  return list.filter(a => !seen.has(a.toLowerCase()) && seen.add(a.toLowerCase()));
 }
 
 /** @param {import('../types').Config} cfg @returns {Digest[]} */
@@ -215,17 +231,16 @@ function build(d, events, now = Date.now()) {
   for (const [name, items] of byType) sections.push(section(name, items));
 
   const items = added.size + other.size;
+  // "N new" counts what's listed (a movie, a show), not episodes: 10 episodes of one show is 1 new.
+  let titles = 0;
+  for (const L of libs.values()) titles += L.items.length + L.shows.size;
   const date = new Date(now).toLocaleDateString('en-US', {
     ...(d.timezone ? { timeZone: d.timezone } : {}),
     weekday: 'long',
     month: 'short',
     day: 'numeric',
   });
-  const footer = [
-    added.size ? `${added.size} new` : '',
-    upgraded.size ? `${upgraded.size} upgraded quietly` : '',
-    d.footer,
-  ]
+  const footer = [titles ? `${titles} new` : '', upgraded.size ? `${upgraded.size} upgraded quietly` : '', d.footer]
     .filter(Boolean)
     .join(' · ');
   return { title: `${d.title} · ${date}`, sections, footer, items, upgrades: upgraded.size };
@@ -280,7 +295,9 @@ async function run(cfg, d) {
   for (const t of targets) {
     try {
       // Discord gets embeds (sections, posters, its limits); everything else the plain text.
+      // Email gets HTML, and a copy of its own for each newsletter address.
       if (t.type === 'discord') await notify.sendWith(t, () => discordDigest(t, b));
+      else if (t.type === 'email') await notify.sendWith(t, () => newsletter.sendDigest(cfg, d, b, text, t));
       else await notify.send(t, { ...text, level: 'info' });
       notify.remember(t.id, true);
       store.delivered({ digestRunId: runId, destination: t.id, ok: true });

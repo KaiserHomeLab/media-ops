@@ -16,6 +16,7 @@ const parsers = require('./parsers');
 const { finish, fromPolled, fromMediaReview } = require('./normalize');
 const { route, deliverNow, rulesOf } = require('./deliver');
 const digests = require('./digests');
+const { unsubscribe } = require('./newsletter');
 
 /** @param {import('../types').Config} cfg */
 const enabled = cfg => !!cfg.hub?.enabled;
@@ -138,10 +139,11 @@ function settingsOf(cfg) {
     rules: rulesOf(cfg),
     digests: digests.digestsOf(cfg).map(d => ({ ...d, last: enabled(cfg) ? store.lastRun(d.id) : null })),
     flapMinutes: cfg.hub?.flapMinutes ?? 10,
+    publicUrl: cfg.hub?.publicUrl || '',
     types: sources.TYPES,
     sources: sources.list(cfg).map(s => ({ ...sources.publicSource(s), ...(stats[s.id] || { received: 0 }) })),
     rejected: { ...rejected },
   };
 }
 
-module.exports = { ingest, take, tick, settingsOf, enabled, activity: store.recent };
+module.exports = { ingest, unsubscribe, take, tick, settingsOf, enabled, activity: store.recent };

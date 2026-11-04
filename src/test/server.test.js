@@ -506,6 +506,36 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   );
   assert.equal(r.status, 400);
 
+  // Newsletter: an address to unsubscribe at, needed before any newsletter list; the page needs no login.
+  r = await json('PUT', '/api/settings/hub', { enabled: true, publicUrl: 'not a url' }, { Cookie: cookie });
+  assert.match((await r.json()).error, /Public address must look like/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub/digests',
+    { digests: [{ id: 'added_daily', cron: '0 8 * * *', recipients: ['a@example.com'] }] },
+    { Cookie: cookie },
+  );
+  assert.match((await r.json()).error, /Set the public address first/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub',
+    { enabled: true, publicUrl: 'https://media.example.com/' },
+    { Cookie: cookie },
+  );
+  assert.equal((await r.json()).publicUrl, 'https://media.example.com');
+  r = await json(
+    'PUT',
+    '/api/settings/hub/digests',
+    { digests: [{ id: 'added_daily', cron: '0 8 * * *', recipients: ['a@example.com'] }] },
+    { Cookie: cookie },
+  );
+  assert.equal(r.status, 200);
+  const unsub = await fetch(`${base}/hub/unsubscribe?d=added_daily&e=x&s=${'x'.repeat(32)}`, { redirect: 'manual' });
+  assert.equal(unsub.status, 400, 'reachable with the dashboard locked, and a forged link refused');
+  assert.match(await unsub.text(), /This link doesn’t work/);
+  const hubJson = await (await fetch(`${base}/api/settings/hub`, { headers: { Cookie: cookie } })).text();
+  assert.ok(!hubJson.includes('"secret"'), 'the key that signs unsubscribe links never reaches the browser');
+
   const fresh = await (
     await json('POST', `/api/settings/hub/sources/${source.id}/token`, {}, { Cookie: cookie })
   ).json();

@@ -408,7 +408,18 @@ const saveSources = fn =>
 const hubSettings = (req, res) => send(res, 200, hub.settingsOf(config.load()));
 /** @param {Req} req @param {Res} res */
 async function saveHub(req, res) {
-  const enabled = !!(await readJson(req)).enabled;
+  const input = await readJson(req);
+  const enabled = !!input.enabled;
+  // The address people open Media Ops at, for newsletter unsubscribe links. Unchanged when not sent.
+  /** @type {string | undefined} */
+  let publicUrl;
+  if ('publicUrl' in input) {
+    publicUrl = String(input.publicUrl || '')
+      .trim()
+      .replace(/\/+$/, '');
+    if (publicUrl && !/^https?:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i.test(publicUrl))
+      return send(res, 400, { error: 'Public address must look like https://media.example.com' });
+  }
   // The first time it's turned on, the rules start as today's choices, so nothing goes anywhere new.
   config.update(c => ({
     ...c,
@@ -420,6 +431,7 @@ async function saveHub(req, res) {
         ? c.hub.rules
         : hubRules.starting(c.notifications?.targets || [], notify.eventsOf, notify.EVENTS),
       digests: c.hub?.digests ?? hubDigests.starting(),
+      ...(publicUrl !== undefined ? { publicUrl } : {}),
     },
   }));
   return send(res, 200, hub.settingsOf(config.load()));
@@ -461,6 +473,10 @@ async function saveHubDigests(req, res) {
     if (e.status) throw e;
     return send(res, 400, { error: e.message });
   }
+  if (list.some(d => d.recipients?.length) && !cfg.hub?.publicUrl)
+    return send(res, 400, {
+      error: 'Set the public address first: every newsletter email has an unsubscribe link, and it needs one',
+    });
   const ids = new Set(list.map(d => d.id));
   const used = (cfg.hub?.rules || []).find(r => r.action === 'digest' && !ids.has(String(r.digest)));
   if (used)
@@ -677,6 +693,9 @@ function restoredHub(h, restored) {
     sources: hubSources.clean(h.sources),
     ...(rules ? { rules } : {}),
     ...(digests ? { digests } : {}),
+    ...(/^https?:\/\/\S+$/i.test(String(h.publicUrl || '')) ? { publicUrl: String(h.publicUrl) } : {}),
+    // The key that signs unsubscribe links, so links in emails already sent keep working.
+    ...(/^[0-9a-f]{64}$/.test(String(h.secret || '')) ? { secret: String(h.secret) } : {}),
     ...(flap >= 0 && flap <= 1440 ? { flapMinutes: flap } : {}),
   };
 }

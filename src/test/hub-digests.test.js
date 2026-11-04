@@ -208,7 +208,7 @@ test('run: the queued titles go out once and are marked; a day with nothing new 
   assert.match(posts[0].content, /^\*\*Added to Plex\*\* · \w+day, \w{3} \d+$/);
   assert.equal(posts[0].embeds[0].title, 'TV Shows');
   assert.equal(posts[0].embeds[0].description, '• Severance: Season 2, episodes 1–2');
-  assert.equal(posts[0].embeds[0].footer.text, '2 new · Request more at requests.example.com');
+  assert.equal(posts[0].embeds[0].footer.text, '1 new · Request more at requests.example.com');
   assert.equal(posts[0].embeds[0].color, 0xe5a00d);
   assert.ok(
     store.recent().every(e => e.status === 'digested' && e.sentAt),

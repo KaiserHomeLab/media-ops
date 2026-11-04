@@ -493,7 +493,7 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
     await fetch(`${base}/api/settings/hub/digests/added_daily/preview`, { headers: { Cookie: cookie } })
   ).json();
   assert.match(pv.title, /^Added to Plex · /);
-  assert.deepEqual(pv.sections[0], { name: 'Movies', lines: ['M*A*S*H (1970)'], more: 0 });
+  assert.deepEqual([pv.sections[0].name, pv.sections[0].lines], ['Movies', ['M*A*S*H (1970)']]);
   r = await json('POST', '/api/settings/hub/digests/added_daily/send', {}, { Cookie: cookie });
   assert.equal((await r.json()).status, 'no-destination', 'no destination picked yet');
   r = await json('PUT', '/api/settings/hub/digests', { digests: [] }, { Cookie: cookie });

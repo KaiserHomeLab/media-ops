@@ -8,6 +8,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const notify = require('../notify');
+const discord = require('../discord');
 const store = require('./store');
 const schedule = require('./schedule');
 
@@ -15,7 +16,8 @@ const schedule = require('./schedule');
  * @typedef {{ id: string, title: string, enabled: boolean, cron: string, timezone: string,
  *   destinations: string[], skipIfEmpty: boolean, maxItemsPerSection: number, footer: string }} Digest
  * @typedef {import('./normalize').HubEvent} HubEvent
- * @typedef {{ name: string, lines: string[], more: number }} Section
+ * @typedef {{ line: string, posterUrl: string | null, overview: string | null }} Item
+ * @typedef {{ name: string, lines: string[], more: number, items: Item[] }} Section
  */
 
 // ------------------------------------------------------------------ settings
@@ -162,22 +164,28 @@ function build(d, events, now = Date.now()) {
   for (const k of added.keys()) upgraded.delete(k);
 
   // Added titles by library; within a library, a show's episodes become one line.
-  /** @type {Map<string, { lines: string[], shows: Map<string, import('./normalize').Media[]> }>} */
+  /** @type {Map<string, { items: Item[], shows: Map<string, import('./normalize').Media[]> }>} */
   const libs = new Map();
   for (const e of added.values()) {
     const m = e.media;
     const lib = m?.library || (m?.kind === 'movie' ? 'Movies' : m?.kind ? 'TV Shows' : 'Other');
-    if (!libs.has(lib)) libs.set(lib, { lines: [], shows: new Map() });
-    const L = /** @type {{ lines: string[], shows: Map<string, import('./normalize').Media[]> }} */ (libs.get(lib));
-    if (!m) L.lines.push(e.summary);
+    if (!libs.has(lib)) libs.set(lib, { items: [], shows: new Map() });
+    const L = /** @type {{ items: Item[], shows: Map<string, import('./normalize').Media[]> }} */ (libs.get(lib));
+    if (!m) L.items.push({ line: e.summary, posterUrl: null, overview: null });
     else if (m.kind === 'episode') {
       const key = m.ids.tvdb ? `tvdb:${m.ids.tvdb}` : (m.show || m.title).toLowerCase();
       L.shows.set(key, [...(L.shows.get(key) || []), m]);
-    } else L.lines.push(titleLine(m));
+    } else L.items.push({ line: titleLine(m), posterUrl: m.posterUrl, overview: m.overview });
   }
   const max = d.maxItemsPerSection || 25;
-  /** @param {string} name @param {string[]} lines @returns {Section} */
-  const section = (name, lines) => ({ name, lines: lines.slice(0, max), more: Math.max(0, lines.length - max) });
+  // Lines in order, capped; `items` keep each line's poster and overview for richer outputs (Discord).
+  /** @param {string} name @param {Item[]} items @returns {Section} */
+  const section = (name, items) => ({
+    name,
+    lines: items.slice(0, max).map(i => i.line),
+    more: Math.max(0, items.length - max),
+    items: items.slice(0, max),
+  });
   const libNames = [...libs.keys()].sort((a, b) => {
     const ia = LIBRARY_ORDER.indexOf(a.toLowerCase()),
       ib = LIBRARY_ORDER.indexOf(b.toLowerCase());
@@ -185,18 +193,26 @@ function build(d, events, now = Date.now()) {
   });
   /** @type {Section[]} */
   const sections = libNames.map(name => {
-    const L = /** @type {{ lines: string[], shows: Map<string, import('./normalize').Media[]> }} */ (libs.get(name));
-    const lines = [...L.lines, ...[...L.shows.values()].map(showLine)].sort((a, b) => a.localeCompare(b));
-    return section(name, lines);
+    const L = /** @type {{ items: Item[], shows: Map<string, import('./normalize').Media[]> }} */ (libs.get(name));
+    const shows = [...L.shows.values()].map(eps => ({
+      line: showLine(eps),
+      posterUrl: eps[0].posterUrl,
+      overview: null,
+    }));
+    return section(
+      name,
+      [...L.items, ...shows].sort((a, b) => a.line.localeCompare(b.line)),
+    );
   });
   // Everything else a rule sent here (Leaving Soon, requests, a script's events), by type.
-  /** @type {Map<string, string[]>} */
+  /** @type {Map<string, Item[]>} */
   const byType = new Map();
   for (const e of other.values()) {
     const name = TYPE_SECTION[e.type] || 'Other';
-    byType.set(name, [...(byType.get(name) || []), e.summary]);
+    const item = { line: e.summary, posterUrl: e.media?.posterUrl ?? null, overview: null };
+    byType.set(name, [...(byType.get(name) || []), item]);
   }
-  for (const [name, lines] of byType) sections.push(section(name, lines));
+  for (const [name, items] of byType) sections.push(section(name, items));
 
   const items = added.size + other.size;
   const date = new Date(now).toLocaleDateString('en-US', {
@@ -215,7 +231,7 @@ function build(d, events, now = Date.now()) {
   return { title: `${d.title} · ${date}`, sections, footer, items, upgrades: upgraded.size };
 }
 
-// The digest as plain lines, for every kind of destination (Discord gets embeds in a later step).
+// The digest as plain lines, for every kind of destination but Discord (which gets embeds).
 /** @param {ReturnType<typeof build>} b */
 function asText(b) {
   /** @type {string[]} */
@@ -227,6 +243,11 @@ function asText(b) {
   }
   if (b.footer) lines.push('', b.footer);
   return { title: b.title, lines };
+}
+
+/** @param {import('../types').Target} t @param {ReturnType<typeof build>} b */
+async function discordDigest(t, b) {
+  for (const m of discord.digest(t, b)) await discord.post(t.webhookUrl, m);
 }
 
 // ------------------------------------------------------------------ running
@@ -258,7 +279,9 @@ async function run(cfg, d) {
   let sent = 0;
   for (const t of targets) {
     try {
-      await notify.send(t, { ...text, level: 'info' });
+      // Discord gets embeds (sections, posters, its limits); everything else the plain text.
+      if (t.type === 'discord') await notify.sendWith(t, () => discordDigest(t, b));
+      else await notify.send(t, { ...text, level: 'info' });
       notify.remember(t.id, true);
       store.delivered({ digestRunId: runId, destination: t.id, ok: true });
       sent++;

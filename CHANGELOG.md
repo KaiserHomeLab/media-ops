@@ -21,6 +21,10 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Fixed
 
+- Discord: titles and log lines with Markdown characters show as written ("M*A*S*H" no longer
+  turns into "MAS*H"). When Discord says to slow down (HTTP 429), Media Ops waits as long as it
+  asks and sends again instead of losing the message; a Discord server error is tried 3 times;
+  messages to one webhook go out one at a time, in order.
 - Media Review's "nothing has synced" problem no longer sends a new notification every hour while
   it lasts (its message counted the hours, which made it look new each time).
 - Diagnostic reports hide Media Review's voter names and friends' notes.
@@ -53,6 +57,10 @@ To stay on one version instead of `latest`, use a version tag such as
   nothing. A digest missed while Media Ops was down is sent once when it's back; a send that
   fails keeps its titles for the next one. Two digests come ready (daily "Added to Plex", weekly
   "Leaving soon"), both off until you pick where they go. The daily summary is unchanged.
+- Discord: each destination can post under its own name, avatar and colour (Settings →
+  Notifications → your Discord destination). Digests arrive as proper Discord messages: the
+  title, one embed per section, a small poster embed for each movie on a day with four or fewer,
+  and the counts in the footer; a long digest is split to fit Discord's limits.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

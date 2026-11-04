@@ -1783,6 +1783,7 @@ code {
   line-height: 1.4;
 }
 .field input,
+.field select,
 .field textarea {
   font: 14px var(--sans);
   color: var(--text-primary);
@@ -1800,6 +1801,7 @@ code {
   font-size: 13px;
 }
 .field input:focus,
+.field select:focus,
 .field textarea:focus {
   outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
   outline-offset: 0;
@@ -3461,7 +3463,19 @@ body.tv .rq-acts {
   margin: 0;
   flex: 1;
 }
+.hub-filter select {
+  min-width: 0;
+  max-width: 100%;
+  font: 13px var(--sans);
+  color: var(--text-primary);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
 .hub-filter {
+  min-width: 0;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3536,6 +3550,73 @@ body.tv .rq-acts {
 }
 .hub-empty {
   padding: 8px 0;
+}
+#hub-config .sub-h {
+  margin-top: 24px;
+}
+.hub-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.hub-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.hub-item > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hub-item.off b {
+  color: var(--text-muted);
+}
+.hub-item-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hub-rule {
+  font-size: 13px;
+}
+.hub-rule input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  flex: none;
+}
+.hub-lock {
+  width: 18px;
+  text-align: center;
+  flex: none;
+}
+.hub-rule-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hub-rule.off .hub-rule-text b {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+fieldset.hub-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 4px 16px;
+  max-height: 260px;
+  overflow: auto;
+}
+fieldset.hub-types code {
+  font-size: 12px;
 }
 @media (max-width: 640px) {
   .hub-row {

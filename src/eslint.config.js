@@ -67,7 +67,12 @@ module.exports = [
       sourceType: 'script',
       globals: {
         ...globals.browser,
-        ...Object.fromEntries(['$', '$form', 'api', 'esc', 'showError', 'flash', 'S'].map(g => [g, 'readonly'])),
+        ...Object.fromEntries(
+          ['$', '$form', 'field', 'closest', 'api', 'esc', 'showError', 'flash', 'openModal', 'modal', 'S'].map(g => [
+            g,
+            'readonly',
+          ]),
+        ),
       },
     },
     rules,

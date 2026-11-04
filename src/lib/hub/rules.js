@@ -20,6 +20,37 @@ const { SEVERITIES, POLLED_TYPE } = require('./normalize');
  *   destinations?: string[], digest?: string, locked?: boolean }} Rule
  */
 
+// Every event type the hub knows, for the rule editor's suggestions (a rule may name others: a
+// script's own types through the generic endpoint).
+const EVENT_TYPES = [
+  ['app.down', 'An app goes down'],
+  ['app.up', 'An app is back up'],
+  ['app.error', 'New error in an app'],
+  ['app.warning', 'New warning or health check'],
+  ['app.health_issue', 'Health issue (from an *arr webhook)'],
+  ['app.health_restored', 'Health restored (from an *arr webhook)'],
+  ['download.failed', 'Failed download'],
+  ['download.stuck', 'Download needs importing by hand'],
+  ['system.disk', 'Disk over the threshold'],
+  ['system.server', 'Server problem (array, pools, alerts, hot disks)'],
+  ['system.bandwidth', 'Upload nearly maxed out'],
+  ['playback.started', 'Someone starts watching'],
+  ['media.added', 'New movie or episode'],
+  ['media.upgraded', 'Quality upgrade'],
+  ['media.removed', 'Movie or show removed'],
+  ['media.leaving_soon', 'Leaving Soon (Media Review)'],
+  ['media.problem_report', 'New Problem Report (Media Review)'],
+  ['media.request.*', 'Any request update (Seerr)'],
+  ['media.request.created', 'New request'],
+  ['media.request.approved', 'Request approved'],
+  ['media.request.available', 'Request available'],
+  ['media.request.failed', 'Request failed'],
+  ['media.request.declined', 'Request declined'],
+  ['media.issue.*', 'Issue reported or updated (Seerr)'],
+  ['hub.test', 'Test from a source'],
+  ['custom', 'Custom (generic endpoint)'],
+].map(([type, label]) => ({ type, label }));
+
 const CATCH_ALL_ID = 'everything-else';
 /** @returns {Rule} */
 const catchAll = () => ({
@@ -222,4 +253,4 @@ function starting(targets, eventsOf, events) {
   return [...fromToday, ...suggested, catchAll()];
 }
 
-module.exports = { CATCH_ALL_ID, FIELDS, matches, evaluate, clean, starting, catchAll };
+module.exports = { EVENT_TYPES, CATCH_ALL_ID, FIELDS, matches, evaluate, clean, starting, catchAll };

@@ -240,11 +240,7 @@ function build(d, events, now = Date.now()) {
     month: 'short',
     day: 'numeric',
   });
-  const footer = [
-    titles ? `${titles} new` : '',
-    upgraded.size ? `${upgraded.size} upgraded quietly` : '',
-    d.footer,
-  ]
+  const footer = [titles ? `${titles} new` : '', upgraded.size ? `${upgraded.size} upgraded quietly` : '', d.footer]
     .filter(Boolean)
     .join(' · ');
   return { title: `${d.title} · ${date}`, sections, footer, items, upgrades: upgraded.size };

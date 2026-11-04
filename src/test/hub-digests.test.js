@@ -20,6 +20,7 @@ const store = require('../lib/hub/store');
 const rules = require('../lib/hub/rules');
 const deliver = require('../lib/hub/deliver');
 const { finish, media, dedupeKey } = require('../lib/hub/normalize');
+require('../lib/discord').timing.retryMs = 1;
 after(() => store.close());
 
 beforeEach(() => {
@@ -98,17 +99,20 @@ test('build: ten episodes of one season are one line; a new series says so; one 
     ev('media.added', episode(1, 3, 'The Bear', 403294)),
   ];
   const b = digests.build({ ...D, maxItemsPerSection: 25 }, events);
-  assert.deepEqual(b.sections, [
-    {
-      name: 'TV Shows',
-      lines: [
-        'Frieren (new series): Season 1, episodes 1–2',
-        'Severance: Season 2, episodes 1–10',
-        'The Bear S03E01 "Ep 1"',
-      ],
-      more: 0,
-    },
-  ]);
+  assert.deepEqual(
+    b.sections.map(({ name, lines, more }) => ({ name, lines, more })),
+    [
+      {
+        name: 'TV Shows',
+        lines: [
+          'Frieren (new series): Season 1, episodes 1–2',
+          'Severance: Season 2, episodes 1–10',
+          'The Bear S03E01 "Ep 1"',
+        ],
+        more: 0,
+      },
+    ],
+  );
   assert.equal(b.items, 13);
 });
 
@@ -200,8 +204,12 @@ test('run: the queued titles go out once and are marked; a day with nothing new 
   const r = await digests.run(cfg, D);
   assert.deepEqual(r, { status: 'sent', items: 2, upgrades: 0, sent: 1 });
   assert.equal(posts.length, 1);
-  assert.match(posts[0].embeds[0].title, /^Added to Plex · /);
-  assert.match(posts[0].embeds[0].description, /TV SHOWS\n• Severance: Season 2, episodes 1–2/);
+  // Discord: the title as the message, one embed per section, the counts in the last one's footer.
+  assert.match(posts[0].content, /^\*\*Added to Plex\*\* · \w+day, \w{3} \d+$/);
+  assert.equal(posts[0].embeds[0].title, 'TV Shows');
+  assert.equal(posts[0].embeds[0].description, '• Severance: Season 2, episodes 1–2');
+  assert.equal(posts[0].embeds[0].footer.text, '2 new · Request more at requests.example.com');
+  assert.equal(posts[0].embeds[0].color, 0xe5a00d);
   assert.ok(
     store.recent().every(e => e.status === 'digested' && e.sentAt),
     'Activity: in the digest, and when',
@@ -218,7 +226,7 @@ test('run: a failed send keeps the titles queued for the next run; no destinatio
   const { posts, cfg } = await discord(t, 500);
   deliver.route(cfg, ev('media.added', episode(7)));
   assert.equal((await digests.run(cfg, D)).status, 'failed');
-  assert.equal(posts.length, 1, 'it was tried');
+  assert.equal(posts.length, 3, 'a 5xx is tried 3 times');
   assert.equal(store.recent()[0].status, 'queued', 'still waiting');
   assert.equal((await digests.run({ ...cfg, notifications: { targets: [] } }, D)).status, 'no-destination');
   assert.equal(store.recent()[0].status, 'queued');

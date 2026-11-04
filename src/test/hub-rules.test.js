@@ -19,6 +19,7 @@ const deliver = require('../lib/hub/deliver');
 const store = require('../lib/hub/store');
 const notify = require('../lib/notify');
 const { finish, media } = require('../lib/hub/normalize');
+require('../lib/discord').timing.retryMs = 1;
 after(() => store.close());
 
 /** @param {Partial<import('../lib/hub/normalize').HubEvent>} over @returns {import('../lib/hub/normalize').HubEvent} */
@@ -210,7 +211,8 @@ test('deliverNow: one message per destination, Discord never pings, results in A
   assert.equal(await deliver.deliverNow(cfg), 2);
   assert.equal(posts.length, 1, 'both events in one message to the working destination');
   assert.equal(posts[0].embeds[0].title, 'Media Ops: 2 updates');
-  assert.match(posts[0].embeds[0].description, /Sonarr is down[\s\S]*M\*A\*S\*H/);
+  // Escaped for Discord, so it shows as written ("M*A*S*H", not "MAS*H").
+  assert.equal(posts[0].embeds[0].description, '🔴 Sonarr is down: Timed out\nAdded: M\\*A\\*S\\*H \\(1970\\)');
   assert.deepEqual(posts[0].allowed_mentions, { parse: [] });
   const activity = store.recent();
   assert.ok(
@@ -273,7 +275,7 @@ test('quiet hours: held in hub.db and sent in the morning with 🌙; app down st
   const morning = { ...night, notifications: { targets, quiet: { ...night.notifications.quiet, enabled: false } } };
   await deliver.deliverNow(morning);
   assert.equal(posts.length, 2);
-  assert.equal(posts[1].embeds[0].description, '🌙 Added: Dune (2021)');
+  assert.equal(posts[1].embeds[0].description, '🌙 Added: Dune \\(2021\\)');
   assert.equal(store.recent().find(e => e.dedupeKey === 'n1')?.status, 'sent');
 });
 

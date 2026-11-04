@@ -153,6 +153,8 @@ jobs:
           curl -fsS http://localhost:8484/api/overview | jq -e '(.services | length) > 0 and .version != null'
           curl -fsS http://localhost:8484/settings | grep -q 'Settings'
           curl -fsS http://localhost:8484/api/status | jq -e '(.services | length) > 0'
+          # Alpine's nodejs isn't pinned (the base image is): fail here if it drops below what package.json needs.
+          docker exec smoke node -e "const [a, b] = process.versions.node.split('.').map(Number); if (a < 22 || (a === 22 && b < 13)) { console.error('Node ' + process.version + ' is older than 22.13'); process.exit(1); }"
           # The Notification Hub keeps its events in SQLite through Node's own node:sqlite.
           docker exec smoke node -e "new (require('node:sqlite').DatabaseSync)(':memory:').exec('SELECT 1')"
       - name: Container log

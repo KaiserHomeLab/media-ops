@@ -24,8 +24,12 @@ const newToken = () => crypto.randomBytes(24).toString('base64url');
 function authorized(header, cfg) {
   const want = String(cfg.metrics?.token || '');
   const got = /^Bearer\s+(\S+)$/i.exec(String(header || ''))?.[1] || '';
-  if (!want || got.length !== want.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
+  if (!want || !got) return false;
+  // Compared as SHA-256 digests: always 32 bytes each, so multi-byte characters in what was sent
+  // can't make the lengths differ (timingSafeEqual throws on that), and nothing leaks by length.
+  /** @param {string} s */
+  const digest = s => crypto.createHash('sha256').update(s).digest();
+  return crypto.timingSafeEqual(digest(got), digest(want));
 }
 
 // Label values are user text (app names): escape backslash, quote and newline, as the format asks.

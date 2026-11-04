@@ -347,6 +347,4 @@ module.exports = {
   recent,
   prune,
   close,
-  RAW_DAYS,
-  EVENT_DAYS,
 };

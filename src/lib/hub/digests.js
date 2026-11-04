@@ -343,4 +343,7 @@ async function runDue(cfg, now = Date.now()) {
   }
 }
 
-module.exports = { starting, clean, digestsOf, build, asText, run, runDue, ranges };
+/** @param {string} id */
+const isRunning = id => running.has(id);
+
+module.exports = { starting, clean, digestsOf, build, asText, run, runDue, isRunning, ranges };

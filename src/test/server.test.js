@@ -548,6 +548,137 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   await json('PUT', '/api/settings/password', { current: 'hub-pw-12345', next: '' }, { Cookie: cookie });
 });
 
+test('every action that changes an app needs the settings login once a password is set (re-check stays open)', async () => {
+  const actions = [
+    'clear',
+    'stop',
+    'queue-retry',
+    'queue-remove',
+    'request-approve',
+    'request-decline',
+    'review-keep',
+    'review-remove',
+    'review-leaving-keep',
+    'review-early-keep',
+    'review-early-remove',
+    'problem-resolve',
+    'problem-close',
+    'held-bring-back',
+    'held-decline',
+  ];
+  let r = await json('PUT', '/api/settings/password', { next: 'actions-pw-123' });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  for (const a of actions) {
+    r = await json('POST', `/api/events/services/some-app/${a}`, {});
+    assert.equal(r.status, 401, a);
+    assert.equal((await r.json()).needLogin, true, a);
+  }
+  r = await json('POST', '/api/events/services/some-app/recheck', {});
+  assert.equal(r.status, 404, 're-check is open (and the app does not exist)');
+  r = await json('POST', '/api/events/services/some-app/clear', {}, { Cookie: cookie });
+  assert.equal(r.status, 404, 'logged in: past the check (no such app)');
+  await json('PUT', '/api/settings/password', { current: 'actions-pw-123', next: '' }, { Cookie: cookie });
+});
+
+test('malformed input is a 400, never a 500: null bodies, non-lists, multi-byte tokens, huge passwords', async () => {
+  /** @param {string} p @param {string} body @param {string} [method] */
+  const raw = (p, body, method = 'POST') =>
+    fetch(base + p, { method, headers: { 'Content-Type': 'application/json' }, body });
+  for (const body of ['null', '[]', '42', '"x"']) {
+    const r = await raw('/api/settings/login', body);
+    assert.equal(r.status, 400, body);
+    assert.match((await r.json()).error, /Send a JSON object/);
+  }
+  assert.equal((await raw('/api/settings/order', '{"ids":"abc"}', 'PUT')).status, 400);
+  assert.equal((await json('PUT', '/api/settings/password', { next: 'x'.repeat(1025) })).status, 400);
+  assert.equal((await fetch(`${base}/api/settings/hub`)).status, 200, 'no password was set by that');
+
+  let r = await json('PUT', '/api/settings/metrics', { enabled: true });
+  assert.equal(r.status, 200);
+  r = await fetch(`${base}/metrics`, { headers: { Authorization: `Bearer ${'é'.repeat(32)}` } });
+  assert.equal(r.status, 401, 'multi-byte token: refused, not a crash');
+  await json('PUT', '/api/settings/metrics', { enabled: false });
+  r = await fetch(
+    `${base}/hub/unsubscribe?d=x&e=${Buffer.from('a@example.com').toString('base64url')}&s=${encodeURIComponent('é'.repeat(32))}`,
+  );
+  assert.equal(r.status, 400, 'multi-byte signature: refused, not a crash');
+});
+
+test('restore: hub rules are fitted to what was restored (no digest that is not there, no removed destination)', async () => {
+  const r = await json('POST', '/api/settings/restore', {
+    services: [],
+    notifications: {
+      targets: [{ id: 't-kept', type: 'gotify', name: 'Phone', url: 'http://127.0.0.1:9', appToken: 'tok' }],
+    },
+    hub: {
+      enabled: false,
+      sources: [],
+      digests: [],
+      rules: [
+        { name: 'To a digest that is gone', action: 'digest', digest: 'nope', match: {} },
+        { name: 'Now', action: 'now', destinations: ['t-kept', 't-gone'], match: { type: 'app.down' } },
+      ],
+    },
+  });
+  assert.equal(r.status, 200);
+  const hub = await (await fetch(`${base}/api/settings/hub`)).json();
+  assert.deepEqual(
+    hub.rules.map((/** @type {any} */ x) => [x.name, x.destinations ?? null]),
+    [
+      ['Now', ['t-kept']],
+      ['Everything else', null],
+    ],
+  );
+});
+
+test('digest Send now answers at once and sends in the background', async t => {
+  /** @type {any[]} */
+  const posts = [];
+  const discord = await fakeServer({
+    '/api/webhooks/9/tok': (/** @type {any} */ req, /** @type {any} */ url, /** @type {string} */ body) => {
+      posts.push(JSON.parse(body));
+      return { status: 204 };
+    },
+  });
+  t.after(() => discord.close());
+  const target = await (
+    await json('POST', '/api/settings/notifications', {
+      type: 'discord',
+      name: 'News',
+      webhookUrl: `${discord.url}/api/webhooks/9/tok`,
+      events: {},
+    })
+  ).json();
+  await json('PUT', '/api/settings/hub', { enabled: true });
+  const made = await (await json('POST', '/api/settings/hub/sources', { type: 'generic', instance: 'script' })).json();
+  await json('PUT', '/api/settings/hub/digests', {
+    digests: [{ id: 'added_daily', title: 'Added', cron: '0 8 * * *', destinations: [target.id] }],
+  });
+  await json('PUT', '/api/settings/hub/rules', {
+    rules: [{ name: 'All to the digest', match: {}, action: 'digest', digest: 'added_daily' }],
+  });
+  const ev = await fetch(`${base}${made.source.path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Hub-Token': made.token },
+    body: JSON.stringify({
+      type: 'media.added',
+      media: { kind: 'movie', title: 'Caveat', year: 2020, library: 'Movies', ids: { tmdb: 1 } },
+    }),
+  });
+  assert.equal(ev.status, 200);
+  const r = await json('POST', '/api/settings/hub/digests/added_daily/send', {});
+  assert.equal(r.status, 202);
+  const started = await r.json();
+  assert.equal(started.status, 'started');
+  assert.ok(started.items >= 1, 'with what was queued (an earlier test left a title for this digest too)');
+  for (let i = 0; i < 50 && !posts.length; i++) await new Promise(res => setTimeout(res, 50));
+  assert.equal(posts.length, 1, 'it arrived');
+  assert.match(posts[0].content, /^\*\*Added\*\*/);
+  await json('DELETE', `/api/settings/hub/sources/${made.source.id}`);
+  await json('DELETE', `/api/settings/notifications/${target.id}`);
+  await json('PUT', '/api/settings/hub', { enabled: false });
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

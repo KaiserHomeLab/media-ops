@@ -132,7 +132,7 @@ test('starting rules: today’s checkboxes become rules, so turning the hub on c
   assert.deepEqual(byId['today-down'].match, { type: ['app.down'] });
   assert.deepEqual(byId['today-streams'].destinations, ['phone']);
   assert.deepEqual(byId['today-errors'].destinations, ['phone', 'discord'], 'defaults for unticked-but-default events');
-  assert.deepEqual(byId['today-warnings'].destinations, [], 'warnings are off by default');
+  assert.equal(byId['today-warnings'].action, 'drop', 'ticked nowhere (off by default): "don\'t tell me"');
   assert.ok(!byId['today-digest'], 'the daily digest is not a "now" event');
   assert.ok(
     list.filter(r => r.id.startsWith('suggested-')).every(r => !r.enabled),

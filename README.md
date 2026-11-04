@@ -129,22 +129,24 @@ won't wake you up.
 
 ### Notification Hub (optional)
 
-Turn it on under **Settings → Notification Hub** to decide in one place what's worth telling
-you, where, and when, for Media Ops' own alerts and for webhooks from Sonarr, Radarr, Seerr or
-your own scripts. Turning it on changes nothing by itself: it starts from what each
-destination already gets.
+Turn it on under **Settings → Notification Hub** to decide in one place what you're told about,
+where, and when. Turning it on changes nothing by itself: every alert keeps going where it went.
+Then four steps:
 
-- **Sources**: each app gets its own webhook address and token. In Sonarr or Radarr, add a
-  Webhook under Settings → Connect; in Seerr, under Settings → Notifications.
-- **Rules**: checked top to bottom, the first match decides: send now to the destinations you
-  pick, hold for a digest, or drop. A quality upgrade is told apart from a new title by
-  Sonarr's and Radarr's own flag, so `#new-on-plex` no longer fills up when files get replaced.
-- **Digests**: what rules hold back, sent on your schedule as one summary ("Added to Plex ·
-  Wednesday, Nov 4"), each title once, a show's episodes on one line, upgrades only counted.
-  On Discord with posters; by email as HTML, optionally to a newsletter list where everyone
-  gets their own copy and an unsubscribe link.
-- **Activity**: the last 200 events, the rule each matched, and what happened to it.
+1. **Connect apps**: let Sonarr, Radarr and Seerr tell Media Ops as things happen (new movies
+   and episodes, requests). Each gets an address to paste into the app.
+2. **Where things go**: every kind of notification in plain words ("New movies and episodes",
+   "An app goes down", "A request is ready to watch"), each sent **right away** to the Discord
+   channels or phone you pick, put **in a summary**, or **not at all**. Add as many Discord
+   channels as you like (each is a webhook), right from the list: new movies to
+   `#new-on-plex`, problems to `#alerts`. Quality upgrades are told apart from new titles, so
+   replaced files no longer look new.
+3. **Summaries**: a daily or weekly roundup ("Added to Plex · Wednesday, Nov 4"), each title
+   once, a show's episodes on one line, upgrades only counted. On Discord with posters; by email
+   as HTML, optionally to a list of people who each get their own copy and an unsubscribe link.
+4. **Activity**: the last 200 things that happened and what Media Ops did with each.
 
+Custom rules (only some libraries, only serious problems) are under **Advanced** in step 2.
 The design, every event type and the rule format are in
 [docs/notification-hub.md](docs/notification-hub.md).
 

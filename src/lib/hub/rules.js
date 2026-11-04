@@ -20,36 +20,55 @@ const { SEVERITIES, POLLED_TYPE } = require('./normalize');
  *   destinations?: string[], digest?: string, locked?: boolean }} Rule
  */
 
-// Every event type the hub knows, for the rule editor's suggestions (a rule may name others: a
-// script's own types through the generic endpoint).
+// Every event type the hub knows, in plain words and grouped, for Settings → Notification Hub →
+// "Where things go" (one row each) and the custom-rule editor. `from` says what has to be set up
+// for it to happen. A rule may name other types too (a script's own, through the generic endpoint).
 const EVENT_TYPES = [
-  ['app.down', 'An app goes down'],
-  ['app.up', 'An app is back up'],
-  ['app.error', 'New error in an app'],
-  ['app.warning', 'New warning or health check'],
-  ['app.health_issue', 'Health issue (from an *arr webhook)'],
-  ['app.health_restored', 'Health restored (from an *arr webhook)'],
-  ['download.failed', 'Failed download'],
-  ['download.stuck', 'Download needs importing by hand'],
-  ['system.disk', 'Disk over the threshold'],
-  ['system.server', 'Server problem (array, pools, alerts, hot disks)'],
-  ['system.bandwidth', 'Upload nearly maxed out'],
-  ['playback.started', 'Someone starts watching'],
-  ['media.added', 'New movie or episode'],
-  ['media.upgraded', 'Quality upgrade'],
-  ['media.removed', 'Movie or show removed'],
-  ['media.leaving_soon', 'Leaving Soon (Media Review)'],
-  ['media.problem_report', 'New Problem Report (Media Review)'],
-  ['media.request.*', 'Any request update (Seerr)'],
-  ['media.request.created', 'New request'],
-  ['media.request.approved', 'Request approved'],
-  ['media.request.available', 'Request available'],
-  ['media.request.failed', 'Request failed'],
-  ['media.request.declined', 'Request declined'],
-  ['media.issue.*', 'Issue reported or updated (Seerr)'],
-  ['hub.test', 'Test from a source'],
-  ['custom', 'Custom (generic endpoint)'],
-].map(([type, label]) => ({ type, label }));
+  ['Problems', 'app.down', 'An app goes down', 'Media Ops notices this itself'],
+  ['Problems', 'app.up', 'An app is back up', 'Media Ops notices this itself'],
+  ['Problems', 'app.error', 'A new error in an app', 'What Errors & warnings shows as an error'],
+  ['Problems', 'app.warning', 'A new warning or failing health check', 'What Errors & warnings shows as a warning'],
+  ['Problems', 'download.failed', 'A download failed or is stuck', 'Media Ops notices this itself'],
+  ['Problems', 'download.stuck', 'A download needs importing by hand', 'Needs Sonarr or Radarr connected (step 1)'],
+  ['Problems', 'system.disk', 'A disk is filling up', 'Over the threshold under Notifications'],
+  [
+    'Problems',
+    'system.server',
+    'A server problem (array, pools, alerts, hot disks)',
+    'Needs Unraid or TrueNAS added as an app',
+  ],
+  ['Problems', 'system.bandwidth', 'Upload nearly maxed out', 'Needs your upload speed under General'],
+  ['Problems', 'app.health_issue', 'A Sonarr or Radarr health issue', 'Needs Sonarr or Radarr connected (step 1)'],
+  [
+    'Problems',
+    'app.health_restored',
+    'A Sonarr or Radarr health issue fixed',
+    'Needs Sonarr or Radarr connected (step 1)',
+  ],
+  ['New on your server', 'media.added', 'New movies and episodes', 'Needs Sonarr or Radarr connected (step 1)'],
+  [
+    'New on your server',
+    'media.upgraded',
+    'Quality upgrades of what you already have',
+    'Needs Sonarr or Radarr connected (step 1)',
+  ],
+  ['New on your server', 'media.removed', 'Movies or shows removed', 'Needs Sonarr or Radarr connected (step 1)'],
+  ['New on your server', 'media.leaving_soon', 'Titles leaving soon', 'Needs Media Review added as an app'],
+  [
+    'New on your server',
+    'media.problem_report',
+    'A friend reports a problem with a title',
+    'Needs Media Review added as an app',
+  ],
+  ['Requests', 'media.request.created', 'Someone requests something', 'Needs Seerr connected (step 1)'],
+  ['Requests', 'media.request.approved', 'A request is approved', 'Needs Seerr connected (step 1)'],
+  ['Requests', 'media.request.available', 'A request is ready to watch', 'Needs Seerr connected (step 1)'],
+  ['Requests', 'media.request.declined', 'A request is declined', 'Needs Seerr connected (step 1)'],
+  ['Requests', 'media.request.failed', 'A request failed', 'Needs Seerr connected (step 1)'],
+  ['Requests', 'media.issue.*', 'Issues reported or updated in Seerr', 'Needs Seerr connected (step 1)'],
+  ["Who's watching", 'playback.started', 'Someone starts watching', 'Media Ops notices this itself'],
+  ['Other', 'custom', 'Messages from your own scripts', 'Needs a "From a script" source (step 1)'],
+].map(([group, type, label, from]) => ({ group, type, label, from }));
 
 const CATCH_ALL_ID = 'everything-else';
 /** @returns {Rule} */
@@ -185,72 +204,28 @@ function clean(input, targets) {
 // ------------------------------------------------------------------ the rules the hub starts with
 // Turning the hub on must not change where anything goes: one rule per notification kind, sent
 // to every destination that has that event ticked today (lib/notify.js EVENTS, with defaults for
-// events added since a destination was saved). The spec's suggested rules follow, switched off.
+// events added since a destination was saved). Everything else starts as "don't tell me".
 /** @param {import('../types').Target[]} targets @param {(t: import('../types').Target) => Record<string, boolean>} eventsOf @param {{ key: string, label: string }[]} events @returns {Rule[]} */
 function starting(targets, eventsOf, events) {
   const on = targets.filter(t => t.enabled !== false);
   /** @type {Rule[]} */
   const fromToday = events
     .filter(ev => POLLED_TYPE[ev.key])
-    .map(ev => ({
-      id: `today-${ev.key}`,
-      name: ev.label,
-      enabled: true,
-      match: { type: [POLLED_TYPE[ev.key]] },
-      action: /** @type {const} */ ('now'),
-      destinations: on.filter(t => eventsOf(t)[ev.key]).map(t => t.id),
-    }));
-  /** @type {Rule[]} */
-  const suggested = [
-    {
-      id: 'suggested-alerts',
-      name: 'Problems go out straight away',
-      enabled: false,
-      match: { type: ['app.down', 'download.failed', 'download.stuck', 'system.disk'], min_severity: 'warning' },
-      action: 'now',
-      destinations: [],
-    },
-    {
-      id: 'suggested-recovered',
-      name: 'Recoveries go out straight away',
-      enabled: false,
-      match: { type: ['app.up', 'app.health_restored'] },
-      action: 'now',
-      destinations: [],
-    },
-    {
-      id: 'suggested-upgrades',
-      name: 'Quality upgrades: never announced as new',
-      enabled: false,
-      match: { type: ['media.upgraded'] },
-      action: 'drop',
-    },
-    {
-      id: 'suggested-added',
-      name: 'New movies and shows go to the daily digest',
-      enabled: false,
-      match: { type: ['media.added'], 'media.library': ['Movies', 'TV Shows', 'Anime'] },
-      action: 'digest',
-      digest: 'added_daily',
-    },
-    {
-      id: 'suggested-requests',
-      name: 'Request updates go out straight away',
-      enabled: false,
-      match: { type: ['media.request.*'] },
-      action: 'now',
-      destinations: [],
-    },
-    {
-      id: 'suggested-leaving',
-      name: 'Leaving Soon goes to the weekly digest',
-      enabled: false,
-      match: { type: ['media.leaving_soon'] },
-      action: 'digest',
-      digest: 'leaving_weekly',
-    },
-  ];
-  return [...fromToday, ...suggested, catchAll()];
+    .map(ev => {
+      const to = on.filter(t => eventsOf(t)[ev.key]).map(t => t.id);
+      /** @type {Rule} */
+      const r = {
+        id: `today-${ev.key}`,
+        name: ev.label,
+        enabled: true,
+        match: { type: [POLLED_TYPE[ev.key]] },
+        action: 'drop',
+      };
+      // Ticked somewhere: right away to those destinations. Ticked nowhere: "don't tell me".
+      if (to.length) Object.assign(r, { action: 'now', destinations: to });
+      return r;
+    });
+  return [...fromToday, catchAll()];
 }
 
 module.exports = { EVENT_TYPES, CATCH_ALL_ID, FIELDS, matches, evaluate, clean, starting, catchAll };

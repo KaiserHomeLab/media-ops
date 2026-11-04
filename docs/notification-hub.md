@@ -353,4 +353,6 @@ Small pull requests, each usable on its own:
 5. Discord output (per-destination name, avatar, colour; embeds; limits; a queue with retries) (#63) and the email newsletter (HTML, one message per recipient, unsubscribe links) (#64).
 6. Settings → Notification Hub: sources, rules, digests.
 
+Later, for clarity: Settings → Notification Hub became four steps (Connect apps, Where things go, Summaries, Activity). "Where things go" is one row per event type (`EVENT_TYPES` in `lib/hub/rules.js`, with plain labels and groups); each row is a rule matching exactly that type. Rules matching more (libraries, severity, several types) are "custom rules" under Advanced and are checked first. Discord channels are destinations, addable from a row. Turning the hub on no longer adds the switched-off suggested rules: a kind no destination had ticked starts as "don't tell me".
+
 Not done in v1 (section 2 non-goals, plus): Tautulli and Lidarr sources, links from digest titles to Plex or Seerr pages, a requester's Discord DM when a request is available, and drag-to-reorder (rules move with ↑/↓, as the dashboard layout does).

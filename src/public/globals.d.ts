@@ -91,6 +91,7 @@ interface AppRow {
 interface SettingsPayload {
   authEnabled: boolean;
   openByChoice: boolean;
+  hubEnabled: boolean;
   dashboardAuth: boolean;
   version: string;
   loggedIn: boolean;
@@ -182,7 +183,7 @@ interface HubSettings {
     last: { sentAt: number; status: string; items: number; upgrades: number } | null;
   }[];
   types: { type: string; label: string; how: string }[];
-  eventTypes: { type: string; label: string }[];
+  eventTypes: { group: string; type: string; label: string; from: string }[];
   sources: {
     id: string;
     type: string;

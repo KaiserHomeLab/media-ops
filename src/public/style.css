@@ -3449,6 +3449,100 @@ body.tv .rq-acts {
   color: var(--critical);
 }
 
+/* settings: notification hub */
+.hub-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+.hub-head .sub-h {
+  margin: 0;
+  flex: 1;
+}
+.hub-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.hub-log {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+/* A bar down the side by what happened. Status colors, never the accent. */
+.hub-row {
+  --st: var(--line);
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr); /* "Nov 30, 12:59 PM" on one line, the same in every row */
+  gap: 4px 16px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--st);
+  background: var(--surface-2);
+  border-radius: 0 6px 6px 0;
+  font-size: 13px;
+}
+.hub-row.st-sent {
+  --st: var(--good);
+}
+.hub-row.st-pending,
+.hub-row.st-held {
+  --st: var(--warning);
+}
+.hub-row.st-queued {
+  --st: var(--series-1);
+}
+.hub-row.bad {
+  --st: var(--critical);
+}
+.hub-row summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  list-style-position: outside;
+}
+.hub-summary {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.hub-what {
+  color: var(--text-secondary);
+}
+.hub-row.bad .hub-what {
+  color: var(--critical);
+}
+.hub-detail {
+  grid-template-columns: auto 1fr;
+  margin: 8px 0 4px;
+}
+.hub-when {
+  white-space: nowrap;
+}
+.hub-detail dd {
+  margin: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.hub-sends {
+  margin-top: 4px;
+}
+.hub-sends li.bad {
+  color: var(--critical);
+}
+.hub-empty {
+  padding: 8px 0;
+}
+@media (max-width: 640px) {
+  .hub-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* settings: appearance */
 fieldset.events.inline {
   display: flex;

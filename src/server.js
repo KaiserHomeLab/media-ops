@@ -62,6 +62,7 @@ const ALWAYS_OPEN = new Set([
   '/settings',
   '/settings.html',
   '/settings.js',
+  '/settings-hub.js',
   '/style.css',
   '/manifest.webmanifest',
   '/icon.png',

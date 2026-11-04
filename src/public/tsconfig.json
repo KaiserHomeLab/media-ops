@@ -14,5 +14,5 @@
     "types": [],
     "skipLibCheck": true
   },
-  "include": ["js/**/*.js", "settings.js", "globals.d.ts"]
+  "include": ["js/**/*.js", "settings.js", "settings-hub.js", "globals.d.ts"]
 }

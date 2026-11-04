@@ -40,6 +40,10 @@ To stay on one version instead of `latest`, use a version tag such as
   alerts keep going exactly where they went. The same alert again within 10 minutes is
   suppressed. Alerts held for quiet hours are kept on disk, so a restart no longer loses them.
   If the hub's database can't be written, alerts are sent the usual way.
+- Settings → Notification Hub: turn the hub on, and **Activity**, the last 200 events with the
+  rule each one matched and what happened to it (sent and to whom, held for quiet hours, saved
+  for a digest, dropped, a repeat not sent). Open a row for its details and every send attempt,
+  with the error when one failed. Filter by what happened.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

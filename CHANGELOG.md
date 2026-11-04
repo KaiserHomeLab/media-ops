@@ -11,6 +11,13 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Changed
 
+- Notification Hub is easier to follow: four steps (Connect apps, Where things go, Summaries,
+  Activity). **Where things go** lists every kind of notification in plain words, each sent
+  right away to the destinations you tick, put in a summary, or not sent; a **+ Add a Discord
+  channel** link right in the list adds another webhook, so different notifications can go to
+  different Discord channels. Custom rules (libraries, severity) move under Advanced. With the
+  hub on, a destination's own "Send me" boxes give way to it. Summaries say what they gather.
+  Activity speaks plainly ("Waiting for “Added to Plex”", "Not sent (set to Don't tell me)").
 - **Settings needs a password now: breaking for installs running without one.** The first time
   you open Settings, it asks for a **setup code** and the password you want. Media Ops prints
   the code in its log at every start until a password is set (`docker logs media-ops`, Unraid:

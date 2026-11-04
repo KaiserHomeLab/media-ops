@@ -42,6 +42,7 @@ function settingsPayload(req) {
   return {
     authEnabled: !!cfg.auth,
     openByChoice: !cfg.auth && !!cfg.openByChoice,
+    hubEnabled: hub.enabled(cfg), // destinations' event checkboxes give way to the hub's routing
     dashboardAuth: !!cfg.dashboardAuth,
     version: pkg.version,
     loggedIn: loggedIn(req),

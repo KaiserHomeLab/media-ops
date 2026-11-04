@@ -161,7 +161,7 @@ test('settings: Notification Hub Activity lists what happened, filters, and open
   await page.waitForSelector('#hub-log .hub-row');
   const rows = await page.$$eval('#hub-log .hub-row', els => els.length);
   assert.ok(rows >= 5, 'the demo events');
-  assert.match((await page.textContent('#hub-log')) || '', /Saved for the "added_daily" digest/);
+  assert.match((await page.textContent('#hub-log')) || '', /Waiting for “Added to Plex”/);
   await page.selectOption('#hub-filter', 'failed');
   const failed = await page.$$eval('#hub-log .hub-row', els =>
     els.map(e => e.querySelector('.hub-summary')?.textContent),
@@ -174,44 +174,67 @@ test('settings: Notification Hub Activity lists what happened, filters, and open
   await page.close();
 });
 
-test('settings: Notification Hub turned on, a source added (token once), a rule added above the catch-all', async () => {
+test('settings: Notification Hub in steps: connect an app (address once), send new movies to a Discord channel added on the spot', async () => {
   const { page, problems } = await open('/settings#hub');
   page.on('dialog', d => d.accept());
   await page.waitForSelector('#hub-form');
   await page.check('#hub-form [name=enabled]');
   await page.click('#hub-form button[type=submit]');
-  await page.waitForSelector('#hub-config:not([hidden]) #hub-rules li');
-  assert.match((await page.textContent('#hub-rules li:last-child')) || '', /Everything else/);
+  await page.waitForSelector('#hub-steps:not([hidden])');
 
+  // 1. Connect apps
+  await page.click('#hub-steps [data-step="1"]');
   await page.click('#hub-add-source');
   await page.selectOption('#hub-source-form [name=type]', 'radarr');
   await page.click('#hub-source-form button[type=submit]');
-  await page.waitForSelector('#modal >> text=Copy this now');
-  const url = await page.inputValue('#modal input >> nth=0');
-  assert.match(url, /\/api\/hub\/in\/radarr\/radarr\?token=mohub_/);
+  await page.waitForSelector("#modal >> text=isn't shown again");
+  assert.match(await page.inputValue('#modal input >> nth=0'), /\/api\/hub\/in\/radarr\/radarr\?token=mohub_/);
   await page.click('#modal [data-close]');
-  assert.match((await page.textContent('#hub-sources')) || '', /\/api\/hub\/in\/radarr\/radarr/);
-  assert.doesNotMatch((await page.textContent('#hub-sources')) || '', /mohub_/, 'the token is not shown again');
+  assert.doesNotMatch((await page.textContent('#hub-sources')) || '', /mohub_/, 'the address is not shown again');
 
-  await page.click('#hub-add-rule');
-  await page.fill('#hub-rule-form [name=name]', 'Upgrades: never');
-  await page.check('#hub-rule-form input[value="media.upgraded"]');
-  await page.selectOption('#hub-rule-form [name=then]', 'drop');
-  await page.click('#hub-rule-form button[type=submit]');
-  await page.click('#hub-rules-form button[type=submit]');
-  await page.waitForSelector('#hub-rules-saved:not([hidden])');
-  const names = await page.$$eval('#hub-rules li b', els => els.map(e => e.textContent));
-  assert.deepEqual(names.slice(-2), ['Upgrades: never', 'Everything else']);
+  // 2. Where things go: a Discord channel added from the row, then picked
+  await page.click('#hub-steps [data-step="2"]');
+  await page.click('[data-route="media.added"] [data-change]');
+  await page.click('[data-route="media.added"] [data-add-discord]');
+  await page.fill('[data-route="media.added"] [name=dname]', '#new-on-plex');
+  await page.fill('[data-route="media.added"] [name=dhook]', 'https://discord.com/api/webhooks/2/y');
+  await page.click('[data-route="media.added"] [data-save-discord]');
+  await page.waitForSelector('[data-route="media.added"] input[name=dest]:checked');
+  await page.click('[data-route="media.added"] button[type=submit]');
+  await page.waitForSelector('[data-route="media.added"] .hub-to.now');
+  assert.equal((await page.textContent('[data-route="media.added"] .hub-route-to'))?.trim(), '#new-on-plex');
+  await page.click('[data-route="media.upgraded"] [data-change]');
+  await page.check('[data-route="media.upgraded"] input[name=mode][value=drop]');
+  await page.click('[data-route="media.upgraded"] button[type=submit]');
+  await page.waitForSelector('[data-route="media.upgraded"] .hub-to.off');
+
+  // 3. Summaries say what they gather; choosing "In a summary" shows up there
+  await page.click('[data-route="media.leaving_soon"] [data-change]');
+  await page.check('[data-route="media.leaving_soon"] input[name=mode][value=digest]');
+  await page.selectOption('[data-route="media.leaving_soon"] select[name=digest]', 'leaving_weekly');
+  await page.click('[data-route="media.leaving_soon"] button[type=submit]');
+  await page.waitForSelector('[data-route="media.leaving_soon"] .hub-to.digest');
+  await page.click('#hub-steps [data-step="3"]');
+  assert.match((await page.textContent('[data-digest="leaving_weekly"]')) || '', /Gathers: Titles leaving soon/);
+
+  // The destination's own form no longer has "Send me": the hub decides.
+  await page.click('#notifs .app-card:has-text("#new-on-plex")');
+  await page.waitForSelector('#notif-form');
+  assert.equal(await page.$('#notif-form fieldset.events'), null);
+  assert.ok(await page.isVisible('#notif-form >> text=Where things go'));
+  await page.keyboard.press('Escape');
+
+  await page.click('#hub-steps [data-step="2"]');
   await page.setViewportSize({ width: 375, height: 800 });
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
     0,
-    'no sideways scrolling on a phone with the hub on',
+    'no sideways scrolling on a phone',
   );
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.uncheck('#hub-form [name=enabled]');
   await page.click('#hub-form button[type=submit]');
-  await page.waitForSelector('#hub-config', { state: 'hidden' });
+  await page.waitForSelector('#hub-steps', { state: 'hidden' });
   noProblems(problems);
   await page.close();
 });

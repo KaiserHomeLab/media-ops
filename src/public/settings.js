@@ -637,7 +637,7 @@ function renderNotifs() {
       <span class="app-icon n-${esc(t.type)}" aria-hidden="true">${esc(NOTIF_ICON[t.type] || '?')}</span>
       <span class="app-name">${esc(t.name)}</span>
       <span class="app-kind">${esc(type(t.type)?.label || t.type)}${t.enabled === false ? ' · disabled' : ''}</span>
-      <span class="app-url">${evs} event type${evs === 1 ? '' : 's'}</span>
+      <span class="app-url">${S.hubEnabled ? 'what it gets: Notification Hub' : `${evs} event type${evs === 1 ? '' : 's'}`}</span>
       ${last ? `<span class="${t.last?.ok ? 'app-ok' : 'app-err'}">${esc(last)}</span>` : ''}
     </button>`;
       })
@@ -683,7 +683,11 @@ function notifFormHtml(def, target) {
       <label class="field"><span>Name</span><input name="name" required value="${esc(target?.name || def.label)}"></label>
       <label class="field toggle"><input type="checkbox" name="enabled" ${target?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
       ${fields}
-      <fieldset class="field wide events"><legend>Send me</legend>${events}</fieldset>
+      ${
+        S.hubEnabled
+          ? '<p class="hint wide">What this gets is chosen in <b>Notification Hub → Where things go</b>, further down this page.</p>'
+          : `<fieldset class="field wide events"><legend>Send me</legend>${events}</fieldset>`
+      }
       <div class="test-result wide" id="notif-result" hidden></div>
       ${formActions(!!target, { del: 'ndel', back: 'nback', test: 'ntest', save: 'nsave' }, 'Send test')}
     </form>`;
@@ -696,7 +700,9 @@ function notifValues(form, def, target) {
   /** @type {Record<string, any>} */
   const out = { type: def.type, name: v.name, enabled: form.enabled.checked, events: {} };
   for (const f of def.fields) out[f.key] = v[f.key];
-  for (const e of S.notifyEvents) out.events[e.key] = form[`ev-${e.key}`].checked;
+  // With the hub on there are no event boxes: the saved choices are kept as they are.
+  if (!S.hubEnabled) for (const e of S.notifyEvents) out.events[e.key] = form[`ev-${e.key}`].checked;
+  else delete out.events;
   if (target) out.id = target.id;
   return out;
 }

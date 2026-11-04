@@ -113,52 +113,83 @@
 
       <section class="card" id="hub">
         <h2>Notification Hub <span class="count">optional</span></h2>
-        <p class="hint">One place that decides what's worth telling you, where, and when: Media Ops' own alerts plus webhooks from Sonarr, Radarr and Seerr. Off until you turn it on. Turning it on changes nothing by itself: it starts from the events each destination above has ticked.</p>
+        <p class="hint">One place to decide <b>what you're told about, where, and when</b>: Media Ops' own alerts plus news from Sonarr, Radarr and Seerr (new movies and episodes, requests). Send each kind to the Discord channels or phone you choose, gather some into a daily or weekly summary, and silence the rest.</p>
         <form id="hub-form" class="form grid-form">
-          <label class="field toggle wide"><input type="checkbox" name="enabled"><span>Turn on the Notification Hub</span></label>
-          <label class="field wide"><span>Public address <em>optional · for newsletter unsubscribe links</em></span><input name="publicUrl" type="url" placeholder="https://media.example.com" spellcheck="false">
-            <small>Where people reach Media Ops from outside, if you publish it (a Cloudflare Tunnel, a reverse proxy). Only needed to send a digest to a newsletter list.</small></label>
+          <label class="field toggle wide"><input type="checkbox" name="enabled"><span>Turn on the Notification Hub</span>
+            <small>Nothing changes when you turn it on: every alert keeps going where it goes now, and you take it from there.</small></label>
           <div class="form-error" id="hub-error" hidden></div>
           <div class="actions wide"><span class="saved" id="hub-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
         </form>
+
         <div id="hub-config" hidden>
-          <h3 class="sub-h">Sources</h3>
-          <p class="hint">Apps that send webhooks to Media Ops. Each has its own address and token; the token is shown once, when you add it.</p>
-          <ul class="hub-list" id="hub-sources"></ul>
-          <p class="hint" id="hub-rejected" hidden></p>
-          <div class="actions start"><button class="btn" type="button" id="hub-add-source">Add source</button></div>
+          <nav class="hub-steps" id="hub-steps" aria-label="Notification Hub steps">
+            <button type="button" data-step="1"><span class="hub-step-n">1</span> Connect apps</button>
+            <button type="button" data-step="2"><span class="hub-step-n">2</span> Where things go</button>
+            <button type="button" data-step="3"><span class="hub-step-n">3</span> Summaries</button>
+            <button type="button" data-step="4"><span class="hub-step-n">4</span> Activity</button>
+          </nav>
 
-          <h3 class="sub-h">Rules</h3>
-          <p class="hint">Checked top to bottom: the first rule that matches decides. Send now to the destinations you pick, hold for a digest, or drop. The last rule catches everything else.</p>
-          <ol class="layout-list hub-rules" id="hub-rules"></ol>
-          <form id="hub-rules-form" class="form grid-form">
-            <label class="field"><span>Don't repeat the same alert within</span><span class="with-unit"><input type="number" name="flapMinutes" min="0" max="1440" required><span>min</span></span>
-              <small>0 sends every repeat.</small></label>
-            <div class="form-error wide" id="hub-rules-error" hidden></div>
-            <div class="actions wide"><button class="btn" type="button" id="hub-add-rule">Add rule</button><span class="spacer"></span><span class="saved" id="hub-rules-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save rules</button></div>
-          </form>
-
-          <h3 class="sub-h">Digests</h3>
-          <p class="hint">What rules hold back, sent on a schedule as one summary. Each title once, a show's episodes on one line, upgrades only counted. A day with nothing new sends nothing.</p>
-          <ul class="hub-list" id="hub-digests"></ul>
-          <div class="actions start"><button class="btn" type="button" id="hub-add-digest">Add digest</button></div>
-        </div>
-        <div id="hub-activity" hidden>
-          <div class="hub-head">
-            <h3 class="sub-h">Activity</h3>
-            <label class="hub-filter"><span class="muted">Show</span>
-              <select id="hub-filter">
-                <option value="">everything</option>
-                <option value="sent">sent</option>
-                <option value="waiting">waiting or held</option>
-                <option value="queued">for a digest</option>
-                <option value="not-sent">not sent</option>
-                <option value="failed">failed</option>
-              </select></label>
-            <button class="btn small" type="button" id="hub-refresh">Refresh</button>
+          <div class="hub-panel" data-panel="1">
+            <h3 class="sub-h">1. Connect apps</h3>
+            <p class="hint">Media Ops already watches your apps. To hear about <b>new movies and episodes</b> (Sonarr, Radarr) and <b>requests</b> (Seerr), let those apps tell Media Ops as it happens: add each one here, then paste the address it gives you into that app. Skip this step if you only want Media Ops' own alerts.</p>
+            <ul class="hub-list" id="hub-sources"></ul>
+            <p class="hint" id="hub-rejected" hidden></p>
+            <div class="actions"><button class="btn" type="button" id="hub-add-source">+ Connect an app</button><span class="spacer"></span><button class="btn primary" type="button" data-go="2">Next: where things go →</button></div>
           </div>
-          <p class="hint">The last 200 events, newest first: which rule each one matched and what happened to it.</p>
-          <ol class="hub-log" id="hub-log"></ol>
+
+          <div class="hub-panel" data-panel="2" hidden>
+            <h3 class="sub-h">2. Where things go</h3>
+            <p class="hint">For each kind of notification, choose: send it <b>right away</b> to the Discord channels or phone you pick, put it <b>in a summary</b> (step 3), or <b>don't tell me</b>. Each Discord channel is a webhook; add as many as you like, so new movies can go to one channel and problems to another.</p>
+            <div id="hub-routes"></div>
+            <details class="more hub-advanced" id="hub-advanced">
+              <summary>Advanced: custom rules <span class="count" id="hub-adv-count"></span></summary>
+              <p class="hint">For finer choices than the list above: only certain libraries, only serious problems, several kinds at once. Custom rules are checked first, top to bottom; whatever no rule takes follows the list above.</p>
+              <ol class="layout-list hub-rules" id="hub-rules"></ol>
+              <form id="hub-rules-form" class="form grid-form">
+                <label class="field"><span>Don't repeat the same alert within</span><span class="with-unit"><input type="number" name="flapMinutes" min="0" max="1440" required><span>min</span></span>
+                  <small>0 sends every repeat.</small></label>
+                <div class="form-error wide" id="hub-rules-error" hidden></div>
+                <div class="actions wide"><button class="btn" type="button" id="hub-add-rule">+ Custom rule</button><span class="spacer"></span><span class="saved" id="hub-rules-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save custom rules</button></div>
+              </form>
+            </details>
+            <div class="actions"><button class="btn ghost" type="button" data-go="1">← Back</button><span class="spacer"></span><button class="btn primary" type="button" data-go="3">Next: summaries →</button></div>
+          </div>
+
+          <div class="hub-panel" data-panel="3" hidden>
+            <h3 class="sub-h">3. Summaries</h3>
+            <p class="hint">A summary gathers what you chose to put in it and sends it on a schedule, as one tidy message: each title once, a show's episodes on one line, quality upgrades only counted. A day with nothing new sends nothing. Turn one on and pick where it goes.</p>
+            <ul class="hub-list" id="hub-digests"></ul>
+            <div class="actions start"><button class="btn" type="button" id="hub-add-digest">+ New summary</button></div>
+            <details class="more">
+              <summary>Emailing a summary to a list of people</summary>
+              <form id="hub-public-form" class="form grid-form">
+                <label class="field wide"><span>Public address <em>for unsubscribe links</em></span><input name="publicUrl" type="url" placeholder="https://media.example.com" spellcheck="false">
+                  <small>Where people reach Media Ops from outside (a Cloudflare Tunnel, a reverse proxy). Every newsletter email has an unsubscribe link pointing here. Then add the addresses in the summary's settings.</small></label>
+                <div class="form-error wide" id="hub-public-error" hidden></div>
+                <div class="actions wide"><span class="saved" id="hub-public-saved" hidden>✓ Saved</span><button class="btn" type="submit">Save address</button></div>
+              </form>
+            </details>
+            <div class="actions"><button class="btn ghost" type="button" data-go="2">← Back</button><span class="spacer"></span><button class="btn primary" type="button" data-go="4">Next: activity →</button></div>
+          </div>
+
+          <div class="hub-panel" data-panel="4" id="hub-activity" hidden>
+            <div class="hub-head">
+              <h3 class="sub-h">4. Activity</h3>
+              <label class="hub-filter"><span class="muted">Show</span>
+                <select id="hub-filter">
+                  <option value="">everything</option>
+                  <option value="sent">sent</option>
+                  <option value="waiting">waiting or held</option>
+                  <option value="queued">in a summary</option>
+                  <option value="not-sent">not sent</option>
+                  <option value="failed">failed</option>
+                </select></label>
+              <button class="btn small" type="button" id="hub-refresh">Refresh</button>
+            </div>
+            <p class="hint">The last 200 things that happened, newest first, and what Media Ops did with each. Open one to see why.</p>
+            <ol class="hub-log" id="hub-log"></ol>
+            <div class="actions"><button class="btn ghost" type="button" data-go="3">← Back</button></div>
+          </div>
         </div>
       </section>
 

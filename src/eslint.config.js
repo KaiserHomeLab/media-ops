@@ -68,10 +68,20 @@ module.exports = [
       globals: {
         ...globals.browser,
         ...Object.fromEntries(
-          ['$', '$form', 'field', 'closest', 'api', 'esc', 'showError', 'flash', 'openModal', 'modal', 'S'].map(g => [
-            g,
-            'readonly',
-          ]),
+          [
+            '$',
+            '$form',
+            'field',
+            'closest',
+            'api',
+            'esc',
+            'showError',
+            'flash',
+            'openModal',
+            'modal',
+            'renderNotifs',
+            'S',
+          ].map(g => [g, 'readonly']),
         ),
       },
     },

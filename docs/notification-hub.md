@@ -344,7 +344,7 @@ What the code does that the sections above don't say:
 Small pull requests, each usable on its own:
 
 1. Ingest, normalize and store: the endpoints, sources and tokens, `hub.db`, and polled events recorded. Nothing is sent differently. (#59)
-2. Rules and "now" delivery, behind the hub switch; flap suppression; quiet hours in the hub.
+2. Rules and "now" delivery, behind the hub switch; flap suppression; quiet hours in the hub. (#60)
 3. Activity page in Settings.
 4. Digests: schedules, windows, dedupe and TV grouping, Preview and Send now.
 5. Discord output (per-destination name, avatar, colour; embeds; limits; a queue with retries) and the email newsletter (HTML, one message per recipient, unsubscribe links).

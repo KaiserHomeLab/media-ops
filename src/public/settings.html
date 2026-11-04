@@ -96,6 +96,33 @@
         </form>
       </section>
 
+      <section class="card" id="hub">
+        <h2>Notification Hub <span class="count">optional</span></h2>
+        <p class="hint">One place that decides what's worth telling you, where, and when: Media Ops' own alerts plus webhooks from Sonarr, Radarr and Seerr. Off until you turn it on. Turning it on changes nothing by itself: it starts from the events each destination above has ticked.</p>
+        <form id="hub-form" class="form grid-form">
+          <label class="field toggle wide"><input type="checkbox" name="enabled"><span>Turn on the Notification Hub</span></label>
+          <div class="form-error" id="hub-error" hidden></div>
+          <div class="actions wide"><span class="saved" id="hub-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
+        </form>
+        <div id="hub-activity" hidden>
+          <div class="hub-head">
+            <h3 class="sub-h">Activity</h3>
+            <label class="hub-filter"><span class="muted">Show</span>
+              <select id="hub-filter">
+                <option value="">everything</option>
+                <option value="sent">sent</option>
+                <option value="waiting">waiting or held</option>
+                <option value="queued">for a digest</option>
+                <option value="not-sent">not sent (dropped, repeats, no destination)</option>
+                <option value="failed">failed</option>
+              </select></label>
+            <button class="btn small" type="button" id="hub-refresh">Refresh</button>
+          </div>
+          <p class="hint">The last 200 events, newest first: which rule each one matched and what happened to it.</p>
+          <ol class="hub-log" id="hub-log"></ol>
+        </div>
+      </section>
+
       <section class="card">
         <h2>General</h2>
         <form id="general-form" class="form grid-form">
@@ -240,5 +267,6 @@
   </dialog>
 
   <script src="settings.js"></script>
+  <script src="settings-hub.js"></script>
 </body>
 </html>

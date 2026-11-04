@@ -54,9 +54,22 @@ module.exports = [
     rules,
   },
   {
-    // Settings page: a classic browser script
+    // Settings page: classic browser scripts. settings-hub.js loads after settings.js and uses its
+    // helpers; settings.js calls its loadHub().
     files: ['public/settings.js'],
-    languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.browser } },
+    languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.browser, loadHub: 'readonly' } },
+    rules,
+  },
+  {
+    files: ['public/settings-hub.js'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'script',
+      globals: {
+        ...globals.browser,
+        ...Object.fromEntries(['$', '$form', 'api', 'esc', 'showError', 'flash', 'S'].map(g => [g, 'readonly'])),
+      },
+    },
     rules,
   },
   {

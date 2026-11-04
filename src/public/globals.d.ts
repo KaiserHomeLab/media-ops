@@ -149,6 +149,46 @@ type AppKind = SettingsPayload['kinds'][number];
 type NotifyType = SettingsPayload['notifyTypes'][number];
 type NotifyTarget = SettingsPayload['notifications']['targets'][number];
 
+/** Settings → Notification Hub: GET /api/settings/hub (lib/hub/index.js settingsOf). */
+interface HubSettings {
+  enabled: boolean;
+  rules: { id: string; name: string; enabled: boolean; action: 'now' | 'digest' | 'drop'; locked?: boolean }[];
+  flapMinutes: number;
+  types: { type: string; label: string; how: string }[];
+  sources: {
+    id: string;
+    type: string;
+    instance: string;
+    name: string;
+    library: string;
+    path: string;
+    received: number;
+    lastSeen?: number | null;
+    lastType?: string | null;
+  }[];
+  rejected: { count: number; lastAt: number | null };
+}
+/** One row of Activity: GET /api/settings/hub/activity, destinations with their names. */
+interface HubEvent {
+  id: string;
+  receivedAt: number;
+  source: string;
+  sourceInstance: string;
+  type: string;
+  severity: string;
+  summary: string;
+  dedupeKey: string;
+  isUpgrade: boolean;
+  media: { library: string | null; quality: string | null } | null;
+  rule: string | null;
+  action: string;
+  digestId: string | null;
+  status: string;
+  sentAt: number | null;
+  destinations: { id: string; name: string }[];
+  deliveries: { id: string; name: string; ok: boolean; error: string | null; at: number }[];
+}
+
 /** Settings → Diagnostics: what GET /api/settings/diagnostics returns (lib/diagnostics.js). */
 interface DiagCall {
   method: string;

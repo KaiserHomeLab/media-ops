@@ -156,6 +156,24 @@ test('settings: add-app picker lists every kind, a form opens, appearance previe
   await page.close();
 });
 
+test('settings: Notification Hub Activity lists what happened, filters, and opens a row', async () => {
+  const { page, problems } = await open('/settings#hub');
+  await page.waitForSelector('#hub-log .hub-row');
+  const rows = await page.$$eval('#hub-log .hub-row', els => els.length);
+  assert.ok(rows >= 5, 'the demo events');
+  assert.match((await page.textContent('#hub-log')) || '', /Saved for the "added_daily" digest/);
+  await page.selectOption('#hub-filter', 'failed');
+  const failed = await page.$$eval('#hub-log .hub-row', els =>
+    els.map(e => e.querySelector('.hub-summary')?.textContent),
+  );
+  assert.deepEqual(failed, ['🔴 Prowlarr is down: Connection refused'], 'a send that failed for one destination');
+  await page.click('#hub-log .hub-row summary');
+  assert.match((await page.textContent('#hub-log .hub-sends')) || '', /Phone \(ntfy\): HTTP 502/);
+  await page.selectOption('#hub-filter', '');
+  noProblems(problems);
+  await page.close();
+});
+
 test('status page: shows the media apps with uptime, nothing else', async () => {
   const { page, problems } = await open('/status', { colorScheme: 'light' });
   await page.waitForSelector('.stp-row');

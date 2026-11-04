@@ -477,8 +477,22 @@ function deleteSource(req, res, { id }) {
   saveSources(list => list.filter(s => s.id !== id));
   return send(res, 200, { ok: true });
 }
+// The newest 200 events, with each destination's name filled in (one removed since says so).
 /** @param {Req} req @param {Res} res */
-const hubActivity = (req, res) => send(res, 200, { events: hub.enabled(config.load()) ? hub.activity(200) : [] });
+function hubActivity(req, res) {
+  if (DEMO) return send(res, 200, { events: demo.hubActivity() });
+  const cfg = config.load();
+  if (!hub.enabled(cfg)) return send(res, 200, { events: [] });
+  const names = new Map((cfg.notifications?.targets || []).map(t => [t.id, t.name]));
+  /** @param {string} id */
+  const named = id => ({ id, name: names.get(id) ?? 'a removed destination' });
+  const events = hub.activity(200).map(e => ({
+    ...e,
+    destinations: e.destinations.map(named),
+    deliveries: e.deliveries.map((/** @type {any} */ d) => ({ ...d, ...named(d.destination) })),
+  }));
+  return send(res, 200, { events });
+}
 
 // ---------------------------------------------------------------- appearance
 /** @param {Req} req @param {Res} res */

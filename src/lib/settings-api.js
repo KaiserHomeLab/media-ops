@@ -13,6 +13,8 @@ const feed = require('./events');
 const recovery = require('./recovery');
 const geo = require('./geo');
 const notify = require('./notify');
+const hub = require('./hub');
+const hubSources = require('./hub/sources');
 const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
@@ -395,6 +397,57 @@ function newMetricsToken(req, res) {
   return send(res, 200, { ok: true, metrics: metrics.settingsOf(config.load()), token });
 }
 
+// ---------------------------------------------------------------- notification hub
+/** @param {(list: import('./hub/sources').Source[]) => import('./hub/sources').Source[]} fn */
+const saveSources = fn =>
+  config.update(c => ({ ...c, hub: { ...(c.hub || { enabled: false }), sources: fn(hubSources.list(c)) } }));
+/** @param {Req} req @param {Res} res */
+const hubSettings = (req, res) => send(res, 200, hub.settingsOf(config.load()));
+/** @param {Req} req @param {Res} res */
+async function saveHub(req, res) {
+  const enabled = !!(await readJson(req)).enabled;
+  config.update(c => ({ ...c, hub: { sources: hubSources.list(c), enabled } }));
+  return send(res, 200, hub.settingsOf(config.load()));
+}
+// A new source's token is in this reply and nowhere else: only its hash is kept.
+/** @param {Req} req @param {Res} res */
+async function addSource(req, res) {
+  let made;
+  try {
+    made = hubSources.merge(hubSources.list(config.load()), null, await readJson(req));
+  } catch (e) {
+    if (e.status) throw e;
+    return send(res, 400, { error: e.message });
+  }
+  const { source, token } = made;
+  saveSources(list => [...list, source]);
+  return send(res, 201, { source: hubSources.publicSource(source), token });
+}
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+async function updateSource(req, res, { id }) {
+  const all = hubSources.list(config.load());
+  const existing = all.find(s => s.id === id);
+  if (!existing) return send(res, 404, { error: 'No such source' });
+  const { source } = hubSources.merge(all, existing, await readJson(req));
+  saveSources(list => list.map(s => (s.id === id ? source : s)));
+  return send(res, 200, { source: hubSources.publicSource(source) });
+}
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+function newSourceToken(req, res, { id }) {
+  const existing = hubSources.list(config.load()).find(s => s.id === id);
+  if (!existing) return send(res, 404, { error: 'No such source' });
+  const { source, token } = hubSources.regenerate(existing);
+  saveSources(list => list.map(s => (s.id === id ? source : s)));
+  return send(res, 200, { source: hubSources.publicSource(source), token });
+}
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+function deleteSource(req, res, { id }) {
+  saveSources(list => list.filter(s => s.id !== id));
+  return send(res, 200, { ok: true });
+}
+/** @param {Req} req @param {Res} res */
+const hubActivity = (req, res) => send(res, 200, { events: hub.enabled(config.load()) ? hub.activity(200) : [] });
+
 // ---------------------------------------------------------------- appearance
 /** @param {Req} req @param {Res} res */
 async function saveAppearance(req, res) {
@@ -552,6 +605,8 @@ async function restore(req, res) {
       incoming.metrics && /^[\w-]{20,100}$/.test(String(incoming.metrics.token))
         ? { enabled: !!incoming.metrics.enabled, token: String(incoming.metrics.token) }
         : null,
+    // Sources keep their token hashes, so the apps' webhooks keep working after a restore.
+    hub: incoming.hub ? { enabled: !!incoming.hub.enabled, sources: hubSources.clean(incoming.hub.sources) } : c.hub,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -608,6 +663,13 @@ const ROUTE_LIST = [
   ['PUT', '/logo', uploadLogo],
   ['DELETE', '/logo', removeLogo],
   ['POST', '/digest-test', sendTestDigest],
+  ['GET', '/hub', hubSettings],
+  ['PUT', '/hub', saveHub],
+  ['GET', '/hub/activity', hubActivity],
+  ['POST', '/hub/sources', addSource],
+  ['PUT', '/hub/sources/:id', updateSource],
+  ['POST', '/hub/sources/:id/token', newSourceToken],
+  ['DELETE', '/hub/sources/:id', deleteSource],
   ['GET', '/backup', backup],
   ['POST', '/restore', restore],
 ];

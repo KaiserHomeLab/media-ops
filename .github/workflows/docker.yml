@@ -153,6 +153,8 @@ jobs:
           curl -fsS http://localhost:8484/api/overview | jq -e '(.services | length) > 0 and .version != null'
           curl -fsS http://localhost:8484/settings | grep -q 'Settings'
           curl -fsS http://localhost:8484/api/status | jq -e '(.services | length) > 0'
+          # The Notification Hub keeps its events in SQLite through Node's own node:sqlite.
+          docker exec smoke node -e "new (require('node:sqlite').DatabaseSync)(':memory:').exec('SELECT 1')"
       - name: Container log
         if: always()
         run: docker logs smoke || true

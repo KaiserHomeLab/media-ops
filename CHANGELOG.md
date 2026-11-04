@@ -11,6 +11,8 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Changed
 
+- Needs Node 22.13 or newer when run outside Docker (for its built-in SQLite). The Docker image
+  already has it.
 - Errors & warnings shows only what's wrong right now: an app down, a failing health check, a stuck
   download, an array or pool problem. Lines from apps' logs (and failed downloads in their history)
   often fix themselves, so they wait under a collapsed **Recent log entries** link, the last 24
@@ -25,6 +27,13 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- Notification Hub, first part (off until you turn it on; nothing about today's notifications
+  changes). Sonarr, Radarr, Seerr and your own scripts can send webhooks to Media Ops, each
+  source with its own address and token. Every event, plus what Media Ops already notices
+  (an app down, a full disk, a new Problem Report, a title newly Leaving Soon in Media Review),
+  is kept for 90 days in `hub.db` next to `config.json`. An upgrade is told apart from a new
+  title by the *arr's own flag, not by Plex. Rules, digests and the Settings pages come next;
+  the design is in `docs/notification-hub.md`.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

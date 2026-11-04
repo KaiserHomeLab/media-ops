@@ -56,6 +56,8 @@ export interface Config {
   autoFix?: { enabled: boolean; minutes: number } | null;
   /** Prometheus /metrics (lib/metrics.js); the token is a secret, only shown when created. */
   metrics?: { enabled: boolean; token: string | null } | null;
+  /** Notification Hub (lib/hub): webhook sources with hashed tokens; null/absent = off. */
+  hub?: { enabled: boolean; sources: import('./hub/sources').Source[] } | null;
   /** Settings → Appearance (lib/appearance.js); the logo is base64 so backups carry it. */
   appearance?: {
     theme: string;

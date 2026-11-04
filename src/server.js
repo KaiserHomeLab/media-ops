@@ -12,6 +12,7 @@
 //   *    /api/settings/…                   apps, general options, password, password reset
 //   GET  /api/status                       the public status page's data (only when turned on)
 //   GET  /metrics                          Prometheus metrics (when turned on; Bearer token)
+//   POST /api/hub/in/<type>/<instance>     Notification Hub webhooks (when turned on; per-source token)
 //   GET  /branding/logo                    the logo uploaded under Settings → Appearance
 //   GET  /healthz                          liveness probe
 //
@@ -43,6 +44,7 @@ const {
 const metrics = require('./lib/metrics');
 const { eventsApi, mediaThumb } = require('./lib/dashboard-api');
 const { settingsApi } = require('./lib/settings-api');
+const hub = require('./lib/hub');
 
 const PUBLIC = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT) || 8484;
@@ -127,6 +129,9 @@ const server = http.createServer(async (req, res) => {
     return send(res, 400);
   }
   try {
+    // Webhooks from other apps: servers with a token, never a browser, so neither the dashboard
+    // lock nor the same-origin check applies (lib/hub/index.js checks the token).
+    if (url.pathname.startsWith('/api/hub/in/')) return await hub.ingest(req, res, url);
     if (dashboardLocked(req, url.pathname)) {
       if (url.pathname.startsWith('/api/'))
         return send(res, 401, { error: 'Log in to view the dashboard', needLogin: true });

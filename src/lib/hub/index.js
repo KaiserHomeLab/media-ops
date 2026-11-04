@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 KaiserHomeLab
+//
+// Notification Hub (docs/notification-hub.md): webhooks in from Sonarr, Radarr, Seerr and
+// anything else, plus what the background poll notices, turned into one event format and kept
+// in /config/hub.db. Off until turned on under Settings; while off, /api/hub/in/ answers 404.
+//
+// So far it records every event for Activity. Rules, digests and delivery build on this.
+'use strict';
+const config = require('../config');
+const { readJson, send } = require('../web');
+const store = require('./store');
+const sources = require('./sources');
+const parsers = require('./parsers');
+const { finish, fromPolled, fromMediaReview } = require('./normalize');
+
+/** @param {import('../types').Config} cfg */
+const enabled = cfg => !!cfg.hub?.enabled;
+
+// Requests with a wrong token: counted for Settings, not put in the errors feed one by one
+// (anyone who can reach the port could fill it).
+const rejected = { count: 0, lastAt: /** @type {number | null} */ (null) };
+// 20 wrong tokens from one address in 15 minutes and it waits out the window. Kept apart from
+// the login lockout (lib/auth.js), so a misconfigured app retrying a stale token, or a reverse
+// proxy that makes every request look alike, can't lock you out of Settings.
+const WINDOW = 15 * 60e3,
+  MAX_WRONG = 20;
+const wrong = new Map(); // ip -> { n, since }
+/** @param {import('node:http').IncomingMessage} req */
+const ipOf = req => req.socket.remoteAddress || '?';
+/** @param {import('node:http').IncomingMessage} req */
+function lockedOut(req) {
+  const f = wrong.get(ipOf(req));
+  return f && Date.now() - f.since < WINDOW && f.n >= MAX_WRONG ? Math.ceil((f.since + WINDOW - Date.now()) / 60e3) : 0;
+}
+/** @param {import('node:http').IncomingMessage} req */
+function noteFailure(req) {
+  const ip = ipOf(req),
+    now = Date.now();
+  const f = wrong.get(ip);
+  wrong.set(ip, f && now - f.since < WINDOW ? { n: f.n + 1, since: f.since } : { n: 1, since: now });
+  if (wrong.size > 1000) for (const [k, v] of wrong) if (now - v.since > WINDOW) wrong.delete(k);
+  rejected.count++;
+  rejected.lastAt = now;
+}
+
+// POST /api/hub/in/<type>[/<instance>]. No session and no Origin check: the apps calling it
+// are servers, and the token is what lets them in.
+/** @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res @param {URL} url */
+async function ingest(req, res, url) {
+  const cfg = config.load();
+  if (!enabled(cfg)) return send(res, 404, { error: 'Not found' });
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return send(res, 405, { error: 'Use POST' });
+  }
+  const [type, instance = type, ...rest] = url.pathname.slice('/api/hub/in/'.length).split('/');
+  if (!type || rest.length) return send(res, 404, { error: 'Not found' });
+  const wait = lockedOut(req);
+  if (wait) return send(res, 429, { error: `Too many wrong tokens. Try again in ${wait} minutes.` });
+  const source = sources.verify(sources.list(cfg), type, instance, sources.tokenFrom(req.headers, url.searchParams));
+  if (!source) {
+    noteFailure(req);
+    return send(res, 401, { error: 'Unknown source or wrong token' });
+  }
+  // Sonarr's payload for a season pack lists every episode; 512 KB is far more than any sends.
+  const body = await readJson(req, 512 * 1024);
+  const opts = { library: source.library };
+  const parsed =
+    source.type === 'sonarr' || source.type === 'radarr'
+      ? parsers.arr(body, source.type, opts)
+      : source.type === 'seerr'
+        ? parsers.seerr(body)
+        : parsers.generic(body);
+  // The raw payload goes with the first event only; the rest came from the same body.
+  const events = parsed.map((p, i) =>
+    finish({ source: source.type, sourceInstance: source.instance, raw: i === 0 ? body : null }, p),
+  );
+  for (const e of events) store.add(e);
+  store.sawSource(source.id, events[0]?.type || 'hub.unhandled');
+  return send(res, 200, { ok: true, events: events.length });
+}
+
+// After each background poll: what notify.js noticed, and titles newly Leaving Soon in Media Review.
+/** @param {import('../types').Config} cfg @param {import('../notify').Detected[]} noticed @param {import('../types').Polled[]} services */
+function recordPolled(cfg, noticed, services) {
+  if (!enabled(cfg)) return;
+  // A broken hub.db (a full disk) must never stop notifications or the daily digest after it.
+  try {
+    for (const e of [...noticed.map(fromPolled), ...fromMediaReview(services)]) store.add(e);
+  } catch (e) {
+    console.error(`Notification Hub: couldn't record events: ${e.message}`);
+  }
+}
+
+let prunedAt = 0;
+// Hourly from the background monitor: drop old raw payloads and events.
+/** @param {import('../types').Config} cfg */
+function maintain(cfg) {
+  if (!enabled(cfg) || Date.now() - prunedAt < 3600e3) return;
+  prunedAt = Date.now();
+  try {
+    store.prune();
+  } catch (e) {
+    console.error(`Notification Hub: couldn't clean up hub.db: ${e.message}`);
+  }
+}
+
+// Settings: the switch, the sources with when each was last heard from, and rejected requests.
+/** @param {import('../types').Config} cfg */
+function settingsOf(cfg) {
+  const stats = enabled(cfg) || sources.list(cfg).length ? store.sourceStats() : {};
+  return {
+    enabled: enabled(cfg),
+    types: sources.TYPES,
+    sources: sources.list(cfg).map(s => ({ ...sources.publicSource(s), ...(stats[s.id] || { received: 0 }) })),
+    rejected: { ...rejected },
+  };
+}
+
+module.exports = { ingest, recordPolled, maintain, settingsOf, enabled, activity: store.recent };

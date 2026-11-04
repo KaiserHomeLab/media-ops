@@ -22,6 +22,7 @@ const DEFAULTS = {
   autoFix: null, // fix stuck downloads automatically, see lib/autofix.js
   appearance: null, // theme, accent, title, logo, see lib/appearance.js
   metrics: null, // Prometheus /metrics: { enabled, token }, see lib/metrics.js
+  hub: null, // Notification Hub: { enabled, sources }, see lib/hub/
   dismissed: { before: {}, items: [] }, // errors feed: what's been dismissed (see lib/events.js)
 };
 

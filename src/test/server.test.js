@@ -405,7 +405,7 @@ test('metrics: 404 until turned on; then only with the token, even with the dash
 });
 
 test('notification hub: webhooks 404 until it is on; then only with the source token, with no Origin and even with the dashboard locked', async () => {
-  const radarr = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'hub', 'radarr-download.json'), 'utf8'));
+  const radarr = require('./fixtures/hub/radarr-download.json');
   /** @param {string} p @param {Record<string, string>} [headers] */
   const hook = (p, headers = {}) =>
     fetch(base + p, {

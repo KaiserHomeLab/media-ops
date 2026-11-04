@@ -61,6 +61,13 @@ there as soon as I can.
   and that address waits out the window, apart from the Settings login lockout. Payloads are kept
   in `/config/hub.db` (permissions `0600`); the raw payload, which can name a requester, is
   deleted after 7 days and events after 90. Raw payloads are never sent to the browser.
+- **Set it up for me** (Notification Hub → Connect apps) is the one time the hub changes another
+  app: only when you press it, it uses that app's saved API key (sent only to the app's own saved
+  address, as always) to add or update a "Media Ops" webhook, after the app's own test message
+  succeeds. The request must carry the source's token just shown to you, checked against its
+  stored hash, and the address must be a bare `http(s)://host:port`, so it can only ever point an
+  app at that source. Seerr's single webhook is never replaced without confirmation. Detecting a
+  shared Docker network reads the container list Media Ops already uses; nothing is changed.
 - Newsletter unsubscribe links (`/hub/unsubscribe`) are signed per digest and address with an
   HMAC key that's made on the server, kept in `config.json` and never sent to a browser, so a
   link can't be changed to unsubscribe someone else. Opening a link only asks; the address is

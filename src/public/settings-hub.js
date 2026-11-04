@@ -179,28 +179,179 @@ function renderSources() {
     : '';
 }
 
-// The address with its token, once.
+// Which saved apps (Settings → Apps) a source can be set up in.
+/** @type {Record<string, string[]>} */
+const SETUP_KINDS = { sonarr: ['sonarr'], radarr: ['radarr'], seerr: ['seerr', 'overseerr', 'jellyseerr'] };
+
+// Connecting an app, right after its address (with the token, shown only now) was made: how the
+// app reaches Media Ops (a question with the likely answer picked), then "Set it up for me" (when
+// the app is under Apps) or the address to copy, with numbered steps.
 /** @param {{ source: HubSettings['sources'][number], token: string }} made */
 function showToken({ source, token }) {
-  const type = hubState?.types.find(t => t.type === source.type);
-  const url = `${location.origin}${source.path}`;
+  if (!hubState) return;
+  const type = hubState.types.find(t => t.type === source.type);
+  const label = type?.label || source.type;
+  const apps = S.services.filter(s => (SETUP_KINDS[source.type] || []).includes(s.kind));
+  // The app this source is probably for: same name or instance, else the first of its kind.
+  const guess =
+    apps.find(a => a.name.toLowerCase() === source.name.toLowerCase()) ||
+    apps.find(a => a.name.toLowerCase().replace(/\s+/g, '-') === source.instance) ||
+    apps[0] ||
+    null;
+  const here = location.origin;
+  const local = /^(localhost|127\.|\[::1\])/.test(location.hostname);
   openModal(
     `Connect ${source.name}`,
-    `<div class="form grid-form">
-      <ol class="hint wide hub-howto">
-        <li>Copy this address <b>now</b>: it contains a password and isn't shown again.</li>
-        <li>${esc(type?.how || 'Paste it into the app.')}</li>
-        <li>Use the app's <b>Test</b> button, then check <b>Activity</b> (step 4) here.</li>
-      </ol>
-      ${copyRow('Address for the app (paste this)', `${url}?token=${token}`)}
-      <details class="more wide"><summary>The app is in Docker, or wants the password separately?</summary>
-        <p class="hint">From another container on the same Docker network, Media Ops is usually <code>http://media-ops:8484</code> rather than this page's address: change the start of the address to match. Apps that can send a header can use the address without <code>?token=…</code> plus the token as an <code>X-Hub-Token</code> header, or as the password of Basic auth.</p>
-        ${copyRow('Address without the password', url)}
-        ${copyRow('Password (token)', token)}
-      </details>
-      <div class="actions wide"><span class="spacer"></span><button class="btn primary" type="button" data-close>Done</button></div>
+    `<div class="form" id="hub-connect" data-source="${esc(source.id)}">
+      <p class="hint hub-once"><b>Keep this window open until you're done:</b> the address below contains a password that's only shown now. (Lost it? “New address” makes another.)</p>
+      ${
+        apps.length > 1
+          ? `<label class="field"><span>Which ${esc(label)}?</span><select name="app">${apps
+              .map(
+                a =>
+                  `<option value="${esc(a.id)}" ${a.id === guess?.id ? 'selected' : ''}>${esc(a.name)} (${esc(a.url)})</option>`,
+              )
+              .join('')}</select></label>`
+          : ''
+      }
+      <fieldset class="field hub-reach"><legend>How does ${esc(apps.length === 1 ? apps[0].name : label)} reach Media Ops?</legend>
+        <label class="hub-reach-opt"><input type="radio" name="reach" value="docker">
+          <span><span class="hub-reach-title"><b>On the same Docker network</b> <em class="hub-reco" data-reco="docker" hidden>recommended</em></span>
+          <small>When ${esc(label)} and Media Ops both run in Docker and share a network (for example, the same docker-compose file, or one Unraid custom network). Apps there find each other by container name.</small>
+          <code data-base="docker"></code><small data-self-note hidden>That's Media Ops' port inside its container: use it even if you mapped a different one outside. Named the container something other than media-ops? Use “Something else”.</small></span></label>
+        <label class="hub-reach-opt"><input type="radio" name="reach" value="host" checked>
+          <span><span class="hub-reach-title"><b>Through this computer's address</b> <em class="hub-reco" data-reco="host" hidden>recommended</em></span>
+          <small>When ${esc(label)} runs on another computer, or isn't in Docker.${local ? " You opened this page as localhost, which only works on this computer: type the server's network address under “Something else” instead." : ''}</small>
+          <code data-base="host">${esc(here)}</code></span></label>
+        <label class="hub-reach-opt"><input type="radio" name="reach" value="custom">
+          <span><b>Something else</b>
+          <small>Any address ${esc(label)} can open Media Ops at, like http://192.168.1.10:8484 or http://mediaops:8484.</small>
+          <input name="custom" type="url" placeholder="http://192.168.1.10:8484" spellcheck="false"></span></label>
+      </fieldset>
+      <p class="hint hub-detect" id="hub-detect" hidden></p>
+
+      ${
+        apps.length
+          ? `<div class="hub-setup"><button class="btn primary" type="button" id="hub-setup-btn">Set it up in ${esc(guess?.name || label)} for me</button>
+              <small>Adds a “Media Ops” webhook in ${esc(guess?.name || label)} with the right events, using the API key saved under Apps, then sends a test message (you'll see it in step 4).</small>
+              <div class="test-result" id="hub-setup-result" hidden></div></div>
+             <details class="more"><summary>Or add it in ${esc(label)} yourself</summary><div class="form" id="hub-manual"></div></details>`
+          : `<p class="hint">Add ${esc(label)} under <b>Apps</b> (top of this page) and Media Ops can set this up for you. Or add it yourself:</p><div class="form" id="hub-manual"></div>`
+      }
+      <div class="actions"><span class="spacer"></span><button class="btn" type="button" data-close>Done</button></div>
     </div>`,
   );
+  const box = $('hub-connect');
+  const appSel = /** @type {HTMLSelectElement | null} */ (box.querySelector('select[name=app]'));
+  const customIn = /** @type {HTMLInputElement} */ (box.querySelector('input[name=custom]'));
+  /** @type {Record<string, string>} */
+  const bases = { host: here, docker: 'http://media-ops:8484' };
+  const chosen = () =>
+    /** @type {HTMLInputElement | null} */ (box.querySelector('input[name=reach]:checked'))?.value || 'host';
+  const base = () => (chosen() === 'custom' ? customIn.value.trim().replace(/\/+$/, '') : bases[chosen()]);
+  const appNow = () => apps.find(a => a.id === (appSel?.value || guess?.id)) || null;
+  // The address to copy and the numbered steps follow the choice above.
+  const renderManual = () => {
+    const url = `${base() || 'http://…'}${source.path}`;
+    $('hub-manual').innerHTML = `
+      ${copyRow(`Address for ${label}`, `${url}?token=${token}`)}
+      <ol class="hint hub-howto">${String(type?.how || '')
+        .split('\n')
+        .map(l => `<li>${esc(l)}</li>`)
+        .join('')}</ol>
+      <details class="more"><summary>The app wants the password separately?</summary>
+        <p class="hint">Use the address without <code>?token=…</code> and send the password as an <code>X-Hub-Token</code> header, or as the password of Basic auth.</p>
+        ${copyRow('Address without the password', url)}
+        ${copyRow('Password (token)', token)}
+      </details>`;
+  };
+  // Ask the server what it can tell: the app's saved address, and Docker's networks.
+  const detect = async () => {
+    /** @type {any} */
+    let r = null;
+    try {
+      r = await api(`/hub/reach/${encodeURIComponent(appNow()?.id || 'none')}`);
+    } catch {
+      /* keep the plain choices */
+    }
+    if (r) bases.docker = r.dockerBase;
+    /** @type {HTMLElement} */ (box.querySelector('[data-base=docker]')).textContent = bases.docker;
+    /** @type {HTMLElement} */ (box.querySelector('[data-self-note]')).hidden = false;
+    const pick = r?.recommend || 'host';
+    for (const el of /** @type {NodeListOf<HTMLElement>} */ (box.querySelectorAll('[data-reco]')))
+      el.hidden = el.dataset.reco !== pick;
+    // The likely answer, unless the person already chose one while this was being worked out.
+    if (!box.dataset.picked)
+      /** @type {HTMLInputElement} */ (box.querySelector(`input[name=reach][value=${pick}]`)).checked = true;
+    const msg = $('hub-detect');
+    msg.hidden = !(r?.warning || r?.note);
+    msg.className = `hint hub-detect${r?.warning ? ' warn' : ' ok'}`;
+    msg.textContent = r?.warning ? `⚠ ${r.warning}` : r?.note ? `✓ ${r.note}` : '';
+    const btn = $('hub-setup-btn');
+    if (btn) btn.textContent = `Set it up in ${appNow()?.name || label} for me`;
+    renderManual();
+  };
+  box.addEventListener('change', e => {
+    if (e.target === appSel) return detect();
+    if (/** @type {HTMLInputElement} */ (e.target).name === 'reach') box.dataset.picked = '1';
+    renderManual();
+  });
+  customIn.addEventListener('input', () => {
+    /** @type {HTMLInputElement} */ (box.querySelector('input[name=reach][value=custom]')).checked = true;
+    box.dataset.picked = '1';
+    renderManual();
+  });
+  $('hub-setup-btn')?.addEventListener('click', async e => {
+    const btn = /** @type {HTMLButtonElement} */ (e.currentTarget);
+    const out = $('hub-setup-result');
+    const app = appNow();
+    if (!app) return;
+    if (!/^https?:\/\/[^\s/?#@]+$/i.test(base())) {
+      out.hidden = false;
+      out.className = 'test-result bad';
+      out.textContent = 'Type the address first, like http://192.168.1.10:8484 (no path).';
+      return;
+    }
+    /** @param {boolean} replace */
+    const send = async replace => {
+      const r = await fetch(`/api/settings/hub/sources/${encodeURIComponent(source.id)}/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceId: app.id, base: base(), token, replace }),
+      });
+      return { status: r.status, data: await r.json().catch(() => ({})) };
+    };
+    btn.disabled = true;
+    out.hidden = false;
+    out.className = 'test-result';
+    out.textContent = `Setting it up in ${app.name}…`;
+    try {
+      let r = await send(false);
+      if (r.status === 409 && r.data.needsConfirm) {
+        // Seerr has one webhook: only take it over when told to.
+        if (
+          !confirm(
+            `${app.name}'s webhook already sends to ${r.data.current}. Seerr has only one webhook: replace it with Media Ops?`,
+          )
+        ) {
+          out.textContent = 'Left as it was. You can still add the address yourself below.';
+          btn.disabled = false;
+          return;
+        }
+        r = await send(true);
+      }
+      if (r.status !== 200) throw new Error(r.data.error || `HTTP ${r.status}`);
+      out.className = 'test-result ok';
+      out.textContent = `✓ Done: ${app.name} now tells Media Ops as things happen${r.data.updated ? ' (its existing Media Ops webhook was updated)' : ''}. It sent a test message: step 4 (Activity) shows it.`;
+      btn.textContent = 'Set up again';
+    } catch (err) {
+      out.className = 'test-result bad';
+      out.textContent = `✕ ${err.message}${chosen() === 'docker' ? ' Try “Through this computer’s address” instead.' : ''}`;
+    }
+    btn.disabled = false;
+  });
+  renderManual();
+  detect();
 }
 
 $('hub-add-source').addEventListener('click', () => {

@@ -757,6 +757,51 @@ test('forgot password: asking again shows the same code (nobody can void yours),
   void cookie;
 });
 
+test('connect an app: how it reaches Media Ops, and "Set it up for me" only with this source\'s own token and a bare address', async t => {
+  /** @type {any[]} */
+  const saved = [];
+  const radarr = await fakeServer({
+    'GET /api/v3/notification': [],
+    'POST /api/v3/notification/test': { status: 200, body: '' },
+    'POST /api/v3/notification': (/** @type {any} */ req, /** @type {any} */ url, /** @type {string} */ body) => {
+      saved.push(JSON.parse(body));
+      return { id: 1 };
+    },
+  });
+  t.after(() => radarr.close());
+  const svc = await (
+    await json('POST', '/api/settings/services', { kind: 'radarr', name: 'Radarr', url: radarr.url, apiKey: 'rk' })
+  ).json();
+  await json('PUT', '/api/settings/hub', { enabled: true });
+  const made = await (
+    await json('POST', '/api/settings/hub/sources', { type: 'radarr', instance: 'radarr-connect' })
+  ).json();
+
+  const reach = await (await fetch(`${base}/api/settings/hub/reach/${svc.id}`)).json();
+  assert.equal(reach.app.name, 'Radarr');
+  assert.equal(reach.recommend, 'host', 'saved at an IP address: not a Docker name');
+  assert.match(reach.dockerBase, new RegExp(`:${PORT}$`), 'the port Media Ops listens on inside its container');
+
+  const setupPath = `/api/settings/hub/sources/${made.source.id}/setup`;
+  let r = await json('POST', setupPath, { serviceId: svc.id, base: 'http://media-ops:8484', token: 'mohub_wrong' });
+  assert.match((await r.json()).error, /expired/, 'only with the token just shown');
+  r = await json('POST', setupPath, { serviceId: svc.id, base: 'http://evil.example/path', token: made.token });
+  assert.match((await r.json()).error, /no path/);
+  r = await json('POST', setupPath, { serviceId: 'nope', base: 'http://media-ops:8484', token: made.token });
+  assert.equal(r.status, 400);
+  assert.equal(saved.length, 0);
+
+  r = await json('POST', setupPath, { serviceId: svc.id, base: 'http://media-ops:8484/', token: made.token });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, app: 'Radarr', updated: false });
+  const url = saved[0].fields.find((/** @type {any} */ f) => f.name === 'url').value;
+  assert.equal(url, `http://media-ops:8484/api/hub/in/radarr/radarr-connect?token=${made.token}`);
+
+  await json('DELETE', `/api/settings/hub/sources/${made.source.id}`);
+  await json('DELETE', `/api/settings/services/${svc.id}`);
+  await json('PUT', '/api/settings/hub', { enabled: false });
+});
+
 // Last: it locks this test client's address out of logging in.
 test('password guessing: locked out after 10 wrong tries', async () => {
   let r = await json('PUT', '/api/settings/password', { next: 'guess-me-not-1' });

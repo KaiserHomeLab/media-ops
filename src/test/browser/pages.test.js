@@ -187,8 +187,28 @@ test('settings: Notification Hub in steps: connect an app (address once), send n
   await page.click('#hub-add-source');
   await page.selectOption('#hub-source-form [name=type]', 'radarr');
   await page.click('#hub-source-form button[type=submit]');
-  await page.waitForSelector("#modal >> text=isn't shown again");
-  assert.match(await page.inputValue('#modal input >> nth=0'), /\/api\/hub\/in\/radarr\/radarr\?token=mohub_/);
+  await page.waitForSelector('#hub-connect');
+  // No Radarr under Apps: no "Set it up for me", so the address and steps are shown right away.
+  assert.equal(await page.$('#hub-setup-btn'), null);
+  const address = () => page.inputValue('#hub-manual input >> nth=0');
+  assert.match(
+    await address(),
+    /^http:\/\/127\.0\.0\.1:\d+\/api\/hub\/in\/radarr\/radarr\?token=mohub_/,
+    "this computer's address by default",
+  );
+  await page.check('#hub-connect input[name=reach][value=docker]');
+  assert.match(
+    await address(),
+    /^http:\/\/media-ops:\d+\/api\/hub\/in\/radarr\/radarr\?token=mohub_/,
+    'the Docker network address',
+  );
+  await page.fill('#hub-connect input[name=custom]', 'http://192.168.1.10:8484');
+  assert.match(
+    await address(),
+    /^http:\/\/192\.168\.1\.10:8484\/api\/hub\/in\/radarr\/radarr\?token=/,
+    'typing picks "Something else"',
+  );
+  assert.match((await page.textContent('#hub-manual ol')) || '', /Settings → Connect/, 'numbered steps for Radarr');
   await page.click('#modal [data-close]');
   assert.doesNotMatch((await page.textContent('#hub-sources')) || '', /mohub_/, 'the address is not shown again');
 

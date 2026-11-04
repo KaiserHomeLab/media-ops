@@ -134,7 +134,10 @@ where, and when. Turning it on changes nothing by itself: every alert keeps goin
 Then four steps:
 
 1. **Connect apps**: let Sonarr, Radarr and Seerr tell Media Ops as things happen (new movies
-   and episodes, requests). Each gets an address to paste into the app.
+   and episodes, requests). Say how the app reaches Media Ops (the same Docker network, like
+   `http://media-ops:8484`, or this computer's address); Media Ops suggests the right one and can
+   **set it up in the app for you** with the API key you already saved, or give you the address
+   and steps to add it yourself.
 2. **Where things go**: every kind of notification in plain words ("New movies and episodes",
    "An app goes down", "A request is ready to watch"), each sent **right away** to the Discord
    channels or phone you pick, put **in a summary**, or **not at all**. Add as many Discord

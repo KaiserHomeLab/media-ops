@@ -486,16 +486,19 @@ function inQuietHours(q, now = new Date()) {
   return from <= to ? t >= from && t < to : t >= from || t < to;
 }
 
-// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules. Returns everything
-// noticed this round, before quiet hours, for the Notification Hub's Activity (lib/hub).
-/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {Detected[]} [extra] @returns {Promise<Detected[]>} */
-async function handle(raw, events, disks, cfg, extra = []) {
+// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules. `hub`: the
+// Notification Hub (lib/hub), when it's on. If it takes this round's findings, it decides what
+// goes where and nothing is sent from here; if it can't (hub.db broken), sending carries on as
+// it always has, so an alert is never lost. Returns everything noticed this round.
+/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {Detected[]} [extra] @param {(found: Detected[]) => boolean} [hub] @returns {Promise<Detected[]>} */
+async function handle(raw, events, disks, cfg, extra = [], hub) {
   let found = [...detect(raw, events, disks, cfg), ...extra];
   if (!state.seeded) {
     state.seeded = true;
     return [];
   } // first poll only learns what's already there
   const noticed = found;
+  if (hub?.(found)) return noticed;
 
   // Quiet hours: hold alerts (optionally still sending app-down), then send what was held as
   // one "while you were asleep" message when they end. "Started watching" isn't worth holding.
@@ -581,5 +584,22 @@ async function test(target) {
 
 /** @param {string} id */
 const lastResult = id => state.lastResult.get(id) || null;
+// What Settings shows under a destination: the last send, from here or from the hub.
+/** @param {string} id @param {boolean} ok @param {string} [error] */
+const remember = (id, ok, error) =>
+  state.lastResult.set(id, ok ? { at: Date.now(), ok } : { at: Date.now(), ok, error });
 
-module.exports = { TYPES, EVENTS, publicTarget, mergeTarget, handle, test, lastResult, sendDigest, inQuietHours };
+module.exports = {
+  TYPES,
+  EVENTS,
+  eventsOf,
+  publicTarget,
+  mergeTarget,
+  handle,
+  send,
+  test,
+  lastResult,
+  remember,
+  sendDigest,
+  inQuietHours,
+};

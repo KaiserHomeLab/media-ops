@@ -57,7 +57,13 @@ export interface Config {
   /** Prometheus /metrics (lib/metrics.js); the token is a secret, only shown when created. */
   metrics?: { enabled: boolean; token: string | null } | null;
   /** Notification Hub (lib/hub): webhook sources with hashed tokens; null/absent = off. */
-  hub?: { enabled: boolean; sources: import('./hub/sources').Source[] } | null;
+  hub?: {
+    enabled: boolean;
+    sources: import('./hub/sources').Source[];
+    rules?: import('./hub/rules').Rule[];
+    /** The same event again within this many minutes is suppressed (default 10). */
+    flapMinutes?: number;
+  } | null;
   /** Settings → Appearance (lib/appearance.js); the logo is base64 so backups carry it. */
   appearance?: {
     theme: string;

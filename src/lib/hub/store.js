@@ -39,6 +39,20 @@ const MIGRATIONS = [
      last_type TEXT,
      received INTEGER NOT NULL DEFAULT 0
    );`,
+  // Rules: where a "now" event goes, when it went, and each send attempt.
+  `ALTER TABLE hub_events ADD COLUMN destinations TEXT;
+   ALTER TABLE hub_events ADD COLUMN sent_at INTEGER;
+   CREATE INDEX hub_events_status ON hub_events (status, received_at);
+   CREATE TABLE hub_deliveries (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     event_id TEXT,
+     digest_run_id TEXT,
+     destination TEXT NOT NULL,
+     ok INTEGER NOT NULL,
+     error TEXT,
+     sent_at INTEGER NOT NULL
+   );
+   CREATE INDEX hub_deliveries_event ON hub_deliveries (event_id);`,
 ];
 
 const FILE = () => process.env.HUB_DB || path.join(path.dirname(config.FILE), 'hub.db');
@@ -69,13 +83,19 @@ function open() {
   return db;
 }
 
-/** @param {import('./normalize').HubEvent} e @param {{ rule?: string | null, action?: string, digestId?: string | null, status?: string }} [outcome] */
+/**
+ * What a rule decided for an event. Statuses: pending (to send at the next tick), held (quiet
+ * hours), sent, failed, suppressed (the same thing sent moments ago), queued (for a digest),
+ * dropped, unrouted (a "now" rule with no destinations).
+ * @typedef {{ rule?: string | null, action?: string, digestId?: string | null, status?: string, destinations?: string[] }} Outcome
+ */
+/** @param {import('./normalize').HubEvent} e @param {Outcome} [outcome] */
 function add(e, outcome = {}) {
   open()
     .prepare(
       `INSERT INTO hub_events (id, received_at, source, source_instance, type, severity, summary, dedupe_key,
-         is_upgrade, media_json, raw_json, rule_name, action, digest_id, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         is_upgrade, media_json, raw_json, rule_name, action, digest_id, status, destinations)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       e.id,
@@ -93,7 +113,74 @@ function add(e, outcome = {}) {
       outcome.action ?? 'logged',
       outcome.digestId ?? null,
       outcome.status ?? 'logged',
+      outcome.destinations ? JSON.stringify(outcome.destinations) : null,
     );
+}
+
+// Sent (or about to be) within the last `ms`: the same thing again is suppressed, not re-sent.
+/** @param {string} dedupeKey @param {string} type @param {number} ms */
+function recentlySent(dedupeKey, type, ms) {
+  return !!open()
+    .prepare(
+      `SELECT 1 FROM hub_events WHERE dedupe_key = ? AND type = ? AND received_at >= ?
+         AND status IN ('pending', 'held', 'sent') LIMIT 1`,
+    )
+    .get(dedupeKey, type, Date.now() - ms);
+}
+
+// "Now" events waiting to go out (and those held for quiet hours), oldest first.
+/** @param {string[]} statuses */
+function waiting(statuses) {
+  const rows = /** @type {any[]} */ (
+    open()
+      .prepare(
+        `SELECT id, type, severity, summary, destinations, status FROM hub_events
+         WHERE status IN (${statuses.map(() => '?').join(', ')}) ORDER BY received_at, rowid LIMIT 500`,
+      )
+      .all(...statuses)
+  );
+  return rows.map(r => ({
+    id: String(r.id),
+    type: String(r.type),
+    severity: /** @type {import('./normalize').Severity} */ (r.severity),
+    summary: String(r.summary),
+    destinations: /** @type {string[]} */ (r.destinations ? JSON.parse(r.destinations) : []),
+    status: String(r.status),
+  }));
+}
+
+/** @param {string[]} ids @param {string} status */
+function mark(ids, status) {
+  const stmt = open().prepare(`UPDATE hub_events SET status = ?, sent_at = ? WHERE id = ?`);
+  const at = status === 'sent' ? Date.now() : null;
+  for (const id of ids) stmt.run(status, at, id);
+}
+
+/** @param {{ eventIds?: string[], digestRunId?: string, destination: string, ok: boolean, error?: string | null }} d */
+function delivered({ eventIds = [], digestRunId, destination, ok, error }) {
+  const stmt = open().prepare(
+    'INSERT INTO hub_deliveries (event_id, digest_run_id, destination, ok, error, sent_at) VALUES (?, ?, ?, ?, ?, ?)',
+  );
+  const at = Date.now();
+  for (const id of eventIds.length ? eventIds : [null])
+    stmt.run(id, digestRunId ?? null, destination, ok ? 1 : 0, error ? String(error).slice(0, 500) : null, at);
+}
+/** @param {string[]} eventIds */
+function deliveriesOf(eventIds) {
+  if (!eventIds.length) return {};
+  const rows = /** @type {any[]} */ (
+    open()
+      .prepare(
+        `SELECT event_id, destination, ok, error, sent_at FROM hub_deliveries
+         WHERE event_id IN (${eventIds.map(() => '?').join(', ')}) ORDER BY id`,
+      )
+      .all(...eventIds)
+  );
+  /** @type {Record<string, { destination: string, ok: boolean, error: string | null, at: number }[]>} */
+  const out = {};
+  for (const r of rows)
+    (out[r.event_id] ||= []).push({ destination: r.destination, ok: !!r.ok, error: r.error, at: r.sent_at });
+  return out;
 }
 
 /** @param {string} sourceId @param {string} type */
@@ -126,11 +213,12 @@ function recent(limit = 200) {
     open()
       .prepare(
         `SELECT id, received_at, source, source_instance, type, severity, summary, dedupe_key, is_upgrade,
-           media_json, rule_name, action, digest_id, status
+           media_json, rule_name, action, digest_id, status, destinations, sent_at
          FROM hub_events ORDER BY received_at DESC, rowid DESC LIMIT ?`,
       )
       .all(Math.min(1000, Math.max(1, limit)))
   );
+  const sends = deliveriesOf(rows.map(r => r.id));
   return rows.map(r => ({
     id: r.id,
     receivedAt: r.received_at,
@@ -146,6 +234,9 @@ function recent(limit = 200) {
     action: r.action,
     digestId: r.digest_id,
     status: r.status,
+    destinations: r.destinations ? JSON.parse(r.destinations) : [],
+    sentAt: r.sent_at,
+    deliveries: sends[r.id] || [],
   }));
 }
 
@@ -157,6 +248,7 @@ function prune(now = Date.now()) {
     now - RAW_DAYS * DAY,
   );
   d.prepare('DELETE FROM hub_events WHERE received_at < ?').run(now - EVENT_DAYS * DAY);
+  d.prepare('DELETE FROM hub_deliveries WHERE sent_at < ?').run(now - EVENT_DAYS * DAY);
 }
 
 function close() {
@@ -164,4 +256,19 @@ function close() {
   db = null;
 }
 
-module.exports = { FILE, add, sawSource, sourceStats, forgetSource, recent, prune, close, RAW_DAYS, EVENT_DAYS };
+module.exports = {
+  FILE,
+  add,
+  recentlySent,
+  waiting,
+  mark,
+  delivered,
+  sawSource,
+  sourceStats,
+  forgetSource,
+  recent,
+  prune,
+  close,
+  RAW_DAYS,
+  EVENT_DAYS,
+};

@@ -426,7 +426,12 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   assert.ok(!fs.readFileSync(path.join(dir, 'config.json'), 'utf8').includes(token), 'only a hash is saved');
   assert.equal((await hook(source.path, { 'X-Hub-Token': token })).status, 404, 'still off');
 
-  await json('PUT', '/api/settings/hub', { enabled: true });
+  const on = await (await json('PUT', '/api/settings/hub', { enabled: true })).json();
+  assert.ok(
+    on.rules.some((/** @type {any} */ x) => x.id === 'today-down'),
+    'starts from today’s choices',
+  );
+  assert.equal(on.rules.at(-1).id, 'everything-else');
   assert.equal((await hook(source.path)).status, 401);
   assert.equal((await hook(source.path, { 'X-Hub-Token': 'mohub_wrong' })).status, 401);
   assert.equal((await hook('/api/hub/in/sonarr/radarr', { 'X-Hub-Token': token })).status, 401, 'token is per source');
@@ -444,11 +449,30 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   await json('PUT', '/api/settings/security', { dashboardAuth: true }, { Cookie: cookie });
   assert.equal((await hook(`${source.path}?token=${token}`)).status, 200, 'not behind the dashboard login');
   assert.equal((await fetch(`${base}/api/settings/hub/activity`)).status, 401, 'Activity needs the login');
-  const { events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json();
+  let { events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json();
   assert.equal(events.length, 2);
   assert.equal(events[0].type, 'media.added');
   assert.equal(events[0].media.title, 'M*A*S*H');
+  assert.deepEqual([events[0].rule, events[0].status], ['Everything else', 'dropped']);
   assert.ok(!('raw' in events[0]), 'raw payloads stay on the server');
+
+  r = await json('PUT', '/api/settings/hub/rules', { rules: [{ name: 'x', action: 'shout' }] }, { Cookie: cookie });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /action must be/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub/rules',
+    { rules: [{ name: 'New movies', match: { type: 'media.added' }, action: 'digest', digest: 'added_daily' }] },
+    { Cookie: cookie },
+  );
+  assert.equal(r.status, 200);
+  assert.deepEqual(
+    (await r.json()).rules.map((/** @type {any} */ x) => x.name),
+    ['New movies', 'Everything else'],
+  );
+  assert.equal((await hook(source.path, { 'X-Hub-Token': token })).status, 200);
+  ({ events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json());
+  assert.deepEqual([events[0].rule, events[0].status, events[0].digestId], ['New movies', 'queued', 'added_daily']);
 
   const fresh = await (
     await json('POST', `/api/settings/hub/sources/${source.id}/token`, {}, { Cookie: cookie })

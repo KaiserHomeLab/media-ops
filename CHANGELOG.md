@@ -34,6 +34,12 @@ To stay on one version instead of `latest`, use a version tag such as
   is kept for 90 days in `hub.db` next to `config.json`. An upgrade is told apart from a new
   title by the *arr's own flag, not by Plex. Rules, digests and the Settings pages come next;
   the design is in `docs/notification-hub.md`.
+- Notification Hub rules: with the hub on, every event goes through an ordered list of rules
+  (first match wins): send it now to the destinations you pick, hold it for a digest, or drop
+  it. Turning the hub on starts the rules from each destination's current event checkboxes, so
+  alerts keep going exactly where they went. The same alert again within 10 minutes is
+  suppressed. Alerts held for quiet hours are kept on disk, so a restart no longer loses them.
+  If the hub's database can't be written, alerts are sent the usual way.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

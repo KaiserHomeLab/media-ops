@@ -149,9 +149,8 @@ async function monitorTick() {
     const { events } = feed.apply(eventsOf(raw), raw.services, cfg.dismissed);
     history.record(raw);
     const fixes = DEMO ? [] : await autofix.tick(raw, cfg);
-    const noticed = await notify.handle(raw, events, history.diskList(raw), cfg, fixes);
-    hub.recordPolled(cfg, noticed, raw.services);
-    hub.maintain(cfg);
+    await notify.handle(raw, events, history.diskList(raw), cfg, fixes, found => hub.take(cfg, found, raw.services));
+    await hub.tick(cfg);
     await digest.maybeSend(
       cfg,
       { ...raw, latestVersion: DEMO ? null : selfupdate.latest(cfg) },

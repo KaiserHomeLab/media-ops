@@ -15,6 +15,7 @@ const geo = require('./geo');
 const notify = require('./notify');
 const hub = require('./hub');
 const hubSources = require('./hub/sources');
+const hubRules = require('./hub/rules');
 const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
@@ -406,7 +407,38 @@ const hubSettings = (req, res) => send(res, 200, hub.settingsOf(config.load()));
 /** @param {Req} req @param {Res} res */
 async function saveHub(req, res) {
   const enabled = !!(await readJson(req)).enabled;
-  config.update(c => ({ ...c, hub: { sources: hubSources.list(c), enabled } }));
+  // The first time it's turned on, the rules start as today's choices, so nothing goes anywhere new.
+  config.update(c => ({
+    ...c,
+    hub: {
+      ...(c.hub || {}),
+      sources: hubSources.list(c),
+      enabled,
+      rules: c.hub?.rules?.length
+        ? c.hub.rules
+        : hubRules.starting(c.notifications?.targets || [], notify.eventsOf, notify.EVENTS),
+    },
+  }));
+  return send(res, 200, hub.settingsOf(config.load()));
+}
+/** @param {Req} req @param {Res} res */
+async function saveHubRules(req, res) {
+  const input = await readJson(req, 256 * 1024);
+  const flap = Math.round(Number(input.flapMinutes ?? 10));
+  if (!Number.isFinite(flap) || flap < 0 || flap > 1440) return send(res, 400, { error: 'Repeats: 0 to 1440 minutes' });
+  let rules;
+  try {
+    rules = hubRules.clean(
+      input.rules,
+      (config.load().notifications?.targets || []).map(t => t.id),
+    );
+  } catch (e) {
+    return send(res, 400, { error: e.message });
+  }
+  config.update(c => ({
+    ...c,
+    hub: { ...(c.hub || { enabled: false }), sources: hubSources.list(c), rules, flapMinutes: flap },
+  }));
   return send(res, 200, hub.settingsOf(config.load()));
 }
 // A new source's token is in this reply and nowhere else: only its hash is kept.
@@ -553,6 +585,30 @@ function safeStatusPage(input, services) {
   }
 }
 
+// A backup's hub settings, through the same checks as the forms; a broken rule list is left out
+// (the hub then starts from today's choices again) rather than failing the whole restore.
+/** @param {any} h @param {import('./types').Target[]} restored */
+function restoredHub(h, restored) {
+  let rules;
+  try {
+    rules = Array.isArray(h.rules)
+      ? hubRules.clean(
+          h.rules,
+          restored.map(t => t.id),
+        )
+      : undefined;
+  } catch {
+    rules = undefined;
+  }
+  const flap = Math.round(Number(h.flapMinutes));
+  return {
+    enabled: !!h.enabled,
+    sources: hubSources.clean(h.sources),
+    ...(rules ? { rules } : {}),
+    ...(flap >= 0 && flap <= 1440 ? { flapMinutes: flap } : {}),
+  };
+}
+
 /** @param {Req} req @param {Res} res */
 async function restore(req, res) {
   const b = await readJson(req, 2 * 1024 * 1024);
@@ -606,7 +662,7 @@ async function restore(req, res) {
         ? { enabled: !!incoming.metrics.enabled, token: String(incoming.metrics.token) }
         : null,
     // Sources keep their token hashes, so the apps' webhooks keep working after a restore.
-    hub: incoming.hub ? { enabled: !!incoming.hub.enabled, sources: hubSources.clean(incoming.hub.sources) } : c.hub,
+    hub: incoming.hub ? restoredHub(incoming.hub, restoredTargets) : c.hub,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -665,6 +721,7 @@ const ROUTE_LIST = [
   ['POST', '/digest-test', sendTestDigest],
   ['GET', '/hub', hubSettings],
   ['PUT', '/hub', saveHub],
+  ['PUT', '/hub/rules', saveHubRules],
   ['GET', '/hub/activity', hubActivity],
   ['POST', '/hub/sources', addSource],
   ['PUT', '/hub/sources/:id', updateSource],

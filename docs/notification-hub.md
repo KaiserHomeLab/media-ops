@@ -332,6 +332,9 @@ What the code does that the sections above don't say:
 - Events also carry a one-line `summary` (`Added: Severance S02E01 "Hello, Ms. Cobel"`), for Activity and for "now" messages.
 - What the background poll already notices becomes hub events too: `app.down`, `app.up`, `app.error`, `app.warning`, `download.failed`, `system.disk`, `system.server` (array, pools, TrueNAS alerts, hot disks), `system.bandwidth`, `playback.started`, `media.problem_report`. Their dedupe key follows what they are about (an app, a disk), not the line.
 - `hub.test` (a source's test button) and `hub.unhandled` (an event the hub doesn't use yet, or an old file replaced by an upgrade) are recorded so Activity shows everything that arrived.
+- "Now" events wait in `hub.db` (status `pending`) until the next background tick, then go out as one message per destination, at most 10 lines, as Media Ops has always batched. Statuses in Activity: `pending`, `held` (quiet hours), `sent`, `failed`, `suppressed` (the same `dedupe_key` + `type` sent within `flapMinutes`, default 10; 0 turns it off), `queued` (for a digest), `dropped`, `unrouted` (no destination), `skipped` (someone started watching during quiet hours).
+- Rule matches can use `type` (a family with `.*`), `source`, `source_instance`, `severity`, `min_severity`, `is_upgrade`, `media.kind` and `media.library`, plus one level of `not`.
+- If `hub.db` can't be written, that round's alerts are sent the old way, so nothing is lost.
 - Seerr also sends `media.request.declined` and `media.issue.*`. *arr Manual Interaction Required is `download.stuck`.
 - Severities are `info`, `warning`, `error`, `critical`. Today's levels map onto them (`warn` is `warning`, `good` is `info`). Nothing is `critical` yet, so quiet hours keep today's "still wake me if an app goes down" option until rules can mark events critical.
 - The *arr webhooks don't name a Plex library. Movies go to Movies, Sonarr's anime series type to Anime, other shows to TV Shows, and a source can name its library outright (an anime Sonarr instance). Music (rule 5) needs a Lidarr source, which isn't in v1.
@@ -340,7 +343,7 @@ What the code does that the sections above don't say:
 
 Small pull requests, each usable on its own:
 
-1. Ingest, normalize and store: the endpoints, sources and tokens, `hub.db`, and polled events recorded. Nothing is sent differently.
+1. Ingest, normalize and store: the endpoints, sources and tokens, `hub.db`, and polled events recorded. Nothing is sent differently. (#59)
 2. Rules and "now" delivery, behind the hub switch; flap suppression; quiet hours in the hub.
 3. Activity page in Settings.
 4. Digests: schedules, windows, dedupe and TV grouping, Preview and Send now.

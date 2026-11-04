@@ -3673,12 +3673,32 @@ body.tv .rq-acts {
   padding: 6px 8px;
   max-width: 100%;
 }
-.hub-add-discord {
-  flex-basis: 100%;
+/* "Your channels": name, what it gets, Edit and Remove. */
+.hub-chan {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-  align-items: end;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.hub-chan.off {
+  opacity: 0.7;
+}
+.hub-chan-what {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hub-chan-what .muted,
+.hub-chan-what .app-err {
+  font-size: 12px;
+}
+.hub-chan-acts {
+  margin: 0 0 14px;
+  flex-wrap: wrap;
 }
 /* Connect an app: how it reaches Media Ops, as three roomy choices. */
 fieldset.hub-reach {
@@ -3789,8 +3809,11 @@ fieldset.hub-reach legend {
     grid-column: 1 / -1;
     grid-row: 2;
   }
-  .hub-add-discord {
-    grid-template-columns: minmax(0, 1fr);
+  .hub-chan {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .hub-chan-what {
+    grid-column: 1 / -1;
   }
 }
 .hub-list {

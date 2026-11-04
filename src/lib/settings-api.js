@@ -331,8 +331,25 @@ async function updateTarget(req, res, { id }) {
 }
 
 /** @param {Req} req @param {Res} res @param {{ id: string }} params */
+// Removing a destination also takes it out of the hub's rules and summaries, so nothing is left
+// pointing at it (a row it was the only channel for then says "no destination picked").
 function deleteTarget(req, res, { id }) {
-  saveTargets(list => list.filter(x => x.id !== id));
+  /** @param {{ destinations?: string[] }} x */
+  const without = x =>
+    Array.isArray(x.destinations) ? { ...x, destinations: x.destinations.filter(d => d !== id) } : x;
+  config.update(c => ({
+    ...c,
+    notifications: { ...(c.notifications || {}), targets: (c.notifications?.targets || []).filter(x => x.id !== id) },
+    ...(c.hub
+      ? {
+          hub: {
+            ...c.hub,
+            ...(c.hub.rules ? { rules: c.hub.rules.map(without) } : {}),
+            ...(c.hub.digests ? { digests: c.hub.digests.map(without) } : {}),
+          },
+        }
+      : {}),
+  }));
   return send(res, 200, { ok: true });
 }
 

@@ -176,7 +176,12 @@ test('settings: Notification Hub Activity lists what happened, filters, and open
 
 test('settings: Notification Hub in steps: connect an app (address once), send new movies to a Discord channel added on the spot', async () => {
   const { page, problems } = await open('/settings#hub');
-  page.on('dialog', d => d.accept());
+  /** @type {string[]} */
+  const asked = [];
+  page.on('dialog', d => {
+    asked.push(d.message());
+    d.accept();
+  });
   await page.waitForSelector('#hub-form');
   await page.check('#hub-form [name=enabled]');
   await page.click('#hub-form button[type=submit]');
@@ -216,14 +221,21 @@ test('settings: Notification Hub in steps: connect an app (address once), send n
   await page.click('#hub-steps [data-step="2"]');
   await page.click('[data-route="media.added"] [data-change]');
   await page.click('[data-route="media.added"] [data-add-discord]');
-  await page.fill('[data-route="media.added"] [name=dname]', '#new-on-plex');
-  await page.fill('[data-route="media.added"] [name=dhook]', 'https://discord.com/api/webhooks/2/y');
-  await page.click('[data-route="media.added"] [data-save-discord]');
+  await page.waitForSelector('#notif-form');
+  await page.fill('#notif-form [name=name]', '#new-on-plex');
+  await page.fill('#notif-form [name=webhookUrl]', 'https://discord.com/api/webhooks/2/y');
+  await page.click('#nsave');
   await page.waitForSelector('[data-route="media.added"] input[name=dest]:checked');
   await page.click('[data-route="media.added"] button[type=submit]');
   await page.waitForSelector('[data-route="media.added"] .hub-route-edit', { state: 'detached' });
   await page.waitForSelector('[data-route="media.added"] .hub-to.now');
   assert.equal((await page.textContent('[data-route="media.added"] .hub-route-to'))?.trim(), '#new-on-plex');
+  const chan = '#hub-channels li:has-text("#new-on-plex")';
+  assert.match(
+    (await page.textContent(chan)) || '',
+    /gets New movies and episodes/,
+    'the channel list says what it gets',
+  );
   await page.click('[data-route="media.upgraded"] [data-change]');
   await page.check('[data-route="media.upgraded"] input[name=mode][value=drop]');
   await page.click('[data-route="media.upgraded"] button[type=submit]');
@@ -247,7 +259,21 @@ test('settings: Notification Hub in steps: connect an app (address once), send n
   assert.ok(await page.isVisible('#notif-form >> text=Where things go'));
   await page.keyboard.press('Escape');
 
+  // Channels: add one from the list, then remove both; a row left with none says so.
   await page.click('#hub-steps [data-step="2"]');
+  await page.click('#hub-add-channel');
+  await page.fill('#notif-form [name=name]', '#spare');
+  await page.fill('#notif-form [name=webhookUrl]', 'https://discord.com/api/webhooks/3/z');
+  await page.click('#nsave');
+  await page.waitForSelector('#hub-channels li:has-text("#spare") >> text=nothing goes here yet');
+  await page.click('#hub-channels li:has-text("#spare") [data-del-chan]');
+  await page.waitForSelector('#hub-channels li:has-text("#spare")', { state: 'detached' });
+  await page.click(`${chan} [data-del-chan]`);
+  await page.waitForSelector(chan, { state: 'detached' });
+  assert.match(asked.at(-1) || '', /Remove “#new-on-plex”\?[\s\S]*It gets: New movies and episodes/);
+  await page.waitForSelector('[data-route="media.added"] .hub-to.warn');
+  assert.equal(await page.$('#notifs .app-card:has-text("#new-on-plex")'), null, 'gone from Notifications too');
+
   await page.setViewportSize({ width: 375, height: 800 });
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),

@@ -57,7 +57,11 @@ module.exports = [
     // Settings page: classic browser scripts. settings-hub.js loads after settings.js and uses its
     // helpers; settings.js calls its loadHub().
     files: ['public/settings.js'],
-    languageOptions: { ecmaVersion: 2024, sourceType: 'script', globals: { ...globals.browser, loadHub: 'readonly' } },
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'script',
+      globals: { ...globals.browser, loadHub: 'readonly', hubUses: 'readonly' },
+    },
     rules,
   },
   {
@@ -80,6 +84,9 @@ module.exports = [
             'openModal',
             'modal',
             'renderNotifs',
+            'openNotifForm',
+            'openNotifPicker',
+            'deleteNotif',
             'S',
           ].map(g => [g, 'readonly']),
         ),

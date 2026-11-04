@@ -9,6 +9,15 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Changed
+
+- Notification Hub → Where things go: your channels are listed at the top of the step, each with
+  what it gets ("gets New movies and episodes") and **Edit** and **Remove** buttons. **+ Add a
+  Discord channel** (there, or in a row) opens one dialog with a **Send test** button; the
+  Discord dialog asks for just a channel name and webhook, with how messages look folded away.
+- Removing a channel (here or under Notifications) says what will stop going there, and takes
+  it out of the hub's rules and summaries, so nothing is left pointing at it.
+
 ## [1.20.0] - 2026-11-04
 
 ### Fixed

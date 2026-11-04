@@ -689,7 +689,14 @@ test('digest Send now answers at once and sends in the background', async t => {
   assert.equal(posts.length, 1, 'it arrived');
   assert.match(posts[0].content, /^\*\*Added\*\*/);
   await json('DELETE', `/api/settings/hub/sources/${made.source.id}`);
+  // Removing the channel takes it out of the summaries and rules that sent there.
+  await json('PUT', '/api/settings/hub/rules', {
+    rules: [{ name: 'Now', match: {}, action: 'now', destinations: [target.id] }],
+  });
   await json('DELETE', `/api/settings/notifications/${target.id}`);
+  const left = await (await json('GET', '/api/settings/hub')).json();
+  assert.deepEqual(left.digests.find((/** @type {any} */ d) => d.id === 'added_daily').destinations, []);
+  assert.deepEqual(left.rules.find((/** @type {any} */ x) => x.name === 'Now').destinations, []);
   await json('PUT', '/api/settings/hub', { enabled: false });
 });
 

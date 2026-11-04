@@ -165,9 +165,15 @@ function seerr(b) {
   const nt = String(b?.notification_type || '');
   const type = SEERR_TYPE[nt];
   if (type === 'hub.test') return [plain('hub.test', 'Test from Seerr')];
-  // "Dune (2021)" is how Seerr's default payload names the title.
-  const subject = String(b?.subject || '');
-  const [, name, year] = subject.match(/^(.*?)\s*\((\d{4})\)\s*$/) || [null, subject, null];
+  // "Dune (2021)" is how Seerr's default payload names the title. Capped first, and the year
+  // found by an anchored match on the end: a regex scanning the whole subject from the start
+  // took seconds on a long run of spaces.
+  const subject = String(b?.subject || '')
+    .slice(0, 300)
+    .trim();
+  const y = subject.match(/\((\d{4})\)$/);
+  const name = y ? subject.slice(0, y.index).trim() : subject;
+  const year = y ? y[1] : null;
   const tv = b?.media?.media_type === 'tv';
   const m = media({
     kind: tv ? 'show' : 'movie',
@@ -198,7 +204,7 @@ function generic(b) {
   if (!b || typeof b !== 'object' || Array.isArray(b)) throw httpError(400, 'Send a JSON object');
   const type = String(b.type || 'custom');
   if (!TYPE.test(type) || type.length > 64 || type.startsWith('hub.'))
-    throw httpError(400, 'type must look like "custom" or "dcs.server_up" (lowercase, dots between words)');
+    throw httpError(400, 'type must look like "custom" or "backup.finished" (lowercase, dots between words)');
   const summary = str(b.summary ?? b.message ?? b.title, 500);
   if (!summary && !b.media) throw httpError(400, 'Send a summary (or message) saying what happened');
   const m = b.media && typeof b.media === 'object' ? media(snake(b.media)) : null;
@@ -224,4 +230,4 @@ const snake = m => ({
 /** @param {number} status @param {string} message */
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
-module.exports = { arr, seerr, generic, httpError };
+module.exports = { arr, seerr, generic };

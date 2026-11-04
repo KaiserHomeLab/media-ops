@@ -537,6 +537,7 @@ function newSourceToken(req, res, { id }) {
 /** @param {Req} req @param {Res} res @param {{ id: string }} p */
 function deleteSource(req, res, { id }) {
   saveSources(list => list.filter(s => s.id !== id));
+  if (hub.enabled(config.load())) hubStore.forgetSource(id);
   return send(res, 200, { ok: true });
 }
 // The newest 200 events, with each destination's name filled in (one removed since says so).

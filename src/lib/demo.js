@@ -56,7 +56,7 @@ const STREAMS = [
     subtitle: '2024',
     offset: 88 * 60e3,
     duration: 166 * 60e3,
-    geo: { city: 'Denver', region: 'Colorado', country: 'United States', code: 'US', lat: 39.74, lon: -104.99 },
+    geo: { city: 'Seattle', region: 'Washington', country: 'United States', code: 'US', lat: 47.61, lon: -122.33 },
     decision: 'Transcode',
     transcodeSpeed: 2.4,
     resolution: '4k',

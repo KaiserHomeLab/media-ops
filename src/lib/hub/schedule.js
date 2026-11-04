@@ -122,4 +122,4 @@ function next(expr, tz, after) {
   return null;
 }
 
-module.exports = { parse, next, validZone, partsIn };
+module.exports = { parse, next, validZone };

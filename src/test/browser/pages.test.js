@@ -221,11 +221,14 @@ test('settings: Notification Hub in steps: connect an app (address once), send n
   await page.click('[data-route="media.added"] [data-save-discord]');
   await page.waitForSelector('[data-route="media.added"] input[name=dest]:checked');
   await page.click('[data-route="media.added"] button[type=submit]');
+  await page.waitForSelector('[data-route="media.added"] .hub-route-edit', { state: 'detached' });
   await page.waitForSelector('[data-route="media.added"] .hub-to.now');
   assert.equal((await page.textContent('[data-route="media.added"] .hub-route-to'))?.trim(), '#new-on-plex');
   await page.click('[data-route="media.upgraded"] [data-change]');
   await page.check('[data-route="media.upgraded"] input[name=mode][value=drop]');
   await page.click('[data-route="media.upgraded"] button[type=submit]');
+  // It showed "Don't tell me" before saving too: wait for the save itself (the editor closes).
+  await page.waitForSelector('[data-route="media.upgraded"] .hub-route-edit', { state: 'detached' });
   await page.waitForSelector('[data-route="media.upgraded"] .hub-to.off');
 
   // 3. Summaries say what they gather; choosing "In a summary" shows up there

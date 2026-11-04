@@ -551,7 +551,8 @@ $('hub-routes').addEventListener('submit', async e => {
   const rows = rowRules().filter(r => asList(r.match.type)[0] !== type);
   try {
     await saveRules(customRules(), [...rows, rule]);
-    openRoute = null;
+    // Close this row's editor, not one opened meanwhile (the save takes a moment).
+    if (openRoute === type) openRoute = null;
     renderRoutes();
     renderDigests(); // "Gathers:" may have changed
   } catch (ex) {

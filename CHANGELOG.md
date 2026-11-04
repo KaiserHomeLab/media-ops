@@ -9,6 +9,11 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Fixed
+
+- Notification Hub → Where things go: saving one row no longer closes another row you opened
+  while the save was on its way.
+
 ### Added
 
 - Notification Hub → Connect apps: connecting Sonarr, Radarr or Seerr asks **how it reaches

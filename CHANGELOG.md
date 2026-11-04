@@ -21,6 +21,16 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Fixed
 
+- Notification Hub: a Seerr webhook with a very long title can no longer tie the server up for
+  seconds (the title is now read in linear time and capped). A Discord webhook that keeps
+  answering "slow down" now holds a message for at most a minute in all, and digests send in the
+  background, so neither delays the background check (history, other alerts). A digest can't
+  be sent twice at once (a scheduled run and Send now). Raw webhook payloads are deleted after 7
+  days even when the hub is turned off.
+- Discord: titles and log lines with Markdown characters show as written ("M*A*S*H" no longer
+  turns into "MAS*H"). When Discord says to slow down (HTTP 429), Media Ops waits as long as it
+  asks and sends again instead of losing the message; a Discord server error is tried 3 times;
+  messages to one webhook go out one at a time, in order.
 - Media Review's "nothing has synced" problem no longer sends a new notification every hour while
   it lasts (its message counted the hours, which made it look new each time).
 - Diagnostic reports hide Media Review's voter names and friends' notes.
@@ -34,6 +44,39 @@ To stay on one version instead of `latest`, use a version tag such as
   is kept for 90 days in `hub.db` next to `config.json`. An upgrade is told apart from a new
   title by the *arr's own flag, not by Plex. Rules, digests and the Settings pages come next;
   the design is in `docs/notification-hub.md`.
+- Notification Hub rules: with the hub on, every event goes through an ordered list of rules
+  (first match wins): send it now to the destinations you pick, hold it for a digest, or drop
+  it. Turning the hub on starts the rules from each destination's current event checkboxes, so
+  alerts keep going exactly where they went. The same alert again within 10 minutes is
+  suppressed. Alerts held for quiet hours are kept on disk, so a restart no longer loses them.
+  If the hub's database can't be written, alerts are sent the usual way.
+- Settings → Notification Hub: turn the hub on, and **Activity**, the last 200 events with the
+  rule each one matched and what happened to it (sent and to whom, held for quiet hours, saved
+  for a digest, dropped, a repeat not sent). Open a row for its details and every send attempt,
+  with the error when one failed. Filter by what happened.
+- Notification Hub digests: a rule can hold events for a digest, sent on its own schedule (a
+  cron line like `0 8 * * *`, in a time zone you choose) as one calm summary, for example
+  "Added to Plex · Wednesday, Nov 4" with Movies, TV Shows and Anime sections. Each title shows
+  once; a show's episodes fold into one line ("Severance: Season 2, episodes 1–10", "(new
+  series)" for a season 1 from its first episode); quality upgrades are never listed, only
+  counted in the footer when a rule sends them to the digest. A day with nothing new posts
+  nothing. A digest missed while Media Ops was down is sent once when it's back; a send that
+  fails keeps its titles for the next one. Two digests come ready (daily "Added to Plex", weekly
+  "Leaving soon"), both off until you pick where they go. The daily summary is unchanged.
+- Discord: each destination can post under its own name, avatar and colour (Settings →
+  Notifications → your Discord destination). Digests arrive as proper Discord messages: the
+  title, one embed per section, a small poster embed for each movie on a day with four or fewer,
+  and the counts in the footer; a long digest is split to fit Discord's limits.
+- Notification Hub email: digests sent to an email destination arrive as an HTML email (posters
+  in a grid, the same sections) with a plain-text version. Give a digest a newsletter list and
+  each address gets its own copy (nobody sees the others) with an unsubscribe link that needs
+  no account, plus the one-click unsubscribe mail apps show. Set the address people open Media
+  Ops at under Notification Hub first; the links point there.
+- Settings → Notification Hub: add webhook sources (the address with its token is shown once,
+  ready to copy), edit the rules (events, libraries, how serious, then send now, hold for a
+  digest or drop; reorder them, switch one off), and set up digests (every day or week at a
+  time, or any cron schedule, in your time zone, with Preview and Send now). The public address
+  for newsletter unsubscribe links is set here too.
 - A notification when a friend files a new Problem Report in Media Review: the title, the episode if it's one, what's wrong, who reported it, and their note. It's on by default for every destination, including ones saved before, and can be turned off per destination. Reports already there when Media Ops first sees Media Review aren't sent.
 - Media Review's own problems show in Errors & warnings, and are notified like any other app's: a
   background job that failed its last run, a Title it couldn't delete overnight, no sync for over an

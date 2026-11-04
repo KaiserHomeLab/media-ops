@@ -14,6 +14,7 @@ const crypto = require('node:crypto');
 const { originOf } = require('./config');
 const { req } = require('./http');
 const smtp = require('./smtp');
+const discord = require('./discord');
 const { allStreams } = require('./media');
 
 // ------------------------------------------------------------------ destination types (Settings form)
@@ -33,7 +34,24 @@ const TYPES = [
         'Webhook URL',
         'Discord channel → Edit channel → Integrations → Webhooks → New Webhook → Copy Webhook URL.',
       ),
+      text('username', 'Post as', 'The name messages show. Leave blank for "Media Ops".', 'Media Ops', true),
+      text(
+        'avatarUrl',
+        'Avatar URL',
+        "An https:// image to show next to the name, like your server's icon. Leave blank for the webhook's own.",
+        'https://example.com/icon.png',
+        true,
+      ),
+      text(
+        'color',
+        'Colour',
+        'The bar beside each message, as #RRGGBB. Leave blank to colour alerts by how serious they are.',
+        '#E5A00D',
+        true,
+      ),
     ],
+    // The webhook URL is the secret itself: the avatar's address has nothing to do with where it goes.
+    where: () => 'discord',
   },
   {
     type: 'telegram',
@@ -211,6 +229,13 @@ function mergeTarget(existing, input) {
   }
   if (type === 'telegram' && !/^(-?\d{1,20}|@\w{4,64})$/.test(out.chatId))
     throw new Error('Chat ID must be a number (like 123456789 or -100123…) or a channel @name');
+  if (type === 'discord') {
+    if (out.avatarUrl && !/^https:\/\/\S+$/i.test(out.avatarUrl))
+      throw new Error('Avatar URL must start with https://');
+    if (out.color && !/^#?[0-9a-f]{6}$/i.test(out.color)) throw new Error('Colour must look like #E5A00D');
+    if (out.color && !out.color.startsWith('#')) out.color = `#${out.color}`;
+    out.username = out.username.slice(0, 80);
+  }
   if (type === 'email') {
     if (!/^[a-z0-9.-]{1,253}$/i.test(out.smtpHost))
       throw new Error('Mail server must be a host name like smtp.example.com');
@@ -234,8 +259,15 @@ const LEVEL_COLOR = { error: 0xd03b3b, warn: 0xfab219, good: 0x0ca30c, info: 0x3
  * @param {{ title: string, lines: string[], level?: string, events?: { kind: string, level: string, text: string }[] }} message
  */
 async function send(target, message) {
+  return sendWith(target, () => deliver(target, message));
+}
+
+// Run a send to `target` (a digest's own Discord messages, for one) with the same promise as
+// send(): no saved secret ever appears in the error it throws.
+/** @template T @param {import('./types').Target} target @param {() => Promise<T>} fn @returns {Promise<T>} */
+async function sendWith(target, fn) {
   try {
-    return await deliver(target, message);
+    return await fn();
   } catch (e) {
     // Error messages show in Settings and the log, and some secrets live in the address
     // (Telegram's bot token, a Discord webhook's token): blank out every saved secret.
@@ -260,22 +292,7 @@ async function deliver(target, { title, lines, level = 'info', events = [] }) {
   const json = o => JSON.stringify(o);
   switch (target.type) {
     case 'discord':
-      return post(
-        target.webhookUrl,
-        json({
-          username: 'Media Ops',
-          allowed_mentions: { parse: [] }, // text from an app (a log line) must never ping @everyone
-          embeds: [
-            {
-              title,
-              description: message.slice(0, 4000),
-              color: LEVEL_COLOR[level],
-              timestamp: new Date().toISOString(),
-            },
-          ],
-        }),
-        { 'Content-Type': 'application/json' },
-      );
+      return discord.post(target.webhookUrl, discord.alert(target, { title, lines, color: LEVEL_COLOR[level] }));
     case 'telegram':
       // Plain text (no parse_mode), so text from an app can't inject formatting or links.
       return post(
@@ -486,16 +503,19 @@ function inQuietHours(q, now = new Date()) {
   return from <= to ? t >= from && t < to : t >= from || t < to;
 }
 
-// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules. Returns everything
-// noticed this round, before quiet hours, for the Notification Hub's Activity (lib/hub).
-/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {Detected[]} [extra] @returns {Promise<Detected[]>} */
-async function handle(raw, events, disks, cfg, extra = []) {
+// `extra`: lines from elsewhere (lib/autofix.js), sent with the same rules. `hub`: the
+// Notification Hub (lib/hub), when it's on. If it takes this round's findings, it decides what
+// goes where and nothing is sent from here; if it can't (hub.db broken), sending carries on as
+// it always has, so an alert is never lost. Returns everything noticed this round.
+/** @param {import('./types').PollResult} raw @param {any[]} events @param {{ path: string, total: number, free: number }[]} disks @param {import('./types').Config} cfg @param {Detected[]} [extra] @param {(found: Detected[]) => boolean} [hub] @returns {Promise<Detected[]>} */
+async function handle(raw, events, disks, cfg, extra = [], hub) {
   let found = [...detect(raw, events, disks, cfg), ...extra];
   if (!state.seeded) {
     state.seeded = true;
     return [];
   } // first poll only learns what's already there
   const noticed = found;
+  if (hub?.(found)) return noticed;
 
   // Quiet hours: hold alerts (optionally still sending app-down), then send what was held as
   // one "while you were asleep" message when they end. "Started watching" isn't worth holding.
@@ -581,5 +601,23 @@ async function test(target) {
 
 /** @param {string} id */
 const lastResult = id => state.lastResult.get(id) || null;
+// What Settings shows under a destination: the last send, from here or from the hub.
+/** @param {string} id @param {boolean} ok @param {string} [error] */
+const remember = (id, ok, error) =>
+  state.lastResult.set(id, ok ? { at: Date.now(), ok } : { at: Date.now(), ok, error });
 
-module.exports = { TYPES, EVENTS, publicTarget, mergeTarget, handle, test, lastResult, sendDigest, inQuietHours };
+module.exports = {
+  TYPES,
+  EVENTS,
+  eventsOf,
+  publicTarget,
+  mergeTarget,
+  handle,
+  send,
+  sendWith,
+  test,
+  lastResult,
+  remember,
+  sendDigest,
+  inQuietHours,
+};

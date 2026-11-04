@@ -96,6 +96,57 @@
         </form>
       </section>
 
+      <section class="card" id="hub">
+        <h2>Notification Hub <span class="count">optional</span></h2>
+        <p class="hint">One place that decides what's worth telling you, where, and when: Media Ops' own alerts plus webhooks from Sonarr, Radarr and Seerr. Off until you turn it on. Turning it on changes nothing by itself: it starts from the events each destination above has ticked.</p>
+        <form id="hub-form" class="form grid-form">
+          <label class="field toggle wide"><input type="checkbox" name="enabled"><span>Turn on the Notification Hub</span></label>
+          <label class="field wide"><span>Public address <em>optional · for newsletter unsubscribe links</em></span><input name="publicUrl" type="url" placeholder="https://media.example.com" spellcheck="false">
+            <small>Where people reach Media Ops from outside, if you publish it (a Cloudflare Tunnel, a reverse proxy). Only needed to send a digest to a newsletter list.</small></label>
+          <div class="form-error" id="hub-error" hidden></div>
+          <div class="actions wide"><span class="saved" id="hub-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save</button></div>
+        </form>
+        <div id="hub-config" hidden>
+          <h3 class="sub-h">Sources</h3>
+          <p class="hint">Apps that send webhooks to Media Ops. Each has its own address and token; the token is shown once, when you add it.</p>
+          <ul class="hub-list" id="hub-sources"></ul>
+          <p class="hint" id="hub-rejected" hidden></p>
+          <div class="actions start"><button class="btn" type="button" id="hub-add-source">Add source</button></div>
+
+          <h3 class="sub-h">Rules</h3>
+          <p class="hint">Checked top to bottom: the first rule that matches decides. Send now to the destinations you pick, hold for a digest, or drop. The last rule catches everything else.</p>
+          <ol class="layout-list hub-rules" id="hub-rules"></ol>
+          <form id="hub-rules-form" class="form grid-form">
+            <label class="field"><span>Don't repeat the same alert within</span><span class="with-unit"><input type="number" name="flapMinutes" min="0" max="1440" required><span>min</span></span>
+              <small>0 sends every repeat.</small></label>
+            <div class="form-error wide" id="hub-rules-error" hidden></div>
+            <div class="actions wide"><button class="btn" type="button" id="hub-add-rule">Add rule</button><span class="spacer"></span><span class="saved" id="hub-rules-saved" hidden>✓ Saved</span><button class="btn primary" type="submit">Save rules</button></div>
+          </form>
+
+          <h3 class="sub-h">Digests</h3>
+          <p class="hint">What rules hold back, sent on a schedule as one summary. Each title once, a show's episodes on one line, upgrades only counted. A day with nothing new sends nothing.</p>
+          <ul class="hub-list" id="hub-digests"></ul>
+          <div class="actions start"><button class="btn" type="button" id="hub-add-digest">Add digest</button></div>
+        </div>
+        <div id="hub-activity" hidden>
+          <div class="hub-head">
+            <h3 class="sub-h">Activity</h3>
+            <label class="hub-filter"><span class="muted">Show</span>
+              <select id="hub-filter">
+                <option value="">everything</option>
+                <option value="sent">sent</option>
+                <option value="waiting">waiting or held</option>
+                <option value="queued">for a digest</option>
+                <option value="not-sent">not sent</option>
+                <option value="failed">failed</option>
+              </select></label>
+            <button class="btn small" type="button" id="hub-refresh">Refresh</button>
+          </div>
+          <p class="hint">The last 200 events, newest first: which rule each one matched and what happened to it.</p>
+          <ol class="hub-log" id="hub-log"></ol>
+        </div>
+      </section>
+
       <section class="card">
         <h2>General</h2>
         <form id="general-form" class="form grid-form">
@@ -240,5 +291,6 @@
   </dialog>
 
   <script src="settings.js"></script>
+  <script src="settings-hub.js"></script>
 </body>
 </html>

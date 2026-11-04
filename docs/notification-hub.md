@@ -1,6 +1,6 @@
 # Media Ops: Notification Hub (design spec)
 
-**Status:** Being built, one pull request at a time (see 15. Build plan)
+**Status:** Built (see 15. Build plan for the pull requests)
 **Date:** 2026-11-03
 
 ---
@@ -284,7 +284,7 @@ Retention: delete `raw_json` after 7 days. Delete events after 90 days.
 Add under **Settings → Notifications**:
 
 1. **Sources:** list each source, its endpoint URL with token (copy button), last event received, and a **Send test** button.
-2. **Rules:** ordered list with drag to reorder, enable/disable toggles, and a simple editor (type, library, severity → action/destination/digest).
+2. **Rules:** ordered list, reordered with ↑/↓ buttons, enable/disable toggles, and a simple editor (type, library, severity → action/destination/digest).
 3. **Digests:** schedule, destinations, **Preview** (renders what would be sent now) and **Send now**.
 4. **Destinations:** existing page, extended to allow multiple Discord webhooks.
 5. **Activity:** the last 200 events with the rule that matched and what happened (sent / queued / dropped). This is the main debugging tool.
@@ -332,6 +332,12 @@ What the code does that the sections above don't say:
 - Events also carry a one-line `summary` (`Added: Severance S02E01 "Hello, Ms. Cobel"`), for Activity and for "now" messages.
 - What the background poll already notices becomes hub events too: `app.down`, `app.up`, `app.error`, `app.warning`, `download.failed`, `system.disk`, `system.server` (array, pools, TrueNAS alerts, hot disks), `system.bandwidth`, `playback.started`, `media.problem_report`. Their dedupe key follows what they are about (an app, a disk), not the line.
 - `hub.test` (a source's test button) and `hub.unhandled` (an event the hub doesn't use yet, or an old file replaced by an upgrade) are recorded so Activity shows everything that arrived.
+- "Now" events wait in `hub.db` (status `pending`) until the next background tick, then go out as one message per destination, at most 10 lines, as Media Ops has always batched. Statuses in Activity: `pending`, `held` (quiet hours), `sent`, `failed`, `suppressed` (the same `dedupe_key` + `type` sent within `flapMinutes`, default 10; 0 turns it off), `queued` (for a digest), `dropped`, `unrouted` (no destination), `skipped` (someone started watching during quiet hours).
+- Rule matches can use `type` (a family with `.*`), `source`, `source_instance`, `severity`, `min_severity`, `is_upgrade`, `media.kind` and `media.library`, plus one level of `not`.
+- If `hub.db` can't be written, that round's alerts are sent the old way, so nothing is lost.
+- Digests (`lib/hub/digests.js`): settings are `{ id, title, enabled, cron, timezone, destinations, skipIfEmpty, maxItemsPerSection, footer }` (camelCase; a blank `timezone` is the container's). The upgrade toggle in 6.2 is just a rule: send `media.upgraded` to the digest and it's counted in the footer, drop it and it isn't. A digest that has never run waits for its next time; one missed while Media Ops was down runs once on start. A run that reaches no destination keeps its titles queued and counts as that slot's run. Events a digest took are `digested` in Activity. Sections: `media.added` by library (Movies, TV Shows, Anime first), other types by kind ("Leaving soon", "Now available"…). "(new series)" means season 1 including episode 1.
+- Discord (`lib/discord.js`) is used for every Discord send, alerts included: Markdown is escaped (a backslash before any punctuation is safe in Discord), each destination has an optional name, https avatar and `#RRGGBB` colour, and each webhook has a one-at-a-time queue (429: wait `Retry-After`, up to 5 times, never more than a minute; 5xx: 3 tries). Digest titles link nowhere in v1: Media Ops has no "public address" setting for Plex/Seerr pages.
+- Email (`lib/hub/newsletter.js`): a digest to an email destination is HTML plus plain text. A digest's `recipients` (newsletter list, up to 500) each get their own message through that destination's mail server, with `List-Unsubscribe` / `List-Unsubscribe-Post` and a link to `<publicUrl>/hub/unsubscribe?d=…&e=…&s=…`, signed with an HMAC key kept in `config.json` (`hub.secret`, made when first needed, carried by backups). GET asks, POST removes the address from that digest. Without recipients, the destination's own To addresses get one copy, with no unsubscribe link. A newsletter list needs `hub.publicUrl` set.
 - Seerr also sends `media.request.declined` and `media.issue.*`. *arr Manual Interaction Required is `download.stuck`.
 - Severities are `info`, `warning`, `error`, `critical`. Today's levels map onto them (`warn` is `warning`, `good` is `info`). Nothing is `critical` yet, so quiet hours keep today's "still wake me if an app goes down" option until rules can mark events critical.
 - The *arr webhooks don't name a Plex library. Movies go to Movies, Sonarr's anime series type to Anime, other shows to TV Shows, and a source can name its library outright (an anime Sonarr instance). Music (rule 5) needs a Lidarr source, which isn't in v1.
@@ -340,9 +346,11 @@ What the code does that the sections above don't say:
 
 Small pull requests, each usable on its own:
 
-1. Ingest, normalize and store: the endpoints, sources and tokens, `hub.db`, and polled events recorded. Nothing is sent differently.
-2. Rules and "now" delivery, behind the hub switch; flap suppression; quiet hours in the hub.
-3. Activity page in Settings.
-4. Digests: schedules, windows, dedupe and TV grouping, Preview and Send now.
-5. Discord output (per-destination name, avatar, colour; embeds; limits; a queue with retries) and the email newsletter (HTML, one message per recipient, unsubscribe links).
+1. Ingest, normalize and store: the endpoints, sources and tokens, `hub.db`, and polled events recorded. Nothing is sent differently. (#59)
+2. Rules and "now" delivery, behind the hub switch; flap suppression; quiet hours in the hub. (#60)
+3. Activity page in Settings. (#61)
+4. Digests: schedules, windows, dedupe and TV grouping, Preview and Send now. (#62)
+5. Discord output (per-destination name, avatar, colour; embeds; limits; a queue with retries) (#63) and the email newsletter (HTML, one message per recipient, unsubscribe links) (#64).
 6. Settings → Notification Hub: sources, rules, digests.
+
+Not done in v1 (section 2 non-goals, plus): Tautulli and Lidarr sources, links from digest titles to Plex or Seerr pages, a requester's Discord DM when a request is available, and drag-to-reorder (rules move with ↑/↓, as the dashboard layout does).

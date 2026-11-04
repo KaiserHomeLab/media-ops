@@ -62,6 +62,7 @@ const ALWAYS_OPEN = new Set([
   '/settings',
   '/settings.html',
   '/settings.js',
+  '/settings-hub.js',
   '/style.css',
   '/manifest.webmanifest',
   '/icon.png',
@@ -132,6 +133,8 @@ const server = http.createServer(async (req, res) => {
     // Webhooks from other apps: servers with a token, never a browser, so neither the dashboard
     // lock nor the same-origin check applies (lib/hub/index.js checks the token).
     if (url.pathname.startsWith('/api/hub/in/')) return await hub.ingest(req, res, url);
+    // Newsletter unsubscribe links: signed per address, opened from an email, so no login either.
+    if (url.pathname === '/hub/unsubscribe') return await hub.unsubscribe(req, res, url);
     if (dashboardLocked(req, url.pathname)) {
       if (url.pathname.startsWith('/api/'))
         return send(res, 401, { error: 'Log in to view the dashboard', needLogin: true });

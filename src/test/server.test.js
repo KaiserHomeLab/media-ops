@@ -426,7 +426,12 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   assert.ok(!fs.readFileSync(path.join(dir, 'config.json'), 'utf8').includes(token), 'only a hash is saved');
   assert.equal((await hook(source.path, { 'X-Hub-Token': token })).status, 404, 'still off');
 
-  await json('PUT', '/api/settings/hub', { enabled: true });
+  const on = await (await json('PUT', '/api/settings/hub', { enabled: true })).json();
+  assert.ok(
+    on.rules.some((/** @type {any} */ x) => x.id === 'today-down'),
+    'starts from today’s choices',
+  );
+  assert.equal(on.rules.at(-1).id, 'everything-else');
   assert.equal((await hook(source.path)).status, 401);
   assert.equal((await hook(source.path, { 'X-Hub-Token': 'mohub_wrong' })).status, 401);
   assert.equal((await hook('/api/hub/in/sonarr/radarr', { 'X-Hub-Token': token })).status, 401, 'token is per source');
@@ -444,11 +449,92 @@ test('notification hub: webhooks 404 until it is on; then only with the source t
   await json('PUT', '/api/settings/security', { dashboardAuth: true }, { Cookie: cookie });
   assert.equal((await hook(`${source.path}?token=${token}`)).status, 200, 'not behind the dashboard login');
   assert.equal((await fetch(`${base}/api/settings/hub/activity`)).status, 401, 'Activity needs the login');
-  const { events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json();
+  let { events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json();
   assert.equal(events.length, 2);
   assert.equal(events[0].type, 'media.added');
   assert.equal(events[0].media.title, 'M*A*S*H');
+  assert.deepEqual([events[0].rule, events[0].status], ['Everything else', 'dropped']);
   assert.ok(!('raw' in events[0]), 'raw payloads stay on the server');
+
+  r = await json('PUT', '/api/settings/hub/rules', { rules: [{ name: 'x', action: 'shout' }] }, { Cookie: cookie });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /action must be/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub/rules',
+    { rules: [{ name: 'New movies', match: { type: 'media.added' }, action: 'digest', digest: 'added_daily' }] },
+    { Cookie: cookie },
+  );
+  assert.equal(r.status, 200);
+  assert.deepEqual(
+    (await r.json()).rules.map((/** @type {any} */ x) => x.name),
+    ['New movies', 'Everything else'],
+  );
+  assert.equal((await hook(source.path, { 'X-Hub-Token': token })).status, 200);
+  ({ events } = await (await fetch(`${base}/api/settings/hub/activity`, { headers: { Cookie: cookie } })).json());
+  assert.deepEqual([events[0].rule, events[0].status, events[0].digestId], ['New movies', 'queued', 'added_daily']);
+
+  // Digests: the two it starts with, a preview that changes nothing, rules and digests kept in step.
+  assert.deepEqual(
+    on.digests.map((/** @type {any} */ d) => [d.id, d.enabled]),
+    [
+      ['added_daily', false],
+      ['leaving_weekly', false],
+    ],
+  );
+  r = await json(
+    'PUT',
+    '/api/settings/hub/rules',
+    { rules: [{ name: 'x', action: 'digest', digest: 'nope' }] },
+    { Cookie: cookie },
+  );
+  assert.match((await r.json()).error, /no digest called "nope"/);
+  const pv = await (
+    await fetch(`${base}/api/settings/hub/digests/added_daily/preview`, { headers: { Cookie: cookie } })
+  ).json();
+  assert.match(pv.title, /^Added to Plex · /);
+  assert.deepEqual([pv.sections[0].name, pv.sections[0].lines], ['Movies', ['M*A*S*H (1970)']]);
+  r = await json('POST', '/api/settings/hub/digests/added_daily/send', {}, { Cookie: cookie });
+  assert.equal((await r.json()).status, 'no-destination', 'no destination picked yet');
+  r = await json('PUT', '/api/settings/hub/digests', { digests: [] }, { Cookie: cookie });
+  assert.match((await r.json()).error, /still sends to "added_daily"/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub/digests',
+    { digests: [{ id: 'added_daily', cron: 'daily' }] },
+    { Cookie: cookie },
+  );
+  assert.equal(r.status, 400);
+
+  // Newsletter: an address to unsubscribe at, needed before any newsletter list; the page needs no login.
+  r = await json('PUT', '/api/settings/hub', { enabled: true, publicUrl: 'not a url' }, { Cookie: cookie });
+  assert.match((await r.json()).error, /Public address must look like/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub/digests',
+    { digests: [{ id: 'added_daily', cron: '0 8 * * *', recipients: ['a@example.com'] }] },
+    { Cookie: cookie },
+  );
+  assert.match((await r.json()).error, /Set the public address first/);
+  r = await json(
+    'PUT',
+    '/api/settings/hub',
+    { enabled: true, publicUrl: 'https://media.example.com/' },
+    { Cookie: cookie },
+  );
+  assert.equal((await r.json()).publicUrl, 'https://media.example.com');
+  r = await json(
+    'PUT',
+    '/api/settings/hub/digests',
+    { digests: [{ id: 'added_daily', cron: '0 8 * * *', recipients: ['a@example.com'] }] },
+    { Cookie: cookie },
+  );
+  assert.equal(r.status, 200);
+  const unsub = await fetch(`${base}/hub/unsubscribe?d=added_daily&e=x&s=${'x'.repeat(32)}`, { redirect: 'manual' });
+  assert.equal(unsub.status, 400, 'reachable with the dashboard locked, and a forged link refused');
+  assert.match(await unsub.text(), /This link doesn’t work/);
+  const hubJson = await (await fetch(`${base}/api/settings/hub`, { headers: { Cookie: cookie } })).text();
+  assert.ok(!hubJson.includes('"secret"'), 'the key that signs unsubscribe links never reaches the browser');
 
   const fresh = await (
     await json('POST', `/api/settings/hub/sources/${source.id}/token`, {}, { Cookie: cookie })

@@ -56,7 +56,7 @@ const STREAMS = [
     subtitle: '2024',
     offset: 88 * 60e3,
     duration: 166 * 60e3,
-    geo: { city: 'Denver', region: 'Colorado', country: 'United States', code: 'US', lat: 39.74, lon: -104.99 },
+    geo: { city: 'Seattle', region: 'Washington', country: 'United States', code: 'US', lat: 47.61, lon: -122.33 },
     decision: 'Transcode',
     transcodeSpeed: 2.4,
     resolution: '4k',
@@ -1105,4 +1105,158 @@ function history() {
   };
 }
 
-module.exports = { overview, history };
+// Settings → Notification Hub → Activity in demo mode: a morning's worth of events, one of
+// each outcome, with destination names already filled in (as the real API does).
+function hubActivity() {
+  const now = Date.now();
+  /** @param {number} mins */
+  const at = mins => now - mins * 60e3;
+  const ops = { id: 'demo-discord', name: 'Discord #system-logs' };
+  const phone = { id: 'demo-ntfy', name: 'Phone (ntfy)' };
+  /** @param {Record<string, any>} m */
+  const movie = m => ({
+    kind: 'movie',
+    ids: { tmdb: null, imdb: null, tvdb: null },
+    show: null,
+    season: null,
+    episode: null,
+    episodeTitle: null,
+    posterUrl: null,
+    overview: null,
+    quality: 'Bluray-1080p',
+    ...m,
+  });
+  /** @type {any[]} */
+  const list = [
+    {
+      type: 'media.added',
+      severity: 'info',
+      summary: 'Added: Paper Moons (2004)',
+      source: 'radarr',
+      sourceInstance: 'radarr',
+      rule: 'New movies and shows go to the daily digest',
+      action: 'digest',
+      status: 'queued',
+      digestId: 'added_daily',
+      media: movie({ title: 'Paper Moons', year: 2004, library: 'Movies' }),
+      mins: 4,
+    },
+    {
+      type: 'media.upgraded',
+      severity: 'info',
+      summary: 'Upgraded: Harbor Lights S01E03 "The Tide"',
+      source: 'sonarr',
+      sourceInstance: 'sonarr',
+      rule: 'Quality upgrades: never announced as new',
+      action: 'drop',
+      status: 'dropped',
+      isUpgrade: true,
+      mins: 11,
+    },
+    {
+      type: 'app.up',
+      severity: 'info',
+      summary: '🟢 Prowlarr is back up (down for 6 min)',
+      source: 'media-ops',
+      sourceInstance: 'media-ops',
+      rule: 'App is back up',
+      action: 'now',
+      status: 'sent',
+      destinations: [ops, phone],
+      deliveries: [
+        { ...ops, ok: true },
+        { ...phone, ok: true },
+      ],
+      mins: 22,
+    },
+    {
+      type: 'app.down',
+      severity: 'error',
+      summary: '🔴 Prowlarr is down: Connection refused',
+      source: 'media-ops',
+      sourceInstance: 'media-ops',
+      rule: 'App goes down',
+      action: 'now',
+      status: 'sent',
+      destinations: [ops, phone],
+      deliveries: [
+        { ...ops, ok: true },
+        { ...phone, ok: false, error: 'HTTP 502 on /media-ops-alerts' },
+      ],
+      mins: 28,
+    },
+    {
+      type: 'app.down',
+      severity: 'error',
+      summary: '🔴 Prowlarr is down: Connection refused',
+      source: 'media-ops',
+      sourceInstance: 'media-ops',
+      rule: 'App goes down',
+      action: 'now',
+      status: 'suppressed',
+      destinations: [ops, phone],
+      mins: 29,
+    },
+    {
+      type: 'media.request.created',
+      severity: 'info',
+      summary: 'Requested: Quiet Valley (1998) (by a friend)',
+      source: 'seerr',
+      sourceInstance: 'seerr',
+      rule: 'Everything else',
+      action: 'drop',
+      status: 'dropped',
+      mins: 95,
+    },
+    {
+      type: 'app.warning',
+      severity: 'warning',
+      summary: '⚠️ Sonarr: Indexers unavailable due to failures',
+      source: 'media-ops',
+      sourceInstance: 'media-ops',
+      rule: 'New warnings & health checks',
+      action: 'now',
+      status: 'sent',
+      destinations: [ops],
+      deliveries: [{ ...ops, ok: true }],
+      mins: 410,
+    },
+    {
+      type: 'media.leaving_soon',
+      severity: 'info',
+      summary: 'The Long Afternoon (2011) is leaving soon (14 days left)',
+      source: 'mediareview',
+      sourceInstance: 'media-review',
+      rule: 'Leaving Soon goes to the weekly digest',
+      action: 'digest',
+      status: 'queued',
+      digestId: 'leaving_weekly',
+      mins: 600,
+    },
+    {
+      type: 'hub.test',
+      severity: 'info',
+      summary: 'Test from Radarr',
+      source: 'radarr',
+      sourceInstance: 'radarr',
+      rule: 'Everything else',
+      action: 'drop',
+      status: 'dropped',
+      mins: 1440,
+    },
+  ];
+  return list.map(({ mins, ...e }, i) => ({
+    id: `demo-hub-${i}`,
+    receivedAt: at(mins),
+    dedupeKey: '',
+    isUpgrade: false,
+    media: null,
+    digestId: null,
+    destinations: [],
+    sentAt: e.status === 'sent' ? at(mins - 0.2) : null,
+    ...e,
+    deliveries: (e.deliveries || []).map((/** @type {any} */ d) => ({ error: null, at: at(mins - 0.2), ...d })),
+  }));
+}
+
+module.exports = { overview, history, hubActivity };

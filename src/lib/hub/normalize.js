@@ -156,4 +156,16 @@ function fromMediaReview(services) {
   return out;
 }
 
-module.exports = { SEVERITIES, severity, media, dedupeKey, label, finish, fromPolled, fromMediaReview, int, str };
+module.exports = {
+  POLLED_TYPE,
+  SEVERITIES,
+  severity,
+  media,
+  dedupeKey,
+  label,
+  finish,
+  fromPolled,
+  fromMediaReview,
+  int,
+  str,
+};

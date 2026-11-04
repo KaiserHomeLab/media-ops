@@ -15,6 +15,9 @@ const geo = require('./geo');
 const notify = require('./notify');
 const hub = require('./hub');
 const hubSources = require('./hub/sources');
+const hubRules = require('./hub/rules');
+const hubDigests = require('./hub/digests');
+const hubStore = require('./hub/store');
 const status = require('./status');
 const layout = require('./layout');
 const autofix = require('./autofix');
@@ -405,9 +408,100 @@ const saveSources = fn =>
 const hubSettings = (req, res) => send(res, 200, hub.settingsOf(config.load()));
 /** @param {Req} req @param {Res} res */
 async function saveHub(req, res) {
-  const enabled = !!(await readJson(req)).enabled;
-  config.update(c => ({ ...c, hub: { sources: hubSources.list(c), enabled } }));
+  const input = await readJson(req);
+  const enabled = !!input.enabled;
+  // The address people open Media Ops at, for newsletter unsubscribe links. Unchanged when not sent.
+  /** @type {string | undefined} */
+  let publicUrl;
+  if ('publicUrl' in input) {
+    publicUrl = String(input.publicUrl || '')
+      .trim()
+      .replace(/\/+$/, '');
+    if (publicUrl && !/^https?:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i.test(publicUrl))
+      return send(res, 400, { error: 'Public address must look like https://media.example.com' });
+  }
+  // The first time it's turned on, the rules start as today's choices, so nothing goes anywhere new.
+  config.update(c => ({
+    ...c,
+    hub: {
+      ...(c.hub || {}),
+      sources: hubSources.list(c),
+      enabled,
+      rules: c.hub?.rules?.length
+        ? c.hub.rules
+        : hubRules.starting(c.notifications?.targets || [], notify.eventsOf, notify.EVENTS),
+      digests: c.hub?.digests ?? hubDigests.starting(),
+      ...(publicUrl !== undefined ? { publicUrl } : {}),
+    },
+  }));
   return send(res, 200, hub.settingsOf(config.load()));
+}
+/** @param {Req} req @param {Res} res */
+async function saveHubRules(req, res) {
+  const input = await readJson(req, 256 * 1024);
+  const flap = Math.round(Number(input.flapMinutes ?? 10));
+  if (!Number.isFinite(flap) || flap < 0 || flap > 1440) return send(res, 400, { error: 'Repeats: 0 to 1440 minutes' });
+  let rules;
+  try {
+    rules = hubRules.clean(
+      input.rules,
+      (config.load().notifications?.targets || []).map(t => t.id),
+    );
+  } catch (e) {
+    return send(res, 400, { error: e.message });
+  }
+  // A digest rule must name a digest that exists, or its events would wait forever.
+  const ids = new Set(hubDigests.digestsOf(config.load()).map(d => d.id));
+  const orphan = rules.find(r => r.action === 'digest' && !ids.has(String(r.digest)));
+  if (orphan) return send(res, 400, { error: `"${orphan.name}": there's no digest called "${orphan.digest}"` });
+  config.update(c => ({
+    ...c,
+    hub: { ...(c.hub || { enabled: false }), sources: hubSources.list(c), rules, flapMinutes: flap },
+  }));
+  return send(res, 200, hub.settingsOf(config.load()));
+}
+/** @param {Req} req @param {Res} res */
+async function saveHubDigests(req, res) {
+  const cfg = config.load();
+  let list;
+  try {
+    list = hubDigests.clean(
+      (await readJson(req, 128 * 1024)).digests,
+      (cfg.notifications?.targets || []).map(t => t.id),
+    );
+  } catch (e) {
+    if (e.status) throw e;
+    return send(res, 400, { error: e.message });
+  }
+  if (list.some(d => d.recipients?.length) && !cfg.hub?.publicUrl)
+    return send(res, 400, {
+      error: 'Set the public address first: every newsletter email has an unsubscribe link, and it needs one',
+    });
+  const ids = new Set(list.map(d => d.id));
+  const used = (cfg.hub?.rules || []).find(r => r.action === 'digest' && !ids.has(String(r.digest)));
+  if (used)
+    return send(res, 400, { error: `The rule "${used.name}" still sends to "${used.digest}"; change it first` });
+  config.update(c => ({ ...c, hub: { ...(c.hub || { enabled: false }), sources: hubSources.list(c), digests: list } }));
+  return send(res, 200, hub.settingsOf(config.load()));
+}
+/** @param {string} id */
+const digestById = id => hubDigests.digestsOf(config.load()).find(d => d.id === id);
+// What the digest would say if it went now. Changes nothing.
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+function previewDigest(req, res, { id }) {
+  const d = digestById(id);
+  if (!d) return send(res, 404, { error: 'No such digest' });
+  if (!hub.enabled(config.load())) return send(res, 400, { error: 'Turn the Notification Hub on first' });
+  const b = hubDigests.build(d, hubStore.queuedFor(d.id));
+  return send(res, 200, { ...b, text: hubDigests.asText(b) });
+}
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+async function sendDigestNow(req, res, { id }) {
+  const d = digestById(id);
+  if (!d) return send(res, 404, { error: 'No such digest' });
+  const cfg = config.load();
+  if (!hub.enabled(cfg)) return send(res, 400, { error: 'Turn the Notification Hub on first' });
+  return send(res, 200, await hubDigests.run(cfg, d));
 }
 // A new source's token is in this reply and nowhere else: only its hash is kept.
 /** @param {Req} req @param {Res} res */
@@ -443,10 +537,25 @@ function newSourceToken(req, res, { id }) {
 /** @param {Req} req @param {Res} res @param {{ id: string }} p */
 function deleteSource(req, res, { id }) {
   saveSources(list => list.filter(s => s.id !== id));
+  if (hub.enabled(config.load())) hubStore.forgetSource(id);
   return send(res, 200, { ok: true });
 }
+// The newest 200 events, with each destination's name filled in (one removed since says so).
 /** @param {Req} req @param {Res} res */
-const hubActivity = (req, res) => send(res, 200, { events: hub.enabled(config.load()) ? hub.activity(200) : [] });
+function hubActivity(req, res) {
+  if (DEMO) return send(res, 200, { events: demo.hubActivity() });
+  const cfg = config.load();
+  if (!hub.enabled(cfg)) return send(res, 200, { events: [] });
+  const names = new Map((cfg.notifications?.targets || []).map(t => [t.id, t.name]));
+  /** @param {string} id */
+  const named = id => ({ id, name: names.get(id) ?? 'a removed destination' });
+  const events = hub.activity(200).map(e => ({
+    ...e,
+    destinations: e.destinations.map(named),
+    deliveries: e.deliveries.map((/** @type {any} */ d) => ({ ...d, ...named(d.destination) })),
+  }));
+  return send(res, 200, { events });
+}
 
 // ---------------------------------------------------------------- appearance
 /** @param {Req} req @param {Res} res */
@@ -553,6 +662,45 @@ function safeStatusPage(input, services) {
   }
 }
 
+// A backup's hub settings, through the same checks as the forms; a broken rule list is left out
+// (the hub then starts from today's choices again) rather than failing the whole restore.
+/** @param {any} h @param {import('./types').Target[]} restored */
+function restoredHub(h, restored) {
+  let rules;
+  try {
+    rules = Array.isArray(h.rules)
+      ? hubRules.clean(
+          h.rules,
+          restored.map(t => t.id),
+        )
+      : undefined;
+  } catch {
+    rules = undefined;
+  }
+  let digests;
+  try {
+    digests = Array.isArray(h.digests)
+      ? hubDigests.clean(
+          h.digests,
+          restored.map(t => t.id),
+        )
+      : undefined;
+  } catch {
+    digests = undefined;
+  }
+  const flap = Math.round(Number(h.flapMinutes));
+  return {
+    enabled: !!h.enabled,
+    sources: hubSources.clean(h.sources),
+    ...(rules ? { rules } : {}),
+    ...(digests ? { digests } : {}),
+    ...(/^https?:\/\/\S+$/i.test(String(h.publicUrl || '')) ? { publicUrl: String(h.publicUrl) } : {}),
+    // The key that signs unsubscribe links, so links in emails already sent keep working.
+    ...(/^[0-9a-f]{64}$/.test(String(h.secret || '')) ? { secret: String(h.secret) } : {}),
+    ...(flap >= 0 && flap <= 1440 ? { flapMinutes: flap } : {}),
+  };
+}
+
 /** @param {Req} req @param {Res} res */
 async function restore(req, res) {
   const b = await readJson(req, 2 * 1024 * 1024);
@@ -606,7 +754,7 @@ async function restore(req, res) {
         ? { enabled: !!incoming.metrics.enabled, token: String(incoming.metrics.token) }
         : null,
     // Sources keep their token hashes, so the apps' webhooks keep working after a restore.
-    hub: incoming.hub ? { enabled: !!incoming.hub.enabled, sources: hubSources.clean(incoming.hub.sources) } : c.hub,
+    hub: incoming.hub ? restoredHub(incoming.hub, restoredTargets) : c.hub,
     notifications: {
       diskThreshold: Math.min(99, Math.max(50, Math.round(Number(n.diskThreshold)) || 90)),
       quiet: n.quiet
@@ -665,6 +813,10 @@ const ROUTE_LIST = [
   ['POST', '/digest-test', sendTestDigest],
   ['GET', '/hub', hubSettings],
   ['PUT', '/hub', saveHub],
+  ['PUT', '/hub/rules', saveHubRules],
+  ['PUT', '/hub/digests', saveHubDigests],
+  ['GET', '/hub/digests/:id/preview', previewDigest],
+  ['POST', '/hub/digests/:id/send', sendDigestNow],
   ['GET', '/hub/activity', hubActivity],
   ['POST', '/hub/sources', addSource],
   ['PUT', '/hub/sources/:id', updateSource],

@@ -111,9 +111,23 @@ test('seerr: request states map to types, the title and year come out of the sub
   assert.equal(parsers.seerr({ notification_type: 'SOMETHING_NEW', subject: 'X' })[0].type, 'hub.unhandled');
 });
 
+test('seerr: a long subject is parsed in linear time (no regex stall from a crafted payload)', () => {
+  const t0 = performance.now();
+  const [e] = parsers.seerr({ notification_type: 'MEDIA_PENDING', subject: `x${' '.repeat(400000)}x`, media: {} });
+  assert.ok(performance.now() - t0 < 200, 'fast');
+  assert.ok(e.media && e.media.title.length <= 300, 'capped');
+  assert.deepEqual(
+    [
+      parsers.seerr({ notification_type: 'MEDIA_PENDING', subject: 'Dune: Part Two (2024)' })[0].media?.title,
+      parsers.seerr({ notification_type: 'MEDIA_PENDING', subject: 'Dune: Part Two (2024)' })[0].media?.year,
+    ],
+    ['Dune: Part Two', 2024],
+  );
+});
+
 test('generic: the hub format with only a type and summary required; bad types refused', () => {
-  const [e] = parsers.generic({ type: 'dcs.server_up', summary: 'DCS server is up', severity: 'warn' });
-  assert.deepEqual([e.type, e.severity, e.summary], ['dcs.server_up', 'warning', 'DCS server is up']);
+  const [e] = parsers.generic({ type: 'backup.finished', summary: 'Nightly backup finished', severity: 'warn' });
+  assert.deepEqual([e.type, e.severity, e.summary], ['backup.finished', 'warning', 'Nightly backup finished']);
   const [m] = parsers.generic({
     type: 'media.added',
     media: { kind: 'movie', title: 'Dune', year: 2021, ids: { tmdb: 438631 }, poster_url: 'https://x.example/p.jpg' },
@@ -235,4 +249,15 @@ test('store: events in, newest first, without raw payloads; raw dropped after 7 
   assert.equal(store.sourceStats().s1.received, 2);
   assert.equal(store.sourceStats().s1.lastType, 'hub.test');
   if (process.platform !== 'win32') assert.equal(fs.statSync(process.env.HUB_DB || '').mode & 0o777, 0o600);
+});
+
+test('clean-up runs whenever hub.db exists, even with the hub turned off (no keeping requesters past 7 days)', async () => {
+  const hub = require('../lib/hub');
+  const old = normalize.finish(
+    { source: 'seerr', sourceInstance: 'seerr', raw: { requestedBy_email: 'friend@example.com' } },
+    parsers.seerr(hubFixture('seerr-pending'))[0],
+  );
+  store.add({ ...old, id: 'very-old', receivedAt: Date.now() - 200 * 864e5 });
+  await hub.tick(/** @type {any} */ ({ hub: { enabled: false } }));
+  assert.ok(!store.recent(1000).some(e => e.id === 'very-old'));
 });

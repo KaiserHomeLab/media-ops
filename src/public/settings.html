@@ -139,7 +139,10 @@
 
           <div class="hub-panel" data-panel="2" hidden>
             <h3 class="sub-h">2. Where things go</h3>
-            <p class="hint">For each kind of notification, choose: send it <b>right away</b> to the Discord channels or phone you pick, put it <b>in a summary</b> (step 3), or <b>don't tell me</b>. Each Discord channel is a webhook; add as many as you like, so new movies can go to one channel and problems to another.</p>
+            <p class="hint">For each kind of notification, choose: send it <b>right away</b> to the Discord channels or phone you pick, put it <b>in a summary</b> (step 3), or <b>don't tell me</b>. Add your channels first (each Discord channel is a webhook; add as many as you like), then pick one or more for each kind below, so new movies can go to one channel and problems to another.</p>
+            <h4 class="hub-group">Your channels</h4>
+            <ul class="hub-list hub-chans" id="hub-channels"></ul>
+            <div class="actions start hub-chan-acts"><button class="btn" type="button" id="hub-add-channel">+ Add a Discord channel</button><button class="btn ghost" type="button" id="hub-add-other">+ Phone, email or other</button></div>
             <div id="hub-routes"></div>
             <details class="more hub-advanced" id="hub-advanced">
               <summary>Advanced: custom rules <span class="count" id="hub-adv-count"></span></summary>

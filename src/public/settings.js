@@ -671,7 +671,15 @@ function openNotifPicker() {
 /** @param {NotifyType} def @param {NotifyTarget | null} target */
 function notifFormHtml(def, target) {
   // The ntfy server defaults to ntfy.sh when left blank, so it's never required.
-  const fields = def.fields.map(f => fieldHtml(f, target, !f.optional && f.key !== 'server')).join('');
+  /** @param {NotifyType['fields']} list */
+  const html = list => list.map(f => fieldHtml(f, target, !f.optional && f.key !== 'server')).join('');
+  // A Discord channel only needs its name and webhook; how messages look folds away.
+  const extra = def.type === 'discord' ? def.fields.filter(f => f.optional) : [];
+  const fields =
+    html(def.fields.filter(f => !extra.includes(f))) +
+    (extra.length
+      ? `<details class="field wide more"${extra.some(f => target?.[f.key]) ? ' open' : ''}><summary>How messages look (optional)</summary>${html(extra)}</details>`
+      : '');
   const events = S.notifyEvents
     .map(
       e =>
@@ -680,12 +688,16 @@ function notifFormHtml(def, target) {
     .join('');
   return `
     <form class="form grid-form" id="notif-form" novalidate>
-      <label class="field"><span>Name</span><input name="name" required value="${esc(target?.name || def.label)}"></label>
+      ${
+        def.type === 'discord'
+          ? `<label class="field"><span>Channel name <em>how it's shown here</em></span><input name="name" required maxlength="100" placeholder="#new-on-plex" value="${esc(target?.name || '')}"></label>`
+          : `<label class="field"><span>Name</span><input name="name" required value="${esc(target?.name || def.label)}"></label>`
+      }
       <label class="field toggle"><input type="checkbox" name="enabled" ${target?.enabled === false ? '' : 'checked'}><span>Enabled</span></label>
       ${fields}
       ${
         S.hubEnabled
-          ? '<p class="hint wide">What this gets is chosen in <b>Notification Hub → Where things go</b>, further down this page.</p>'
+          ? '<p class="hint wide">What this gets is chosen in <b>Notification Hub → 2. Where things go</b>.</p>'
           : `<fieldset class="field wide events"><legend>Send me</legend>${events}</fieldset>`
       }
       <div class="test-result wide" id="notif-result" hidden></div>
@@ -718,22 +730,32 @@ async function saveNotif(target, body) {
     : [...S.notifications.targets, saved];
   modal.close();
   renderNotifs();
+  targetsChanged({ added: target ? null : saved.id });
 }
 
-/** @param {NotifyTarget} target */
-async function deleteNotif(target) {
-  if (!confirm(`Delete ${target.name}?`)) return;
+// Tell the Notification Hub (settings-hub.js) its list of channels changed.
+/** @param {{ added?: string | null, removed?: string }} detail */
+const targetsChanged = detail => document.dispatchEvent(new CustomEvent('targets-changed', { detail }));
+
+/** @param {NotifyTarget} target @param {string} [why] what stops going there, from the hub */
+async function deleteNotif(target, why = '') {
+  if (!confirm(`Remove “${target.name}”?${why ? `\n\n${why}` : ''}`)) return false;
   await api(`/notifications/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
   S.notifications.targets = S.notifications.targets.filter(t => t.id !== target.id);
   modal.close();
   renderNotifs();
+  targetsChanged({ removed: target.id });
+  return true;
 }
 
 /** @param {string} type @param {NotifyTarget | null} [target] */
 function openNotifForm(type, target = null) {
   const def = S.notifyTypes.find(t => t.type === type);
   if (!def) return;
-  openModal(target ? `Edit ${target.name}` : `Add ${def.label}`, notifFormHtml(def, target));
+  openModal(
+    target ? `Edit ${target.name}` : type === 'discord' ? 'Add a Discord channel' : `Add ${def.label}`,
+    notifFormHtml(def, target),
+  );
   const form = $form('notif-form'),
     result = $('notif-result');
   const values = () => notifValues(form, def, target);
@@ -765,7 +787,7 @@ function openNotifForm(type, target = null) {
     }
   });
   $('nback')?.addEventListener('click', openNotifPicker);
-  $('ndel')?.addEventListener('click', () => target && deleteNotif(target));
+  $('ndel')?.addEventListener('click', () => target && deleteNotif(target, S.hubEnabled ? hubUses(target.id) : ''));
   focusFirstEmpty(form, field(form, 'name'));
 }
 

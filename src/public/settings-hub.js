@@ -11,7 +11,7 @@
 // settings.js, whose helpers ($, api, esc, field, closest, showError, flash, openModal, modal,
 // renderNotifs, S) it uses; settings.js calls loadHub() once the page has loaded.
 'use strict';
-/* exported loadHub */
+/* exported loadHub, hubUses */
 
 /** @type {HubSettings | null} */
 let hubState = null;
@@ -21,6 +21,8 @@ let hubEvents = [];
 let hubCustom = [];
 /** @type {string | null} the row whose editor is open in "Where things go" */
 let openRoute = null;
+/** @type {{ type: string, ticked: string[] } | null} the row that asked for a new Discord channel */
+let addingFor = null;
 
 // --------------------------------------------------------------------- small helpers
 /** @param {unknown} v @returns {string[]} a rule match value is one value or a list */
@@ -410,6 +412,112 @@ $('hub-sources').addEventListener('click', async e => {
 });
 
 // --------------------------------------------------------------------- 2. where things go
+// "Your channels": every destination (Discord channels, phone, email…), what it gets, and Edit /
+// Remove. Adding, editing and removing use the Notifications dialog (settings.js), which tells
+// this page with a 'targets-changed' event.
+
+// What goes to a destination, in words: the rows, custom rules and summaries that send there.
+/** @param {string} id @returns {string[]} */
+function usesOf(id) {
+  if (!hubState) return [];
+  const rows = (hubState.eventTypes || [])
+    .filter(t => {
+      const r = ruleFor(t.type);
+      return r?.action === 'now' && (r.destinations || []).includes(id);
+    })
+    .map(t => t.label);
+  const custom = customRules()
+    .filter(r => r.enabled && r.action === 'now' && (r.destinations || []).includes(id))
+    .map(r => `custom rule “${r.name}”`);
+  const catchAll = (hubState.rules || []).some(
+    r => r.locked && r.action === 'now' && (r.destinations || []).includes(id),
+  )
+    ? ['anything else']
+    : [];
+  const sums = (hubState.digests || []).filter(d => d.destinations.includes(id)).map(d => `summary “${d.title}”`);
+  return [...rows, ...custom, ...catchAll, ...sums];
+}
+
+// For the Remove confirmation (here and in the Notifications dialog).
+/** @param {string} id */
+function hubUses(id) {
+  const uses = usesOf(id);
+  return uses.length
+    ? `It gets: ${uses.join(', ')}. Those stop going there (other channels they go to keep getting them).`
+    : 'Nothing is sent there yet.';
+}
+
+function renderChannels() {
+  const list = S.notifications.targets;
+  $('hub-channels').innerHTML = list.length
+    ? list
+        .map(t => {
+          const uses = usesOf(t.id);
+          const kind = S.notifyTypes.find(x => x.type === t.type)?.label || t.type;
+          const failed =
+            t.last && !t.last.ok ? `<span class="app-err">✕ Last send failed: ${esc(t.last.error)}</span>` : '';
+          return `<li class="hub-chan${t.enabled === false ? ' off' : ''}" data-chan="${esc(t.id)}">
+        <div class="hub-chan-what"><b>${esc(t.name)}</b>
+          <span class="muted">${esc(kind)}${t.enabled === false ? ' · switched off' : ''} · ${
+            uses.length ? `gets ${esc(uses.join(', '))}` : 'nothing goes here yet: pick it in a row below'
+          }</span>${failed}</div>
+        <button class="btn small" type="button" data-edit-chan>Edit</button>
+        <button class="btn small danger ghost" type="button" data-del-chan>Remove</button>
+      </li>`;
+        })
+        .join('')
+    : '<li class="muted">No channels yet. Add a Discord channel to start; each one is a webhook from that channel.</li>';
+}
+
+$('hub-add-channel').addEventListener('click', () => {
+  addingFor = null;
+  openNotifForm('discord');
+});
+$('hub-add-other').addEventListener('click', () => {
+  addingFor = null;
+  openNotifPicker();
+});
+$('hub-channels').addEventListener('click', async e => {
+  const li = closest(e, '[data-chan]');
+  const t = S.notifications.targets.find(x => x.id === li?.dataset.chan);
+  if (!t) return;
+  if (closest(e, '[data-edit-chan]')) openNotifForm(t.type, t);
+  else if (closest(e, '[data-del-chan]')) {
+    try {
+      await deleteNotif(t, hubUses(t.id));
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+});
+
+// A channel was added, edited or removed (settings.js). Removing one also took it out of the
+// rules and summaries on the server, so read those again.
+document.addEventListener('targets-changed', async ev => {
+  if (!hubState?.enabled) return;
+  const { added = null, removed = null } = /** @type {CustomEvent} */ (ev).detail || {};
+  if (removed) {
+    try {
+      hubState = await api('/hub');
+    } catch {
+      /* the lists below still show the new channel list */
+    }
+  }
+  renderRoutes();
+  renderDigests();
+  // Added from a row's editor: back to that row, with the new channel ticked and "right away".
+  const from = addingFor;
+  addingFor = null;
+  if (!added || !from || openRoute !== from.type) return;
+  const nf = /** @type {HTMLFormElement | null} */ (
+    document.querySelector(`[data-route-form="${CSS.escape(from.type)}"]`)
+  );
+  if (!nf) return;
+  for (const x of /** @type {NodeListOf<HTMLInputElement>} */ (nf.querySelectorAll('input[name=dest]')))
+    x.checked = from.ticked.includes(x.value) || x.value === added;
+  /** @type {HTMLInputElement} */ (nf.querySelector('input[name=mode][value=now]')).checked = true;
+});
+
 /** @param {string} type */
 function routeSummary(type) {
   const r = ruleFor(type);
@@ -423,6 +531,7 @@ function routeSummary(type) {
 
 function renderRoutes() {
   if (!hubState) return;
+  renderChannels(); // what each channel gets follows the rows
   const groups = [...new Set(hubState.eventTypes.map(t => t.group))];
   $('hub-routes').innerHTML = groups
     .map(
@@ -464,11 +573,6 @@ function routeEditor(type) {
     <label class="check"><input type="radio" name="mode" value="now" ${mode === 'now' ? 'checked' : ''}><span><b>Right away</b>, to:</span></label>
     <div class="hub-route-dests">${dests || '<span class="muted">No destinations yet.</span>'}
       <button class="linkish" type="button" data-add-discord>+ Add a Discord channel</button>
-      <div class="hub-add-discord" hidden>
-        <label class="field"><span>Channel name</span><input name="dname" placeholder="#new-on-plex" maxlength="100"></label>
-        <label class="field"><span>Webhook URL <em>Discord channel → Edit → Integrations → Webhooks</em></span><input name="dhook" type="url" placeholder="https://discord.com/api/webhooks/…" spellcheck="false"></label>
-        <button class="btn small" type="button" data-save-discord>Add channel</button>
-      </div>
     </div>
     <label class="check"><input type="radio" name="mode" value="digest" ${mode === 'digest' ? 'checked' : ''} ${digests ? '' : 'disabled'}><span><b>In a summary</b>:</span></label>
     <div class="hub-route-dests"><select name="digest" aria-label="Summary">${digests}</select></div>
@@ -488,40 +592,14 @@ $('hub-routes').addEventListener('click', async e => {
     return;
   }
   if (closest(e, '[data-add-discord]')) {
-    const box = /** @type {HTMLElement} */ (li.querySelector('.hub-add-discord'));
-    box.hidden = !box.hidden;
-    if (!box.hidden) /** @type {HTMLInputElement} */ (box.querySelector('input')).focus();
-    return;
-  }
-  if (closest(e, '[data-save-discord]')) {
+    // The same dialog as "+ Add a Discord channel" above the list (with its Send test); once
+    // it's saved, this row gets the new channel ticked (see 'targets-changed').
     const f = /** @type {HTMLFormElement} */ (li.querySelector('form'));
-    const err = /** @type {HTMLElement} */ (f.querySelector('[data-route-error]'));
-    showError(err, '');
-    try {
-      // A Discord channel is a destination like any other (Settings → Notifications lists it too).
-      const t = await api('/notifications', {
-        method: 'POST',
-        body: {
-          type: 'discord',
-          name: field(f, 'dname').value || 'Discord',
-          webhookUrl: field(f, 'dhook').value,
-          events: {},
-        },
-      });
-      S.notifications.targets = [...S.notifications.targets, t];
-      renderNotifs();
-      // Keep what was ticked, add the new channel ticked, and pick "right away".
-      const ticked = new Set(
-        [...f.querySelectorAll('input[name=dest]:checked')].map(x => /** @type {HTMLInputElement} */ (x).value),
-      );
-      renderRoutes();
-      const nf = /** @type {HTMLFormElement} */ (document.querySelector(`[data-route-form="${CSS.escape(type)}"]`));
-      for (const x of /** @type {NodeListOf<HTMLInputElement>} */ (nf.querySelectorAll('input[name=dest]')))
-        x.checked = ticked.has(x.value) || x.value === t.id;
-      /** @type {HTMLInputElement} */ (nf.querySelector('input[name=mode][value=now]')).checked = true;
-    } catch (ex) {
-      showError(err, ex.message);
-    }
+    addingFor = {
+      type,
+      ticked: [...f.querySelectorAll('input[name=dest]:checked')].map(x => /** @type {HTMLInputElement} */ (x).value),
+    };
+    openNotifForm('discord');
   }
 });
 
@@ -776,6 +854,7 @@ function renderDigests() {
         })
         .join('')
     : '<li class="hub-empty muted">No summaries.</li>';
+  renderChannels(); // a summary's channels count as what they get
 }
 
 $('hub-digests').addEventListener('click', async e => {

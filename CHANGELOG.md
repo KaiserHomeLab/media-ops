@@ -9,6 +9,20 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ## [Unreleased]
 
+### Added
+
+- Notification Hub → Connect apps: connecting Sonarr, Radarr or Seerr asks **how it reaches
+  Media Ops**: on the same Docker network (`http://media-ops:8484`, Media Ops' port inside its
+  container), through this computer's address, or something else, with the likely answer
+  already picked. Media Ops guesses from the address you saved for the app (`http://radarr:7878`
+  means Docker) and, when it can see Docker's container list, checks the two really share a
+  network (and says how to fix it when they don't) and uses its own container name.
+- **Set it up in Radarr for me** (and Sonarr, Seerr): adds the "Media Ops" webhook in the app
+  with the right events, using the API key you saved under Apps, after a test message proves
+  the app can reach the address. An existing Media Ops webhook is updated, not duplicated; Seerr's
+  single webhook is only replaced after you say yes. Adding it by hand stays available, with
+  numbered steps for each app.
+
 ## [1.19.0] - 2026-11-04
 
 **Before you update:** if Media Ops runs without a settings password, the next time you open

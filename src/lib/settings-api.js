@@ -16,6 +16,7 @@ const notify = require('./notify');
 const hub = require('./hub');
 const hubSources = require('./hub/sources');
 const hubRules = require('./hub/rules');
+const hubConnect = require('./hub/connect');
 const hubDigests = require('./hub/digests');
 const hubStore = require('./hub/store');
 const status = require('./status');
@@ -581,6 +582,55 @@ function newSourceToken(req, res, { id }) {
   saveSources(list => list.map(s => (s.id === id ? source : s)));
   return send(res, 200, { source: hubSources.publicSource(source), token });
 }
+// How an app should reach Media Ops (for the "Connect" dialog): from the app's saved address,
+// and Docker's container list when there is one. `id` is the app (service) or "none".
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+async function hubReach(req, res, { id }) {
+  const cfg = config.load();
+  const svc = cfg.services.find(s => s.id === id) || null;
+  const containers = DEMO ? null : await listContainers(cfg.docker).catch(() => null);
+  return send(
+    res,
+    200,
+    hubConnect.suggest({
+      service: svc && { name: svc.name, url: svc.url },
+      containers,
+      hostname: require('node:os').hostname(),
+      port: Number(process.env.PORT) || 8484,
+    }),
+  );
+}
+// "Set it up for me": add this source's webhook to the app, with the address the person chose.
+// The token is the one just shown to them, checked against the stored hash, so this can only
+// ever point an app at this source; the address must be a bare http(s)://host[:port].
+/** @param {Req} req @param {Res} res @param {{ id: string }} p */
+async function setUpSource(req, res, { id }) {
+  if (DEMO) return send(res, 400, { error: 'Demo mode: nothing was changed' });
+  const cfg = config.load();
+  const all = hubSources.list(cfg);
+  const source = all.find(s => s.id === id);
+  if (!source) return send(res, 404, { error: 'No such source' });
+  const { serviceId, base, token, replace } = await readJson(req);
+  if (hubSources.verify(all, source.type, source.instance, String(token || '')) !== source)
+    return send(res, 400, { error: 'That address has expired: make a new one and try again' });
+  const svc = cfg.services.find(s => s.id === serviceId);
+  if (!svc || !(hubConnect.KINDS[source.type] || []).includes(svc.kind))
+    return send(res, 400, { error: `Pick the ${source.type} to set up (add it under Apps first)` });
+  const root = String(base || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!/^https?:\/\/[^\s/?#@]+$/i.test(root))
+    return send(res, 400, { error: 'The address must look like http://media-ops:8484 (no path)' });
+  const hookUrl = `${root}${hubSources.publicSource(source).path}?token=${encodeURIComponent(String(token))}`;
+  try {
+    const r = await hubConnect.setUp(svc, hookUrl, String(token), { replace: replace === true });
+    if ('needsConfirm' in r) return send(res, 409, r);
+    console.log(`Notification Hub: ${r.updated ? 'updated' : 'added'} the webhook in ${svc.name}.`);
+    return send(res, 200, { ok: true, app: svc.name, updated: r.updated });
+  } catch (e) {
+    return send(res, 400, { error: e.message });
+  }
+}
 /** @param {Req} req @param {Res} res @param {{ id: string }} p */
 function deleteSource(req, res, { id }) {
   saveSources(list => list.filter(s => s.id !== id));
@@ -895,6 +945,8 @@ const ROUTE_LIST = [
   ['PUT', '/hub/sources/:id', updateSource],
   ['POST', '/hub/sources/:id/token', newSourceToken],
   ['DELETE', '/hub/sources/:id', deleteSource],
+  ['GET', '/hub/reach/:id', hubReach],
+  ['POST', '/hub/sources/:id/setup', setUpSource],
   ['GET', '/backup', backup],
   ['POST', '/restore', restore],
 ];

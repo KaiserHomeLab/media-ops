@@ -9,22 +9,27 @@ const crypto = require('node:crypto');
 
 /** @typedef {{ id: string, type: string, instance: string, name: string, library?: string, tokenHash: string, createdAt: number }} Source */
 
+// `how`: the steps to add the address by hand, one per line (Settings shows them numbered).
 const TYPES = [
   {
     type: 'sonarr',
     label: 'Sonarr',
-    how: 'Sonarr → Settings → Connect → + → Webhook. Paste the URL, method POST. Tick On Import, On Upgrade, On Health Issue, On Health Restored, On Manual Interaction Required and the delete events.',
+    how: 'In Sonarr, open Settings → Connect and click +, then Webhook.\nName it Media Ops and paste the address into URL. Leave Method on POST.\nTick On Import, On Upgrade, On Health Issue, On Health Restored, On Manual Interaction Required, and the delete events.\nClick Test, then Save.',
   },
-  { type: 'radarr', label: 'Radarr', how: 'Radarr → Settings → Connect → + → Webhook, the same events as Sonarr.' },
+  {
+    type: 'radarr',
+    label: 'Radarr',
+    how: 'In Radarr, open Settings → Connect and click +, then Webhook.\nName it Media Ops and paste the address into URL. Leave Method on POST.\nTick On Import, On Upgrade, On Health Issue, On Health Restored, On Manual Interaction Required, and the delete events.\nClick Test, then Save.',
+  },
   {
     type: 'seerr',
     label: 'Seerr',
-    how: 'Seerr → Settings → Notifications → Webhook. Paste the URL and keep the default JSON payload.',
+    how: 'In Seerr, open Settings → Notifications → Webhook.\nTick Enable Agent and paste the address into Webhook URL. Keep the default JSON payload.\nTick the kinds of notification you want (requests, approvals, available…).\nClick Test, then Save Changes.',
   },
   {
     type: 'generic',
-    label: 'Anything else (JSON)',
-    how: 'POST JSON like { "type": "custom", "summary": "Backup finished" } from a script or another app.',
+    label: 'From a script',
+    how: 'Send a POST with JSON like { "type": "custom", "summary": "Backup finished" } to the address.\nOptional fields: severity (info, warning, error, critical) and media (a title, see docs/notification-hub.md).',
   },
 ];
 const BY_TYPE = new Set(TYPES.map(t => t.type));

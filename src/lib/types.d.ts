@@ -62,6 +62,10 @@ export interface Config {
     sources: import('./hub/sources').Source[];
     rules?: import('./hub/rules').Rule[];
     digests?: import('./hub/digests').Digest[];
+    /** The address people open Media Ops at, for newsletter unsubscribe links. */
+    publicUrl?: string;
+    /** Signs unsubscribe links (lib/hub/newsletter.js); never sent to a browser. */
+    secret?: string;
     /** The same event again within this many minutes is suppressed (default 10). */
     flapMinutes?: number;
   } | null;

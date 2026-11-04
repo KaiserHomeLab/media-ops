@@ -84,7 +84,10 @@ function replies() {
 
 /**
  * @param {{ host: string, port: number, username?: string, password?: string, from: string,
- *   to: string, subject: string, text: string, timeout?: number, tlsOptions?: tls.ConnectionOptions }} m
+ *   to: string, subject: string, text: string, html?: string, fromName?: string,
+ *   headers?: Record<string, string>, timeout?: number, tlsOptions?: tls.ConnectionOptions }} m
+ *   html: sent as multipart/alternative with `text` (newsletters). headers: extra ones like
+ *   List-Unsubscribe; names must be plain words, and line breaks are removed from values.
  *   tlsOptions is for tests (a test certificate authority); Settings never sets it.
  */
 async function sendMail(m) {
@@ -152,20 +155,40 @@ async function sendMail(m) {
     await cmd(`MAIL FROM:<${m.from}>`, [250]);
     for (const a of to) await cmd(`RCPT TO:<${a}>`, [250, 251]);
     await cmd('DATA', [354]);
-    const body = Buffer.from(m.text.replace(/\r?\n/g, '\r\n')).toString('base64').replace(/.{76}/g, '$&\r\n');
+    /** @param {string} t */
+    const b64 = t => Buffer.from(t.replace(/\r?\n/g, '\r\n')).toString('base64').replace(/.{76}/g, '$&\r\n');
+    const extra = Object.entries(m.headers || {})
+      .filter(([k]) => /^[A-Za-z][A-Za-z0-9-]{0,60}$/.test(k))
+      .map(([k, v]) => `${k}: ${String(v).replace(/[\r\n]+/g, ' ')}`);
+    const boundary = `mo-${crypto.randomUUID()}`;
+    // Base64 lines and these headers never start with ".", so the message needs no dot-stuffing.
+    const content = m.html
+      ? [
+          `Content-Type: multipart/alternative; boundary="${boundary}"`,
+          '',
+          `--${boundary}`,
+          'Content-Type: text/plain; charset=utf-8',
+          'Content-Transfer-Encoding: base64',
+          '',
+          b64(m.text),
+          `--${boundary}`,
+          'Content-Type: text/html; charset=utf-8',
+          'Content-Transfer-Encoding: base64',
+          '',
+          b64(m.html),
+          `--${boundary}--`,
+        ]
+      : ['Content-Type: text/plain; charset=utf-8', 'Content-Transfer-Encoding: base64', '', b64(m.text)];
     const message = [
-      `From: Media Ops <${m.from}>`,
+      `From: ${headerText((m.fromName || 'Media Ops').replace(/[<>"]/g, ''))} <${m.from}>`,
       `To: ${to.join(', ')}`,
       `Subject: ${headerText(m.subject)}`,
       `Date: ${new Date().toUTCString()}`,
       `Message-ID: <${crypto.randomUUID()}@media-ops>`,
+      ...extra,
       'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset=utf-8',
-      'Content-Transfer-Encoding: base64',
-      '',
-      body,
+      ...content,
     ].join('\r\n');
-    // Base64 lines never start with ".", so the message needs no dot-stuffing.
     await cmd(`${message}\r\n.`, [250], 'the message');
     sock.write('QUIT\r\n');
   } finally {

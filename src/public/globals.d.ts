@@ -154,6 +154,7 @@ interface HubSettings {
   enabled: boolean;
   rules: { id: string; name: string; enabled: boolean; action: 'now' | 'digest' | 'drop'; locked?: boolean }[];
   flapMinutes: number;
+  publicUrl: string;
   digests: {
     id: string;
     title: string;
@@ -164,6 +165,7 @@ interface HubSettings {
     skipIfEmpty: boolean;
     maxItemsPerSection: number;
     footer: string;
+    recipients?: string[];
     last: { sentAt: number; status: string; items: number; upgrades: number } | null;
   }[];
   types: { type: string; label: string; how: string }[];

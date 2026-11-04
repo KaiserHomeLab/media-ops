@@ -54,6 +54,12 @@ there as soon as I can.
   and that address waits out the window, apart from the Settings login lockout. Payloads are kept
   in `/config/hub.db` (permissions `0600`); the raw payload, which can name a requester, is
   deleted after 7 days and events after 90. Raw payloads are never sent to the browser.
+- Newsletter unsubscribe links (`/hub/unsubscribe`) are signed per digest and address with an
+  HMAC key that's made on the server, kept in `config.json` and never sent to a browser, so a
+  link can't be changed to unsubscribe someone else. Opening a link only asks; the address is
+  removed by the page's button (or a mail app's one-click unsubscribe, a POST). Like webhooks,
+  the path needs no login: the signature is the permission. Each newsletter address gets its
+  own message, so no recipient sees another's address.
 - Plex posters are fetched by the server (so the Plex token never reaches the browser), with
   redirects refused so the token can't be bounced to another host.
 - Notification secrets (webhook URLs, bot tokens, keys, email passwords) are stored like API

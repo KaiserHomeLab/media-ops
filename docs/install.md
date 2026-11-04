@@ -274,7 +274,7 @@ The **Test** button tells you if that's the problem.
 
 Media Ops tells you on the dashboard when a new version is out. The
 [changelog](../CHANGELOG.md) says what changed. If you'd rather choose when to update, use a
-version tag instead of `latest`: `:1.18` gets fixes only, `:1.18.0` never changes.
+version tag instead of `latest`: `:1.19` gets fixes only, `:1.19.0` never changes.
 
 - **Unraid:** Docker tab → **Check for updates** → **Apply update**.
 - **TrueNAS:** Apps → media-ops → **Edit**, then **Save** without changing anything. That pulls

@@ -16,6 +16,13 @@ services:
       - PGID=1000 # Unraid: 100. Synology: 100 (users). Windows and Mac: leave as is.
       - TZ=America/Chicago # your time zone
       - HOST_NAME=media-server # the name shown at the top of the dashboard
+      # The container list, through the read-only proxy below (it can only list containers).
+      - DOCKER_HOST=tcp://socket-proxy:2375
+      # Behind a reverse proxy or Cloudflare Tunnel? Uncomment so the settings-login lockout
+      # counts each visitor, not the proxy. Leave it off without one (anyone could fake the header).
+      # - TRUST_PROXY=1
+    depends_on:
+      - socket-proxy
     ports:
       - '8484:8484'
     volumes:
@@ -23,9 +30,10 @@ services:
       # Unraid: /mnt/user/appdata/media-ops   Synology: /volume1/docker/media-ops
       - ./config:/config
 
-      # Optional: the Docker container list. Same path on Linux, Windows and Mac.
-      # Safer: a read-only socket proxy instead (see "Good to know" in the README).
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Not recommended: mounting the Docker socket directly. ":ro" doesn't limit what can be
+      # asked of Docker, so anything that took over Media Ops would control your host. If you
+      # use it anyway, remove DOCKER_HOST above and the socket-proxy service below.
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
 
       # Optional: disks to show free space for. Mount read-only, then list the
       # right-hand path under Settings → General → Disks to show.
@@ -34,3 +42,20 @@ services:
       # macOS:    - /Volumes/Media:/mnt/media:ro
       # Unraid:   - /mnt/user:/mnt/user:ro
       # Synology: - /volume1:/volume1:ro
+
+  # Optional: lets the dashboard list your containers and find your apps in Docker, without
+  # Media Ops touching the Docker socket. This proxy answers only "list containers"; everything
+  # else (start, stop, exec, create) is refused, and it isn't published outside this file.
+  # Delete this service (and DOCKER_HOST, depends_on above) if you don't want the container list.
+  socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy:latest
+    container_name: media-ops-socket-proxy
+    restart: unless-stopped
+    environment:
+      - CONTAINERS=1 # the one thing Media Ops asks for
+      - POST=0 # read-only
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # rootless Docker or Podman: see docs/install.md
+    read_only: true
+    tmpfs:
+      - /run

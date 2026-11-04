@@ -37,6 +37,8 @@ export interface Config {
   services: Service[];
   auth: { salt: string; hash: string } | null;
   dashboardAuth?: boolean;
+  /** Password removed on purpose: no setup asked for (lib/auth.js setupRequired). */
+  openByChoice?: boolean;
   map: { enabled: boolean; home: string; asgard?: boolean };
   uploadMbps?: number | null;
   cleanupDays?: number;

@@ -27,9 +27,9 @@ const diagnostics = require('./diagnostics');
 const digest = require('./digest');
 const pins = require('./pins');
 const { platform } = require('./platform');
-const { hostOs, hostStats, loopbackNote, listContainers } = require('./host');
+const { hostOs, hostStats, loopbackNote, listContainers, dockerAddress } = require('./host');
 const discover = require('./discover');
-const { sessions, cookie, loggedIn, startSession, lockedOut, noteFailure } = require('./auth');
+const { sessions, cookie, loggedIn, setupRequired, startSession, lockedOut, noteFailure } = require('./auth');
 const { readJson, send } = require('./web');
 const { DEMO, describeError, runService, invalidate, polled } = require('./poll');
 const pkg = require('../package.json');
@@ -41,6 +41,7 @@ function settingsPayload(req) {
   const cfg = config.load();
   return {
     authEnabled: !!cfg.auth,
+    openByChoice: !cfg.auth && !!cfg.openByChoice,
     dashboardAuth: !!cfg.dashboardAuth,
     version: pkg.version,
     loggedIn: loggedIn(req),
@@ -49,7 +50,7 @@ function settingsPayload(req) {
     general: {
       refreshSeconds: cfg.refreshSeconds,
       paths: cfg.paths,
-      dockerSocket: cfg.docker?.socket || '',
+      dockerSocket: cfg.docker ? dockerAddress(cfg.docker) : '', // what's in use (DOCKER_HOST included)
       mapEnabled: cfg.map?.enabled !== false,
       mapHome: cfg.map?.home || '',
       mapAsgard: cfg.map?.asgard !== false,
@@ -105,10 +106,41 @@ async function login(req, res) {
   return send(res, 200, { ok: true });
 }
 
+// Counts toward the lockout like a wrong answer, so nobody can keep asking (each ask re-shows the
+// same code anyway, see lib/recovery.js).
 /** @param {Req} req @param {Res} res */
 function forgot(req, res) {
+  noteFailure(req);
   const r = recovery.request();
-  return send(res, r.ok ? 200 : 400, r.ok ? { ok: true, file: r.file } : { error: r.error });
+  return r.ok ? send(res, 200, { ok: true, file: r.file }) : send(res, 400, { error: r.error });
+}
+
+// ---------------------------------------------------------------- first password (setup)
+// Until there's a password (and it wasn't removed on purpose), the only way in: the setup code
+// from the log, plus the password to set.
+/** @param {Req} req @param {Res} res */
+function setupCode(req, res) {
+  if (!setupRequired()) return send(res, 400, { error: 'Setup is already done' });
+  noteFailure(req);
+  return send(res, 200, { ok: true, file: recovery.setup.request().file });
+}
+/** @param {Req} req @param {Res} res */
+async function setup(req, res) {
+  if (!setupRequired()) return send(res, 400, { error: 'Setup is already done' });
+  const { code, password } = await readJson(req);
+  const pw = String(password ?? '');
+  if (pw.length < 8) return send(res, 400, { error: 'Use at least 8 characters' });
+  if (pw.length > 1024) return send(res, 400, { error: 'Use at most 1024 characters' });
+  const err = recovery.setup.verify(code);
+  if (err) {
+    await wrongAnswer(req);
+    return send(res, 400, { error: err });
+  }
+  config.update(c => ({ ...c, auth: config.hashPassword(pw), openByChoice: false }));
+  sessions.clear();
+  startSession(req, res);
+  console.log('Settings password set: setup is done.');
+  return send(res, 200, { ok: true });
 }
 
 /** @param {Req} req @param {Res} res */
@@ -122,7 +154,8 @@ async function reset(req, res) {
     await wrongAnswer(req);
     return send(res, 400, { error: err });
   }
-  config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null }));
+  // Blank: removed on purpose, so Settings stays open rather than asking for setup again.
+  config.update(c => ({ ...c, auth: next ? config.hashPassword(String(next)) : null, openByChoice: !next }));
   sessions.clear(); // sign out everywhere else
   if (next) startSession(req, res);
   console.log(`Settings password ${next ? 'reset' : 'removed'} using a reset code.`);
@@ -149,6 +182,7 @@ async function changePassword(req, res) {
   config.update(c => ({
     ...c,
     auth: next ? config.hashPassword(String(next)) : null,
+    openByChoice: !next, // removed on purpose: open, not "set up again"
     dashboardAuth: next ? c.dashboardAuth : false,
   }));
   sessions.clear();
@@ -819,7 +853,9 @@ async function restore(req, res) {
 /** @type {[string, string, Handler, { open?: boolean, guessable?: boolean }?][]} */
 const ROUTE_LIST = [
   ['POST', '/login', login, { open: true, guessable: true }],
-  ['POST', '/forgot', forgot, { open: true }],
+  ['POST', '/forgot', forgot, { open: true, guessable: true }],
+  ['POST', '/setup-code', setupCode, { open: true, guessable: true }],
+  ['POST', '/setup', setup, { open: true, guessable: true }],
   ['POST', '/reset', reset, { open: true, guessable: true }],
   ['POST', '/logout', logout, { open: true }],
   ['PUT', '/password', changePassword, { guessable: true }],
@@ -831,7 +867,7 @@ const ROUTE_LIST = [
   ['PUT', '/services/:id', updateService],
   ['DELETE', '/services/:id', deleteService],
   ['PUT', '/order', reorderServices],
-  ['GET', '/diagnostics', runDiagnostics],
+  ['POST', '/diagnostics', runDiagnostics], // POST: it calls every app, so no other site may trigger it
   ['POST', '/notifications/test', testTarget],
   ['POST', '/notifications', addTarget],
   ['PUT', '/notifications/:id', updateTarget],
@@ -889,7 +925,14 @@ async function settingsApi(req, res, path) {
     if (wait)
       return send(res, 429, { error: `Too many wrong attempts. Try again in ${wait} minute${wait === 1 ? '' : 's'}.` });
   }
-  if (!route?.open && !loggedIn(req)) return send(res, 401, { error: 'Log in to change settings', needLogin: true });
+  if (!route?.open && !loggedIn(req))
+    return send(
+      res,
+      401,
+      setupRequired()
+        ? { error: 'Set a settings password first', needSetup: true }
+        : { error: 'Log in to change settings', needLogin: true },
+    );
   if (!route) return send(res, 404, { error: 'Not found' });
   return route.handler(req, res, params);
 }

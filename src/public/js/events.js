@@ -173,7 +173,8 @@ async function post(path, body = {}) {
     body: JSON.stringify(body),
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { needLogin: data.needLogin });
+  if (!r.ok)
+    throw Object.assign(new Error(data.error || `HTTP ${r.status}`), { needLogin: data.needLogin || data.needSetup });
   return data;
 }
 

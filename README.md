@@ -168,7 +168,6 @@ Container**, pick **media-ops** and click **Apply**.
 docker run -d --name media-ops --restart unless-stopped -p 8484:8484 \
   -e PUID=$(id -u) -e PGID=$(id -g) -e TZ=America/Chicago -e HOST_NAME=$(hostname) \
   -v ~/media-ops:/config \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
   ghcr.io/kaiserhomelab/media-ops:latest
 ```
 
@@ -178,12 +177,12 @@ docker run -d --name media-ops --restart unless-stopped -p 8484:8484 \
 docker run -d --name media-ops --restart unless-stopped -p 8484:8484 `
   -e TZ=America/Chicago -e HOST_NAME=$env:COMPUTERNAME `
   -v C:\media-ops:/config `
-  -v /var/run/docker.sock:/var/run/docker.sock:ro `
   ghcr.io/kaiserhomelab/media-ops:latest
 ```
 
 **macOS** works like Linux, with Docker Desktop or OrbStack. **Docker Compose** fans can use
-[`docker-compose.yml`](docker-compose.yml), which works on every system.
+[`docker-compose.yml`](docker-compose.yml), which works on every system and also sets up the
+container list (through a read-only socket proxy, see [Good to know](#good-to-know)).
 
 Then open `http://<that-computer's-ip>:8484`. To show free space for your media drives, map
 them into the container too; the [install guide](docs/install.md) shows how for each system.
@@ -195,8 +194,11 @@ each version is in the [changelog](CHANGELOG.md) and on the
 
 ## First steps
 
-1. **Set a password.** Go to **Settings → Security**. Until you do, anyone on your network can
-   change your apps, stop streams or clear logs. The dashboard reminds you until it's done.
+1. **Set a password.** The first time you open **Settings**, it asks for a **setup code** and
+   the password you want. Media Ops prints the code in its log at every start until a password
+   is set (`docker logs media-ops`, or on Unraid: Docker tab → media-ops icon → Logs), and
+   writes it to `setup-code.txt` in your config folder. Until then nothing can be changed, so
+   nobody else on your network can take over first. The dashboard is viewable meanwhile.
 2. **Add your apps.** Go to **Settings → Add app**, pick an app, and enter its address and API
    key. Each form tells you where that app keeps its key. Click **Test**, then **Save**.
    If Media Ops can see Docker (the Docker socket, or a socket proxy, under Settings →
@@ -264,9 +266,14 @@ You'll need access to the server itself. Any of these works:
   password to view the dashboard** under Settings → Security. Turn that on before you make it
   reachable from outside your home, and put it behind a reverse proxy with https.
 - **The Docker container list** needs access to Docker. Mounting the Docker socket gives the
-  container full control of your server, so a safer way is to run a read-only
-  [socket proxy](https://github.com/Tecnativa/docker-socket-proxy) (with `CONTAINERS=1`) and
-  enter its address under Settings → General.
+  container full control of your server (`:ro` doesn't change that), so the example
+  [`docker-compose.yml`](docker-compose.yml) runs a read-only socket proxy that can only list
+  containers, and points Media Ops at it with `DOCKER_HOST=tcp://socket-proxy:2375`. Without
+  Compose, run such a proxy yourself (`CONTAINERS=1`) and enter its address under Settings →
+  General. The container list is optional: without it, everything else works.
+- **Behind a reverse proxy or Cloudflare Tunnel**, set `TRUST_PROXY=1` so the settings-login
+  lockout counts each visitor rather than the proxy (otherwise a stranger's wrong guesses lock
+  you out too). Leave it off when Media Ops is reached directly: anyone could fake the header.
 - **Media Ops checks GitHub every 6 hours** to see if there's a newer version. Nothing about
   your server is sent. You can turn this off under Settings → General.
 

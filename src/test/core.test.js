@@ -293,6 +293,48 @@ test('redaction: keys, tokens, IPs and people never reach a debug report', () =>
   assert.ok(out.includes('Dune') && out.includes('TV'), 'ordinary fields kept');
 });
 
+test('TRUST_PROXY: the lockout counts the visitor the proxy passes on, only when turned on', () => {
+  const { execFileSync } = require('node:child_process');
+  const script = `
+    const { clientIp } = require(${JSON.stringify(path.join(__dirname, '..', 'lib', 'auth.js'))});
+    const req = h => ({ socket: { remoteAddress: '10.0.0.2' }, headers: h });
+    console.log(JSON.stringify([
+      clientIp(req({})),
+      clientIp(req({ 'x-forwarded-for': '6.6.6.6, 203.0.113.9' })),
+      clientIp(req({ 'cf-connecting-ip': '198.51.100.7', 'x-forwarded-for': '1.1.1.1' })),
+    ]));`;
+  /** @param {string} v */
+  const run = v =>
+    JSON.parse(
+      execFileSync(process.execPath, ['-e', script], {
+        env: { ...process.env, TRUST_PROXY: v, CONFIG: path.join(require('node:os').tmpdir(), 'x.json') },
+      }).toString(),
+    );
+  assert.deepEqual(run(''), ['10.0.0.2', '10.0.0.2', '10.0.0.2'], 'off: headers ignored (anyone could send them)');
+  assert.deepEqual(
+    run('1'),
+    ['10.0.0.2', '203.0.113.9', '198.51.100.7'],
+    'on: the last X-Forwarded-For hop, or CF-Connecting-IP',
+  );
+});
+
+test('DOCKER_HOST: used while the Docker address is the default; an address set in Settings (or none) wins', () => {
+  const { dockerAddress } = require('../lib/host');
+  const before = process.env.DOCKER_HOST;
+  try {
+    delete process.env.DOCKER_HOST;
+    assert.equal(dockerAddress({ socket: '/var/run/docker.sock' }), '/var/run/docker.sock');
+    process.env.DOCKER_HOST = 'tcp://socket-proxy:2375';
+    assert.equal(dockerAddress({ socket: '/var/run/docker.sock' }), 'http://socket-proxy:2375');
+    assert.equal(dockerAddress({}), 'http://socket-proxy:2375');
+    assert.equal(dockerAddress({ socket: 'http://other:2375' }), 'http://other:2375');
+    assert.equal(dockerAddress({ socket: '' }), '', 'Docker turned off stays off');
+  } finally {
+    if (before === undefined) delete process.env.DOCKER_HOST;
+    else process.env.DOCKER_HOST = before;
+  }
+});
+
 test('platform: names the host from the kernel release, HOST_OS wins', () => {
   const { detect } = require('../lib/platform');
   const id = (hint, rel) => detect(hint, rel).id;

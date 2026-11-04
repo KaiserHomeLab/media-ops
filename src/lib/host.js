@@ -83,9 +83,21 @@ async function localDisks(paths = []) {
 // read-only socket proxy such as tecnativa/docker-socket-proxy. Read-only: one GET.
 // Docker's container list as it answers it, or null when Docker isn't set up (no socket
 // configured, or not mounted). Throws when Docker is set up but doesn't answer.
+const DEFAULT_SOCKET = '/var/run/docker.sock';
+// Where Docker is: the address under Settings → General, or DOCKER_HOST (how the example compose
+// file points at its read-only socket proxy: tcp://socket-proxy:2375) while that address is
+// still the default. An address set in Settings, or none (Docker off), always wins.
+/** @param {{ socket?: string } | undefined} cfg */
+function dockerAddress(cfg) {
+  const env = String(process.env.DOCKER_HOST || '').trim();
+  const set = cfg?.socket;
+  if (env && (set === undefined || set === DEFAULT_SOCKET)) return env.replace(/^tcp:\/\//i, 'http://');
+  return set ?? DEFAULT_SOCKET;
+}
+
 /** @param {{ socket?: string } | undefined} cfg @returns {Promise<any[] | null>} */
 async function listContainers(cfg) {
-  const where = cfg?.socket;
+  const where = dockerAddress(cfg);
   if (!where) return null;
   const viaProxy = /^https?:\/\//i.test(where);
   if (!viaProxy && !fs.existsSync(where)) return null; // socket not mounted — just hide the panel
@@ -114,4 +126,4 @@ async function dockerContainers(cfg) {
   }
 }
 
-module.exports = { hostOs, hostStats, loopbackNote, localDisks, listContainers, dockerContainers };
+module.exports = { hostOs, hostStats, loopbackNote, localDisks, listContainers, dockerContainers, dockerAddress };

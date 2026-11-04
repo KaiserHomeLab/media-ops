@@ -11,6 +11,22 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Changed
 
+- **Settings needs a password now: breaking for installs running without one.** The first time
+  you open Settings, it asks for a **setup code** and the password you want. Media Ops prints
+  the code in its log at every start until a password is set (`docker logs media-ops`, Unraid:
+  Docker → media-ops → Logs) and writes it to `setup-code.txt` in the config folder. Until then
+  the dashboard is viewable but nothing can be changed: no settings, no actions on your apps.
+  Removing the password on purpose (Settings → Security) still works and leaves it open;
+  `reset-password` in the container asks for a new one, with a setup code.
+- The example `docker-compose.yml` (and the TrueNAS one) lists containers through a read-only
+  socket proxy instead of mounting the Docker socket, which gave Media Ops control of the host
+  even mounted `:ro`. Media Ops reads the proxy's address from `DOCKER_HOST`. The Unraid
+  template no longer maps the socket by default; it has a field for a proxy instead. Existing
+  setups keep working until you change them.
+- Hiding or showing Errors & warnings entries needs the settings login once a password is set.
+- Asking for a password reset code again shows the same code while it's valid (it no longer
+  replaces it), and counts toward the login lockout.
+
 - Needs Node 22.13 or newer when run outside Docker (for its built-in SQLite). The Docker image
   already has it.
 - Errors & warnings shows only what's wrong right now: an app down, a failing health check, a stuck
@@ -46,6 +62,9 @@ To stay on one version instead of `latest`, use a version tag such as
 
 ### Added
 
+- `TRUST_PROXY=1`: behind a reverse proxy or Cloudflare Tunnel, the settings-login lockout counts
+  each visitor (from `CF-Connecting-IP` or `X-Forwarded-For`) instead of the proxy, so a
+  stranger's wrong guesses can't lock you out. Off by default.
 - Notification Hub, first part (off until you turn it on; nothing about today's notifications
   changes). Sonarr, Radarr, Seerr and your own scripts can send webhooks to Media Ops, each
   source with its own address and token. Every event, plus what Media Ops already notices

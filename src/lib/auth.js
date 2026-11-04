@@ -15,9 +15,16 @@ const SESSION_DAYS = 30;
 function cookie(req, name) {
   return new RegExp(`(?:^|;\\s*)${name}=([^;]+)`).exec(req.headers.cookie || '')?.[1];
 }
+// No password yet, and not run without one on purpose: Settings asks for the setup code and a
+// password first, and nothing can be changed until then (demo mode has no real apps, so it's open).
+const DEMO = ['1', 'truenas'].includes(process.env.DEMO ?? '');
+/** @param {import('./types').Config} [cfg] */
+const setupRequired = (cfg = config.load()) => !DEMO && !cfg.auth && !cfg.openByChoice;
+
 /** @param {import('node:http').IncomingMessage} req */
 function loggedIn(req) {
-  if (!config.load().auth) return true;
+  const cfg = config.load();
+  if (!cfg.auth) return !setupRequired(cfg); // removed on purpose: open, as before
   const t = cookie(req, 'mo_session');
   const exp = t && sessions.get(t);
   return !!exp && exp > Date.now();
@@ -47,8 +54,24 @@ function startSession(req, res) {
 const FAIL_WINDOW = 15 * 60e3,
   FAIL_MAX = 10;
 const failures = new Map(); // ip -> { n, since }
+// Who's asking. Behind a reverse proxy or Cloudflare Tunnel every request comes from the proxy,
+// so one stranger's wrong guesses would lock everyone out: with TRUST_PROXY=1 the address the
+// proxy passes on is used instead. Off by default, because without a proxy in front anyone can
+// send those headers and dodge the lockout.
+const TRUST_PROXY = ['1', 'true', 'yes'].includes(String(process.env.TRUST_PROXY || '').toLowerCase());
 /** @param {import('node:http').IncomingMessage} req */
-const clientIp = req => req.socket.remoteAddress || '?';
+function clientIp(req) {
+  const socket = req.socket.remoteAddress || '?';
+  if (!TRUST_PROXY) return socket;
+  const cf = String(req.headers['cf-connecting-ip'] || '').trim();
+  if (cf) return cf; // set by Cloudflare (and cloudflared), replacing whatever the client sent
+  // X-Forwarded-For: the last address is the one the nearest proxy saw; earlier ones the client could invent.
+  const xff = String(req.headers['x-forwarded-for'] || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return xff.at(-1) || socket;
+}
 /** @param {import('node:http').IncomingMessage} req */
 function lockedOut(req) {
   const f = failures.get(clientIp(req));
@@ -64,4 +87,14 @@ function noteFailure(req) {
   if (failures.size > 1000) for (const [k, v] of failures) if (now - v.since > FAIL_WINDOW) failures.delete(k);
 }
 
-module.exports = { sessions, cookie, loggedIn, startSession, lockedOut, noteFailure };
+module.exports = {
+  sessions,
+  cookie,
+  loggedIn,
+  setupRequired,
+  startSession,
+  lockedOut,
+  noteFailure,
+  clientIp,
+  TRUST_PROXY,
+};

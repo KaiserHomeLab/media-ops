@@ -31,6 +31,21 @@
   </header>
 
   <main class="settings">
+    <section class="card login" id="setup" hidden>
+      <h2>Finish setup: set a settings password</h2>
+      <form id="setup-form" class="form">
+        <p class="hint">Settings and every action on your apps need a password. To prove this is your server, enter the <b>setup code</b> Media Ops prints in its log at every start.</p>
+        <ul class="hint setup-where">
+          <li><b>Container log</b>: <code>docker logs media-ops</code>, or on Unraid: Docker tab → <b>media-ops</b> icon → <b>Logs</b>. Look for "Setup code".</li>
+          <li><b>File</b>: <code>setup-code.txt</code> in your config folder (on Unraid: <code>/mnt/user/appdata/media-ops/setup-code.txt</code>).</li>
+        </ul>
+        <label class="field"><span>Setup code</span><input name="code" autocomplete="one-time-code" placeholder="ABCD-EFGH" spellcheck="false" required></label>
+        <label class="field"><span>Settings password <em>at least 8 characters</em></span><input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+        <div class="form-error" id="setup-error" hidden></div>
+        <div class="actions"><button class="linkish" type="button" id="setup-code-btn">Can't find it? Print it again</button><span class="spacer"></span><button class="btn primary" type="submit">Set password</button></div>
+      </form>
+    </section>
+
     <section class="card login" id="login" hidden>
       <h2>Settings are locked</h2>
       <form id="login-form" class="form">

@@ -9,7 +9,7 @@ const feed = require('./events');
 const actions = require('./actions');
 const { join } = require('./http');
 const { AUTH } = require('./collectors/jellyfin');
-const { loggedIn } = require('./auth');
+const { loggedIn, setupRequired } = require('./auth');
 const { readJson, send } = require('./web');
 const { DEMO, describeError, invalidate, overview } = require('./poll');
 
@@ -18,7 +18,18 @@ const lastRecheck = new Map(); // service id -> when it was last re-checked
 async function eventsApi(req, res, route) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Use POST' });
   const body = await readJson(req);
+  /** @param {string} what */
+  const locked = what =>
+    send(
+      res,
+      401,
+      setupRequired()
+        ? { error: `Set a settings password first (Settings) to ${what}`, needSetup: true }
+        : { error: `Log in under Settings to ${what}`, needLogin: true },
+    );
 
+  // Hiding entries changes what everyone sees: behind the settings login when there's one.
+  if ((route === '/dismiss' || route === '/restore') && !loggedIn(req)) return locked('hide or show entries');
   if (route === '/dismiss') {
     const { events } = await overview();
     config.update(c => ({ ...c, dismissed: feed.dismiss(c.dismissed, events, body) }));
@@ -39,8 +50,7 @@ async function eventsApi(req, res, route) {
   const [, id, action] = m;
   // Anything that changes or deletes something inside an app is behind the settings password
   // when one is set. Re-check only reads, so it's open.
-  if (action !== 'recheck' && !loggedIn(req))
-    return send(res, 401, { error: 'Log in under Settings to do this', needLogin: true });
+  if (action !== 'recheck' && !loggedIn(req)) return locked('do this');
   if (DEMO) return send(res, 200, { ok: true, message: 'Demo mode — nothing was changed' });
   const svc = config.load().services.find(s => s.id === id);
   if (!svc) return send(res, 404, { error: 'App not found' });

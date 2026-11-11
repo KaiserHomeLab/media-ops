@@ -8,7 +8,7 @@
 
 # Pinned to an exact build (the digest) so every image is built from the same base; Dependabot
 # opens a PR when linuxserver.io publishes a newer one (they rebuild weekly with security fixes).
-FROM ghcr.io/linuxserver/baseimage-alpine:3.24@sha256:d07ad0eb9e65feb40ded2125e17ad8e1b33228b3cf480567378c8042ef0a8b2d
+FROM ghcr.io/linuxserver/baseimage-alpine:3.24@sha256:7315b19a32460a84b4474993ef33065483ffec792fbc70dbe12eab918aa2bbf4
 
 # set version label
 ARG BUILD_DATE
